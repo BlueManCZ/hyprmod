@@ -41,7 +41,7 @@ class SectionPage(Protocol):
 
 
 CSS_PATH = Path(__file__).parent / "style.css"
-GSETTINGS_DIR = Path(__file__).parent.parent / "data"
+GSETTINGS_DIR = Path(__file__).parent / "data"
 
 
 class HyprModWindow(Adw.ApplicationWindow):
@@ -628,13 +628,16 @@ class HyprModWindow(Adw.ApplicationWindow):
         """Discard changes on a single option — revert to saved state."""
         state = self.app_state.get(key)
         if state and state.is_dirty:
-            self._undo.push(OptionChange(
-                key=key,
-                old_value=state.live_value,
-                new_value=state.saved_value,
-                old_managed=state.managed,
-                new_managed=state.saved_managed,
-            ), merge=False)
+            self._undo.push(
+                OptionChange(
+                    key=key,
+                    old_value=state.live_value,
+                    new_value=state.saved_value,
+                    old_managed=state.managed,
+                    new_managed=state.saved_managed,
+                ),
+                merge=False,
+            )
         if not self.app_state.discard_one(key):
             return
         self._sync_option_row(key, flash=True)

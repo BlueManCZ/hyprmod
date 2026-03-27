@@ -168,9 +168,7 @@ class MonitorCard(Gtk.Box):
             model=Gtk.StringList.new(transform_labels),
         )
         self._transform_row.set_selected(monitor.transform)
-        self._signals.connect(
-            self._transform_row, "notify::selected", self._on_transform_changed
-        )
+        self._signals.connect(self._transform_row, "notify::selected", self._on_transform_changed)
         self._attach_row_actions(self._transform_row, lambda: self._discard_fields("transform"))
         display_group.add(self._transform_row)
 
@@ -185,16 +183,22 @@ class MonitorCard(Gtk.Box):
         # Position
         self._pos_x = Gtk.SpinButton(
             adjustment=Gtk.Adjustment(
-                value=monitor.x, lower=-10000, upper=10000,
-                step_increment=10, page_increment=100,
+                value=monitor.x,
+                lower=-10000,
+                upper=10000,
+                step_increment=10,
+                page_increment=100,
             ),
             digits=0,
         )
         self._pos_x.set_valign(Gtk.Align.CENTER)
         self._pos_y = Gtk.SpinButton(
             adjustment=Gtk.Adjustment(
-                value=monitor.y, lower=-10000, upper=10000,
-                step_increment=10, page_increment=100,
+                value=monitor.y,
+                lower=-10000,
+                upper=10000,
+                step_increment=10,
+                page_increment=100,
             ),
             digits=0,
         )
@@ -219,12 +223,8 @@ class MonitorCard(Gtk.Box):
         self._advanced_expander.add_row(pos_row)
 
         # Mirror
-        mirror_labels = ["Off"] + [
-            f"{name} \u2014 {label}" for name, label in self._mirror_choices
-        ]
-        self._mirror_values: list[str | None] = [None] + [
-            name for name, _ in self._mirror_choices
-        ]
+        mirror_labels = ["Off"] + [f"{name} \u2014 {label}" for name, label in self._mirror_choices]
+        self._mirror_values: list[str | None] = [None] + [name for name, _ in self._mirror_choices]
         self._mirror_row = Adw.ComboRow(
             title="Mirror",
             subtitle="Clone another monitor's content",
@@ -243,19 +243,34 @@ class MonitorCard(Gtk.Box):
 
         # Optional extras (only shown if hardware supports them)
         self._cm_row = self._build_extra_combo(
-            "hdr", "Color Management", "Color space mode",
-            CM_MODES, CM_VALUES, monitor.color_management,
-            self._on_cm_changed, lambda: self._discard_fields("color_management"),
+            "hdr",
+            "Color Management",
+            "Color space mode",
+            CM_MODES,
+            CM_VALUES,
+            monitor.color_management,
+            self._on_cm_changed,
+            lambda: self._discard_fields("color_management"),
         )
         self._bitdepth_row = self._build_extra_combo(
-            "ten_bit", "Bit Depth", "Color depth per channel",
-            BITDEPTHS, BITDEPTH_VALUES, monitor.bit_depth,
-            self._on_bitdepth_changed, lambda: self._discard_fields("bit_depth"),
+            "ten_bit",
+            "Bit Depth",
+            "Color depth per channel",
+            BITDEPTHS,
+            BITDEPTH_VALUES,
+            monitor.bit_depth,
+            self._on_bitdepth_changed,
+            lambda: self._discard_fields("bit_depth"),
         )
         self._vrr_row = self._build_extra_combo(
-            "vrr", "VRR", "Per-monitor variable refresh rate",
-            VRR_MODES, VRR_VALUES, monitor.vrr,
-            self._on_vrr_changed, lambda: self._discard_fields("vrr"),
+            "vrr",
+            "VRR",
+            "Per-monitor variable refresh rate",
+            VRR_MODES,
+            VRR_VALUES,
+            monitor.vrr,
+            self._on_vrr_changed,
+            lambda: self._discard_fields("vrr"),
         )
         for row in (self._cm_row, self._bitdepth_row, self._vrr_row):
             if row is not None:
@@ -264,17 +279,24 @@ class MonitorCard(Gtk.Box):
         self.append(advanced_group)
 
         self._setting_rows = [
-            self._mode_row, self._scale_row,
-            self._transform_row, self._advanced_expander,
+            self._mode_row,
+            self._scale_row,
+            self._transform_row,
+            self._advanced_expander,
         ]
         if monitor.disabled:
             for row in self._setting_rows:
                 row.set_sensitive(False)
 
         for row in (
-            self._mode_row, self._scale_row, self._transform_row,
-            self._pos_row, self._mirror_row,
-            self._cm_row, self._bitdepth_row, self._vrr_row,
+            self._mode_row,
+            self._scale_row,
+            self._transform_row,
+            self._pos_row,
+            self._mirror_row,
+            self._cm_row,
+            self._bitdepth_row,
+            self._vrr_row,
         ):
             if row is not None:
                 self._searchable.append((row.get_title(), row.get_subtitle() or ""))
@@ -287,13 +309,21 @@ class MonitorCard(Gtk.Box):
     # -- Helpers --
 
     def _build_extra_combo(
-        self, cap_key, title, subtitle, labels, values, current,
-        on_changed, on_discard,
+        self,
+        cap_key,
+        title,
+        subtitle,
+        labels,
+        values,
+        current,
+        on_changed,
+        on_discard,
     ) -> Adw.ComboRow | None:
         if not self._caps.get(cap_key):
             return None
         row = Adw.ComboRow(
-            title=title, subtitle=subtitle,
+            title=title,
+            subtitle=subtitle,
             model=Gtk.StringList.new(labels),
         )
         idx = values.index(current) if current in values else 0
@@ -335,9 +365,7 @@ class MonitorCard(Gtk.Box):
             new_scales = compute_valid_scales(mon.width, mon.height)
             if new_scales != self._valid_scales:
                 self._valid_scales = new_scales
-                self._scale_row.set_model(
-                    Gtk.StringList.new([label for _, label in new_scales])
-                )
+                self._scale_row.set_model(Gtk.StringList.new([label for _, label in new_scales]))
             self._scale_row.set_selected(nearest_scale_index(self._valid_scales, mon.scale))
             self._transform_row.set_selected(mon.transform)
 
@@ -386,9 +414,14 @@ class MonitorCard(Gtk.Box):
             all_dirty = is_managed
             any_dirty = all_dirty
             for row in (
-                self._mode_row, self._scale_row, self._transform_row,
-                self._pos_row, self._mirror_row,
-                self._cm_row, self._bitdepth_row, self._vrr_row,
+                self._mode_row,
+                self._scale_row,
+                self._transform_row,
+                self._pos_row,
+                self._mirror_row,
+                self._cm_row,
+                self._bitdepth_row,
+                self._vrr_row,
             ):
                 if row is not None:
                     self._update_row(row, all_dirty, managed)
@@ -407,14 +440,19 @@ class MonitorCard(Gtk.Box):
                 (self._mirror_row, mon.mirror_of != baseline.mirror_of),
             ]
             if self._cm_row:
-                fields.append((
-                    self._cm_row,
-                    mon.color_management != baseline.color_management,
-                ))
+                fields.append(
+                    (
+                        self._cm_row,
+                        mon.color_management != baseline.color_management,
+                    )
+                )
             if self._bitdepth_row:
-                fields.append((
-                    self._bitdepth_row, mon.bit_depth != baseline.bit_depth,
-                ))
+                fields.append(
+                    (
+                        self._bitdepth_row,
+                        mon.bit_depth != baseline.bit_depth,
+                    )
+                )
             if self._vrr_row:
                 fields.append((self._vrr_row, mon.vrr != baseline.vrr))
             for row, dirty in fields:
@@ -429,8 +467,10 @@ class MonitorCard(Gtk.Box):
         actions = self._row_actions.get(row)
         if actions is not None:
             actions.update(
-                is_managed=managed, is_dirty=dirty,
-                is_saved=managed, show_reset=False,
+                is_managed=managed,
+                is_dirty=dirty,
+                is_saved=managed,
+                show_reset=False,
             )
 
     # -- Signal handlers --
@@ -455,16 +495,16 @@ class MonitorCard(Gtk.Box):
     def _on_transform_changed(self, *_args):
         self._emit({"transform": self._transform_row.get_selected()})
 
-    def _on_bitdepth_changed(self, *_args):
-        idx = self._bitdepth_row.get_selected()
+    def _on_bitdepth_changed(self, row: Adw.ComboRow, *_args):
+        idx = row.get_selected()
         self._emit({"bit_depth": BITDEPTH_VALUES[idx] if idx < len(BITDEPTH_VALUES) else None})
 
-    def _on_vrr_changed(self, *_args):
-        idx = self._vrr_row.get_selected()
+    def _on_vrr_changed(self, row: Adw.ComboRow, *_args):
+        idx = row.get_selected()
         self._emit({"vrr": VRR_VALUES[idx] if idx < len(VRR_VALUES) else None})
 
-    def _on_cm_changed(self, *_args):
-        idx = self._cm_row.get_selected()
+    def _on_cm_changed(self, row: Adw.ComboRow, *_args):
+        idx = row.get_selected()
         self._emit({"color_management": CM_VALUES[idx] if idx < len(CM_VALUES) else None})
 
     def _on_mirror_changed(self, *_args):

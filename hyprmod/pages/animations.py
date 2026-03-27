@@ -320,8 +320,12 @@ class AnimationsPage:
             self._anims.update_cached(name, inherited)
             eff_en, eff_sp, eff_cu, eff_st = self._anims.get_effective(name)
             live = AnimState(
-                name=name, overridden=True,
-                enabled=eff_en, speed=eff_sp, curve=eff_cu, style=eff_st,
+                name=name,
+                overridden=True,
+                enabled=eff_en,
+                speed=eff_sp,
+                curve=eff_cu,
+                style=eff_st,
             )
             self._apply_with_curves(live)
             self._anims.update_cached(name, inherited)
@@ -531,9 +535,7 @@ class _AnimRow:
             self._switch.set_active(eff_en)
             is_owned = self._page.is_owned(self._name)
             is_saved = self._page.is_saved(self._name)
-            self._actions.update(
-                is_managed=is_owned, is_dirty=is_dirty, is_saved=is_saved
-            )
+            self._actions.update(is_managed=is_owned, is_dirty=is_dirty, is_saved=is_saved)
 
             # Build subtitle showing effective values
             parts = []

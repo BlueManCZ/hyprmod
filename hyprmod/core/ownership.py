@@ -124,8 +124,7 @@ class SavedList[T]:
         if len(self._items) != len(self._saved):
             return True
         return any(
-            self._key(a) != self._key(b)
-            for a, b in zip(self._items, self._saved, strict=True)
+            self._key(a) != self._key(b) for a, b in zip(self._items, self._saved, strict=True)
         )
 
     # -- Mutation helpers (keep baselines aligned) --

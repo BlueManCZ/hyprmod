@@ -18,7 +18,7 @@ class HyprModApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
-        icon_dir = str(Path(__file__).resolve().parent.parent / "data" / "icons")
+        icon_dir = str(Path(__file__).resolve().parent / "data" / "icons")
         display = Gdk.Display.get_default()
         if display is not None:
             theme = Gtk.IconTheme.get_for_display(display)

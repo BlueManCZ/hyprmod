@@ -35,8 +35,17 @@ class MonitorsPage:
     """Builds the monitor management page."""
 
     _RESTORABLE_FIELDS = (
-        "width", "height", "refresh_rate", "x", "y", "scale",
-        "transform", "bit_depth", "vrr", "color_management", "mirror_of",
+        "width",
+        "height",
+        "refresh_rate",
+        "x",
+        "y",
+        "scale",
+        "transform",
+        "bit_depth",
+        "vrr",
+        "color_management",
+        "mirror_of",
         "disabled",
     )
 
@@ -83,10 +92,14 @@ class MonitorsPage:
         if old_key is not None and self._monitors_key() == old_key:
             return
         new_monitors, new_owned = self._snap_undo_state()
-        self._push_undo(MonitorsUndoEntry(
-            old_monitors=old_monitors, new_monitors=new_monitors,
-            old_owned=old_owned, new_owned=new_owned,
-        ))
+        self._push_undo(
+            MonitorsUndoEntry(
+                old_monitors=old_monitors,
+                new_monitors=new_monitors,
+                old_owned=old_owned,
+                new_owned=new_owned,
+            )
+        )
 
     @contextmanager
     def _undo_track(self):
@@ -123,9 +136,7 @@ class MonitorsPage:
 
     def _reload_monitors(self, saved_sections=None):
         """Fetch monitors from IPC, snap scales, and merge saved config."""
-        self._monitors = sorted(
-            self._window.hypr.monitors.get_all() or [], key=lambda m: m.name
-        )
+        self._monitors = sorted(self._window.hypr.monitors.get_all() or [], key=lambda m: m.name)
         self._snap_scales()
         if saved_sections is not None:
             saved = config.collect_section(saved_sections, "monitor")
@@ -203,11 +214,13 @@ class MonitorsPage:
         clear_children(self._content_box)
 
         if not self._monitors:
-            self._content_box.append(Adw.StatusPage(
-                title="No Monitors Detected",
-                description="Could not read monitor information from Hyprland.",
-                icon_name="computer-symbolic",
-            ))
+            self._content_box.append(
+                Adw.StatusPage(
+                    title="No Monitors Detected",
+                    description="Could not read monitor information from Hyprland.",
+                    icon_name="computer-symbolic",
+                )
+            )
             return
 
         self._preview = MonitorLayoutPreview(
@@ -244,10 +257,12 @@ class MonitorsPage:
             caps = get_monitor_capabilities(mon.name)
             others = [
                 (m.name, f"{m.make} {m.model}".strip() or m.name)
-                for m in self._monitors if m.name != mon.name
+                for m in self._monitors
+                if m.name != mon.name
             ]
             card = MonitorCard(
-                mon, index=idx + 1,
+                mon,
+                index=idx + 1,
                 on_changed=self._apply_change,
                 on_discard=self._discard_monitor,
                 on_remove=self._remove_monitor,
@@ -616,14 +631,16 @@ class MonitorsPage:
                 if title in seen:
                     continue
                 seen.add(title)
-                entries.append({
-                    "key": title.lower().replace(" ", "_"),
-                    "label": title,
-                    "description": description,
-                    "_group_id": "monitors",
-                    "_group_label": "Monitors",
-                    "_section_label": "",
-                })
+                entries.append(
+                    {
+                        "key": title.lower().replace(" ", "_"),
+                        "label": title,
+                        "description": description,
+                        "_group_id": "monitors",
+                        "_group_label": "Monitors",
+                        "_section_label": "",
+                    }
+                )
         return entries
 
     def get_monitor_lines(self) -> list[str]:

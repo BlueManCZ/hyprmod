@@ -65,9 +65,7 @@ class OptionRow:
         self, is_managed: bool, is_dirty: bool = False, is_saved: bool = False
     ):
         """Update visual indicator and button visibility via shared RowActions."""
-        self._actions.update(
-            is_managed=is_managed, is_dirty=is_dirty, is_saved=is_saved
-        )
+        self._actions.update(is_managed=is_managed, is_dirty=is_dirty, is_saved=is_saved)
 
     def flash_error(self):
         """Play the error red flash + shake animation."""
@@ -229,16 +227,22 @@ class Vec2OptionRow(OptionRow):
 
         self._spin_x = Gtk.SpinButton(
             adjustment=Gtk.Adjustment(
-                value=x_val, lower=min_val, upper=max_val,
-                step_increment=1, page_increment=5,
+                value=x_val,
+                lower=min_val,
+                upper=max_val,
+                step_increment=1,
+                page_increment=5,
             ),
             digits=0,
         )
         self._spin_x.set_valign(Gtk.Align.CENTER)
         self._spin_y = Gtk.SpinButton(
             adjustment=Gtk.Adjustment(
-                value=y_val, lower=min_val, upper=max_val,
-                step_increment=1, page_increment=5,
+                value=y_val,
+                lower=min_val,
+                upper=max_val,
+                step_increment=1,
+                page_increment=5,
             ),
             digits=0,
         )
@@ -264,10 +268,14 @@ class Vec2OptionRow(OptionRow):
 
         self._signals = SignalBlocker()
         self._change_handler_id = self._signals.connect(
-            self._spin_x, "value-changed", lambda _: self._emit_vec2(),
+            self._spin_x,
+            "value-changed",
+            lambda _: self._emit_vec2(),
         )
         self._signals.connect(
-            self._spin_y, "value-changed", lambda _: self._emit_vec2(),
+            self._spin_y,
+            "value-changed",
+            lambda _: self._emit_vec2(),
         )
 
     @staticmethod

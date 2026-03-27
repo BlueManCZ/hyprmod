@@ -96,9 +96,7 @@ class BindsPage:
 
         self._overrides = OverrideTracker(all_hypr_binds, document=self._window.hypr.document)
         self._overrides.parse_saved_overrides(parsed_binds)
-        self._owned_binds = SavedList(
-            parsed_binds, key=lambda b: b.to_line()
-        )
+        self._owned_binds = SavedList(parsed_binds, key=lambda b: b.to_line())
 
     # -- Undo / Redo --
 
@@ -115,14 +113,16 @@ class BindsPage:
         old_key = self._binds_key()
         yield
         if self._push_undo and self._binds_key() != old_key:
-            self._push_undo(BindsUndoEntry(
-                old_items=old_items,
-                new_items=copy.deepcopy(list(self._owned_binds)),
-                old_baselines=old_baselines,
-                new_baselines=copy.deepcopy(list(self._owned_binds._baselines)),
-                old_session_overrides=old_overrides,
-                new_session_overrides=copy.deepcopy(self._overrides._session_overrides),
-            ))
+            self._push_undo(
+                BindsUndoEntry(
+                    old_items=old_items,
+                    new_items=copy.deepcopy(list(self._owned_binds)),
+                    old_baselines=old_baselines,
+                    new_baselines=copy.deepcopy(list(self._owned_binds._baselines)),
+                    old_session_overrides=old_overrides,
+                    new_session_overrides=copy.deepcopy(self._overrides._session_overrides),
+                )
+            )
 
     def restore_snapshot(self, items, baselines, session_overrides):
         """Restore binds state from an undo/redo snapshot."""

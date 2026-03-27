@@ -114,7 +114,7 @@ class OverrideTracker:
 
         target_pos = config_order.index(combo)
         # Find combos that should come AFTER the target in config order
-        after_set = set(config_order[target_pos + 1:])
+        after_set = set(config_order[target_pos + 1 :])
 
         # Insert just before the first _hypr_binds entry that comes after
         # the target in config order.

@@ -182,8 +182,7 @@ class MonitorLayoutPreview(Gtk.DrawingArea):
         dw, dh = dragged.effective_size
 
         active = [
-            (i, m) for i, m in enumerate(self._monitors)
-            if not m.disabled and not m.mirror_of
+            (i, m) for i, m in enumerate(self._monitors) if not m.disabled and not m.mirror_of
         ]
         if len(active) < 2:
             return x, y

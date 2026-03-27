@@ -103,9 +103,7 @@ class ConfirmController:
         self._on_confirmed()
 
     def _update_title(self):
-        self._banner.set_title(
-            f"Reverting in {self._seconds_left}s unless changed or confirmed"
-        )
+        self._banner.set_title(f"Reverting in {self._seconds_left}s unless changed or confirmed")
 
     def _set_urgency(self, level: str | None):
         self._banner.remove_css_class("confirm-warning")

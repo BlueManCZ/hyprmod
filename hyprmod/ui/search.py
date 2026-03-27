@@ -67,9 +67,7 @@ class SearchPage:
         """
         for entry in entries:
             entry["_search_text"] = (
-                f"{entry.get('label', '')} "
-                f"{entry.get('description', '')} "
-                f"{entry.get('key', '')}"
+                f"{entry.get('label', '')} {entry.get('description', '')} {entry.get('key', '')}"
             ).lower()
             self._all_options.append(entry)
 
