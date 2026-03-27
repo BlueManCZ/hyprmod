@@ -22,7 +22,8 @@ class HyprModApp(Adw.Application):
         display = Gdk.Display.get_default()
         if display is not None:
             theme = Gtk.IconTheme.get_for_display(display)
-            theme.add_search_path(icon_dir)
+            paths = theme.get_search_path() or []
+            theme.set_search_path([icon_dir, *paths])
 
     def do_activate(self):
         win = self.props.active_window
