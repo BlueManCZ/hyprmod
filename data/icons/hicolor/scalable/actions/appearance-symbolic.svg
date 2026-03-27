@@ -1,0 +1,53 @@
+
+  <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='16'
+          height='16'
+          xmlns:gpa='https://www.gtk.org/grappa'
+          gpa:version='1'
+          gpa:state='1'
+          gpa:keywords='brush display monitor preferences-desktop-appearance'>
+    <path
+            id='display'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            d='M 4 15 L 12 15 M 15 6 L 15 11 C 15 12.1079998, 14.1079998 13, 13 13 L 3 13 C 1.89199996 13, 1 12.1079998, 1 11 L 1 4 C 1 2.89199996, 1.89199996 2, 3 2 L 7 2'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'
+            gpa:states='0 1'>
+    </path>
+    <path
+            id='outline'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            d='M 12 7 C 12 8.65685463, 10.6568546 10, 9 10 L 6 10 L 6 7 C 6 5.34314585, 7.34314585 4, 9 4 C 10.6568546 4, 12 5.34314585, 12 7 Z M 15 1 L 11.1213207 4.87867975'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'
+            gpa:states='0'>
+    </path>
+    <path
+            id='fill'
+            fill='url("#gpa:foreground") rgb(0,0,0)'
+            fill-rule='nonzero'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            d='M 12 7 C 12 8.65685463, 10.6568546 10, 9 10 L 6 10 L 6 7 C 6 5.34314585, 7.34314585 4, 9 4 C 10.6568546 4, 12 5.34314585, 12 7 Z M 15 1 L 11.1213207 4.87867975'
+            class='foreground foreground-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='foreground'
+            gpa:states='1'>
+    </path>
+  </svg>

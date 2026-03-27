@@ -1,0 +1,50 @@
+
+  <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='16'
+          height='16'
+          xmlns:gpa='https://www.gtk.org/grappa'
+          gpa:version='1'
+          gpa:state='0'
+          gpa:keywords='graphics objects group consolidate collect join'>
+    <defs
+            id='defs1'
+            fill='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='none'
+            class='foreground foreground-fill'
+            gpa:states='none'
+            gpa:animation-repeat='0'
+            gpa:animation-segment='0'
+            gpa:fill='foreground'>
+    </defs>
+    <path
+            id='selection'
+            transform='none'
+            opacity='1'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            stroke-miterlimit='4'
+            d='M 1 3 L 1 2 C 1 1.44771528, 1.44771528 1, 2 1 L 3 1 M 15 3 L 15 2 C 15 1.44771528, 14.5522852 1, 14 1 L 13 1 M 1 13 L 1 14 C 1 14.5522852, 1.44771528 15, 2 15 L 3 15 M 15 13 L 15 14 C 15 14.5522852, 14.5522852 15, 14 15 L 13 15'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'>
+    </path>
+    <path
+            id='group'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            stroke-miterlimit='4'
+            d='M 3.96616125 8 L 8.03383827 8 C 8.5690918 8, 9 8.4309082, 9 8.96616173 L 9 10.0338392 C 9 10.5690918, 8.5690918 11, 8.03383827 11 L 3.96616125 11 C 3.43090796 11, 3 10.5690918, 3 10.0338392 L 3 8.96616173 C 3 8.4309082, 3.43090796 8, 3.96616125 8 Z M 9.96616173 5 L 12.0338392 5 C 12.5690918 5, 13 5.43090773, 13 5.96616125 L 13 11.041379 C 13 11.5766335, 12.5690918 12.0075407, 12.0338392 12.0075407 L 9.96616173 12.0075407 C 9.4309082 12.0075407, 9 11.5766335, 9 11.041379 L 9 5.96616125 C 9 5.43090773, 9.4309082 5, 9.96616173 5 Z M 5.96616125 4 L 8.03383827 4 C 8.5690918 4, 9 4.43090773, 9 4.96616125 L 9 7.03383875 C 9 7.56909227, 8.5690918 8, 8.03383827 8 L 5.96616125 8 C 5.43090773 8, 5 7.56909227, 5 7.03383875 L 5 4.96616125 C 5 4.43090773, 5.43090773 4, 5.96616125 4 Z'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'>
+    </path>
+  </svg>

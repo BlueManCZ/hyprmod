@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="com.github.hyprmod" path="/com/github/hyprmod/">
+    <key name="auto-save" type="b">
+      <default>false</default>
+      <summary>Auto-save</summary>
+      <description>Automatically save changes to hyprland-gui.conf after each modification.</description>
+    </key>
+  </schema>
+</schemalist>

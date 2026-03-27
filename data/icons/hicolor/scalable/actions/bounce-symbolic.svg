@@ -1,0 +1,45 @@
+
+  <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='16'
+          height='16'
+          xmlns:gpa='https://www.gtk.org/grappa'
+          gpa:version='1'
+          gpa:state='0'
+          gpa:keywords='accessibility a11y bounce keys animations adw'>
+    <path
+            id='path0'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            d='M 15 13 C 15 11.8954306, 14.1045694 11, 13 11 C 11.8954306 11, 11 11.8954306, 11 13 C 11 14.1045694, 11.8954306 15, 13 15 C 14.1045694 15, 15 14.1045694, 15 13 Z'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'
+            gpa:states='0'
+            gpa:transition-type='fade'
+            gpa:transition-duration='100ms'
+            gpa:transition-delay='200ms'>
+    </path>
+    <path
+            id='path1'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            d='M 12 8 C 12 8, 11.4965525 5, 9.49655151 5 C 6.49655151 5, 5 9.73103428, 5 15 C 4.47226477 9.77948475, 3.83550644 4.63392258, 1 1'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'
+            gpa:states='0'
+            gpa:transition-type='animate'
+            gpa:transition-easing='ease-out'
+            gpa:transition-duration='200ms'
+            gpa:origin='1'>
+    </path>
+  </svg>

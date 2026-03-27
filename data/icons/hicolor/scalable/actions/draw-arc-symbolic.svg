@@ -1,0 +1,37 @@
+
+  <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='16'
+          height='16'
+          xmlns:gpa='https://www.gtk.org/grappa'
+          gpa:version='1'
+          gpa:state='0'
+          gpa:keywords='draw shape object curve arc draw-arc'>
+    <path
+            id='path3'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='1'
+            stroke-linecap='butt'
+            stroke-linejoin='miter'
+            d='M 4.5 13 C 4.5 13.8284273, 3.82842708 14.5, 3 14.5 C 2.17157292 14.5, 1.5 13.8284273, 1.5 13 C 1.5 12.1715727, 2.17157292 11.5, 3 11.5 C 3.82842708 11.5, 4.5 12.1715727, 4.5 13 Z M 11.5 1.5 h 3 v 3 h -3 z'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.25 1 1.5'
+            gpa:stroke='foreground'
+            gpa:fill='none'
+            gpa:states='0'>
+    </path>
+    <path
+            id='path5'
+            fill='none'
+            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke-width='2'
+            stroke-linecap='butt'
+            stroke-linejoin='miter'
+            d='M 3.11251044 11.5041561 C 3.76796794 7.17159891, 7.16771793 3.77041912, 11.499999 3.11314011'
+            class='transparent-fill foreground-stroke'
+            gpa:stroke-width='0.5 2 3'
+            gpa:stroke='foreground'
+            gpa:fill='none'>
+    </path>
+  </svg>

@@ -1,0 +1,162 @@
+/* Managed indicator: option is saved in config file */
+.option-managed {
+    border-left: 3px solid @accent_bg_color;
+}
+
+/* Dirty indicator: changed but not yet saved */
+.option-dirty {
+    border-left: 3px solid @warning_bg_color;
+}
+
+/* Default value: slightly muted subtitle */
+.option-default .subtitle {
+    opacity: 0.55;
+}
+
+/* Reset button — hidden by default, revealed on row hover */
+.reset-button {
+    opacity: 0;
+    transition: opacity 150ms ease-in-out;
+    min-width: 24px;
+    min-height: 24px;
+    padding: 4px;
+}
+
+row:hover .reset-button,
+.monitor-header:hover .reset-button,
+.reset-button:focus {
+    opacity: 1;
+}
+
+/* Error flash: red tint */
+.option-error {
+    background-color: alpha(@error_bg_color, 0.18);
+    transition: background-color 300ms ease-out;
+}
+
+/* Profile cards */
+.card {
+    transition: background-color 150ms ease-in-out;
+}
+
+/* Active profile card — accent border + subtle tint */
+.profile-active {
+    border-left: 3px solid @accent_bg_color;
+    background-color: alpha(@accent_bg_color, 0.06);
+}
+
+/* Active badge pill */
+.profile-badge-active {
+    background-color: alpha(@accent_bg_color, 0.25);
+    color: @accent_color;
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+/* Profile dialog name-taken error body text */
+.profile-name-error .body {
+    color: @error_color;
+}
+
+/* Code block in onboarding dialog */
+.code-block {
+    background-color: alpha(@view_fg_color, 0.08);
+    border-radius: 8px;
+    padding: 0;
+}
+
+.code-block-text,
+.code-block-text text {
+    background: transparent;
+    background-color: transparent;
+}
+
+/* Ensure spin button value text is not clipped */
+row.spin spinbutton > text {
+    min-width: 4em;
+}
+
+/* Sidebar separator row — compact height */
+.navigation-sidebar .sidebar-separator {
+    min-height: 0;
+    padding: 0;
+    margin: 4px 12px;
+}
+
+/* Sidebar pending-changes badge */
+.sidebar-badge {
+    background-color: alpha(@warning_bg_color, 0.25);
+    color: @warning_color;
+    border-radius: 9999px;
+    padding: 0 7px;
+    font-size: 0.75em;
+    font-weight: 700;
+    min-height: 18px;
+    min-width: 18px;
+}
+
+/* Sidebar category header */
+.sidebar-category-header {
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    padding: 12px 14px 4px 14px;
+    min-height: 0;
+}
+
+/* Gap warning banner */
+.gap-banner-frame {
+    border-radius: 12px;
+    border: none;
+    box-shadow: none;
+    background: none;
+}
+
+/* Confirm banner urgency */
+banner.confirm-warning > revealer > widget {
+    background-color: alpha(@warning_bg_color, 0.3);
+}
+
+banner.confirm-urgent > revealer > widget {
+    background-color: alpha(@error_bg_color, 0.3);
+}
+
+/* Monitor capability badges (HDR, 10-bit, VRR) */
+.monitor-cap-badge {
+    background-color: alpha(@accent_bg_color, 0.15);
+    color: @accent_fg_color;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-weight: bold;
+}
+
+/* Monitor managed badge */
+.monitor-managed-badge {
+    background-color: alpha(@accent_bg_color, 0.25);
+    color: @accent_color;
+    border-radius: 9999px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    font-weight: 700;
+}
+
+/* Wider dropdown popover for long labels (e.g. keyboard layouts) */
+row.wide-dropdown popover > contents {
+    min-width: 400px;
+}
+
+/* Search result highlight */
+.option-highlight {
+    background-color: alpha(@accent_bg_color, 0.15);
+    transition: background-color 600ms ease-out;
+}
+
+/* Keybind capture button */
+.keybind-capture-button {
+    min-width: 80px;
+}

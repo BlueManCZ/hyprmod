@@ -1,0 +1,39 @@
+[project]
+name = "hyprmod"
+version = "0.1.0"
+description = "A native GTK4/libadwaita settings app for Hyprland"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12"
+dependencies = [
+    "PyGObject>=3.50",
+    "hyprland-config>=0.3.0",
+    "hyprland-schema>=0.3.0",
+    "hyprland-state>=0.2.0",
+    "hyprland-monitors>=0.4.0",
+    "hyprland-socket>=0.9.0",
+    "pygobject-stubs>=2.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "pyright>=1.1",
+    "ruff>=0.15.6",
+]
+
+[project.scripts]
+hyprmod = "hyprmod.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["gi", "hyprland_config", "hyprland_schema", "hyprland_state", "hyprland_monitors", "hyprland_socket"]

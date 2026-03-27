@@ -1,0 +1,27 @@
+
+  <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='16'
+          height='16'
+          xmlns:gpa='https://www.gtk.org/grappa'
+          gpa:version='1'
+          gpa:keywords='preferences-desktop-display monitor video-display'
+          gpa:state='0'>
+    <style
+            type='text/css'>
+    .not-initial-state {
+      display: none;
+    }
+  </style>
+    <path
+            d='M 4 15 L 12 15 M 3 2 L 13 2 C 14.1079998 2, 15 2.89199996, 15 4 L 15 10 C 15 11.1079998, 14.1079998 12, 13 12 L 3 12 C 1.89199996 12, 1 11.1079998, 1 10 L 1 4 C 1 2.89199996, 1.89199996 2, 3 2 Z'
+            id='display'
+            stroke-width='2'
+            stroke-linecap='round'
+            stroke-linejoin='round'
+            stroke='rgb(0,0,0)'
+            fill='none'
+            class='foreground-stroke transparent-fill'
+            gpa:stroke='foreground'>
+    </path>
+  </svg>
