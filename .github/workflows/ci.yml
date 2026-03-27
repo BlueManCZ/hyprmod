@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev
+      - run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository-2.0-dev libgtk-4-dev libadwaita-1-dev
       - run: uv sync
       - run: uv run ruff check hyprmod/ tests/
       - run: uv run ruff format --check hyprmod/ tests/
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository1.0-dev libgtk-4-dev libadwaita-1-dev
+      - run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libgirepository-2.0-dev libgtk-4-dev libadwaita-1-dev
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --python ${{ matrix.python-version }}
       - run: uv run pytest tests/ -v
