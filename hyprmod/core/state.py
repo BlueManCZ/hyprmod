@@ -121,8 +121,9 @@ class AppState:
         if state is None:
             return False
         value = self.normalize(key, value)
-        if self._hypr.apply(key, value, validate=False):
-            state.live_value = value
+        ipc_value = value_to_conf(value) if isinstance(value, str) else value
+        if self._hypr.apply(key, ipc_value, validate=False):
+            state.live_value = ipc_value
             state.managed = managed
             self.notify(key)
             return True
@@ -151,6 +152,8 @@ class AppState:
             return False
         if fallback is not None:
             try:
+                if isinstance(fallback, str):
+                    fallback = value_to_conf(fallback)
                 self._hypr.apply(key, fallback, validate=False)
                 state.live_value = self.normalize(key, fallback)
             except HyprlandError:
@@ -226,6 +229,8 @@ class AppState:
             value, available = self._hypr.get_live(key, state.default_value)
             if not available:
                 continue
+            if isinstance(value, str):
+                value = value_to_conf(value)
             value = self.normalize(key, value)
             if value != state.live_value:
                 changed_keys.append(key)

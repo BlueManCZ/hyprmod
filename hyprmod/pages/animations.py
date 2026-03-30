@@ -108,6 +108,10 @@ class AnimationsPage:
     def window(self):
         return self._window
 
+    @property
+    def anims(self):
+        return self._anims
+
     def _notify_dirty(self):
         if self._on_dirty_changed:
             self._on_dirty_changed()
@@ -692,7 +696,7 @@ class _AnimDetailDialog:
             animation_name=self._name,
             animation_page=self._page,
             get_curve_usage=self._page.get_curve_usage,
-            animations=self._page._anims,
+            animations=self._page.anims,
         )
 
     def _refresh_curves(self, curve_name=None):

@@ -64,6 +64,14 @@ class OwnershipSet:
     def owned(self) -> set[str]:
         return self._owned
 
+    def snapshot(self) -> set[str]:
+        """Return a copy of the current owned set for undo tracking."""
+        return set(self._owned)
+
+    def restore(self, owned: set[str]) -> None:
+        """Replace the current owned set (used by undo/redo)."""
+        self._owned = set(owned)
+
 
 class SavedList[T]:
     """A list of items with per-item saved baselines.
@@ -171,3 +179,15 @@ class SavedList[T]:
     def saved_set(self) -> set:
         """Set of saved item keys, for quick membership checks."""
         return {self._key(b) for b in self._saved}
+
+    def snapshot(self) -> tuple[list[T], list[T | None]]:
+        """Return deep copies of items and baselines for undo tracking."""
+        return (
+            [self._copy_item(x) for x in self._items],
+            [self._copy_item(b) if b is not None else None for b in self._baselines],
+        )
+
+    def restore(self, items: list[T], baselines: list[T | None]) -> None:
+        """Replace items and baselines from an undo/redo snapshot."""
+        self._items[:] = items
+        self._baselines[:] = baselines

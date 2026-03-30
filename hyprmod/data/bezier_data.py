@@ -74,12 +74,8 @@ class BezierCurveStore:
 
     def set_hyprland_curves(self, curves: dict[str, tuple[float, float, float, float]]) -> None:
         """Set curves from ``Animations.get_curves()`` result."""
-        self._native_curves = {
-            k: v for k, v in curves.items() if k in HYPRLAND_NATIVE_CURVES
-        }
-        self._external_curves = {
-            k: v for k, v in curves.items() if k not in HYPRLAND_NATIVE_CURVES
-        }
+        self._native_curves = {k: v for k, v in curves.items() if k in HYPRLAND_NATIVE_CURVES}
+        self._external_curves = {k: v for k, v in curves.items() if k not in HYPRLAND_NATIVE_CURVES}
 
     def get_external_curves(self) -> dict[str, tuple]:
         """Return external curves (from Hyprland, not user-defined)."""

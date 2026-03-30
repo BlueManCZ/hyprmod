@@ -79,11 +79,11 @@ class MonitorsPage:
     def _monitors_key(self):
         """Serialized representation of current monitor state for comparison."""
         managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
-        return sorted(lines_from_monitors(managed)), frozenset(self._ownership._owned)
+        return sorted(lines_from_monitors(managed)), frozenset(self._ownership.owned)
 
     def _snap_undo_state(self):
         """Capture current monitors + ownership for undo."""
-        return copy.deepcopy(self._monitors), set(self._ownership._owned)
+        return copy.deepcopy(self._monitors), self._ownership.snapshot()
 
     def _push_undo_from(self, old_monitors, old_owned, *, old_key=None):
         """Push a MonitorsUndoEntry given a captured 'before' state."""
@@ -117,7 +117,7 @@ class MonitorsPage:
             if saved:
                 for field in self._RESTORABLE_FIELDS:
                     setattr(mon, field, getattr(saved, field))
-        self._ownership._owned = set(owned_names)
+        self._ownership.restore(owned_names)
         self._push_to_ui()
         self._commit_to_hyprland()
 
@@ -319,7 +319,7 @@ class MonitorsPage:
                 if lines_from_monitors([mon]) == lines_from_monitors([baseline]):
                     self._ownership.disown(mon.name)
                     is_managed = False
-            card.update_state(baseline, is_managed, is_saved)
+            card.update_managed_state(baseline, is_managed, is_saved)
 
     def _notify_dirty(self):
         if self._on_dirty_changed:

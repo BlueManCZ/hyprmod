@@ -62,13 +62,12 @@ def read_all_sections(
 
 def collect_section(
     sections: dict[str, list[str]],
-    *keys: str | _BindKeysSentinel | frozenset[str] | None,
+    *keys: str | _BindKeysSentinel,
 ) -> list[str]:
     """Extract lines from a pre-parsed sections dict.
 
-    Each *key* can be a single string, a frozenset of strings, or the
-    sentinel ``BIND_KEYS`` which matches all bind-variant keywords
-    present in *sections*.
+    Each *key* can be a single string or the sentinel ``BIND_KEYS``
+    which matches all bind-variant keywords present in *sections*.
     """
     result = []
     for key in keys:
@@ -76,11 +75,8 @@ def collect_section(
             for k in sections:
                 if is_bind_keyword(k):
                     result.extend(sections[k])
-        elif isinstance(key, str):
+        else:
             result.extend(sections.get(key, []))
-        elif key is not None:
-            for k in key:
-                result.extend(sections.get(k, []))
     return result
 
 

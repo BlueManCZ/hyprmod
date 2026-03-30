@@ -3,6 +3,7 @@
 Tracks which HyprMod-owned keybinds override Hyprland-runtime keybinds.
 """
 
+import copy
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -253,6 +254,14 @@ class OverrideTracker:
         self._session_overrides.clear()
         # Re-parse from disk
         self.parse_saved_overrides(owned_binds)
+
+    def snapshot_session(self) -> dict[int, BindData]:
+        """Return a deep copy of session overrides for undo tracking."""
+        return copy.deepcopy(self._session_overrides)
+
+    def restore_session(self, overrides: dict[int, BindData]) -> None:
+        """Replace session overrides from an undo/redo snapshot."""
+        self._session_overrides = dict(overrides)
 
     def clear_session_overrides(self) -> list[BindData]:
         """Clear all session overrides and return the originals.

@@ -397,9 +397,7 @@ class MonitorCard(Gtk.Box):
                     self._mode_row.set_selected(i)
                     break
 
-    def update_state(  # type: ignore[override]  # not related to Accessible.update_state
-        self, baseline: MonitorState | None, is_managed: bool, is_saved: bool
-    ):
+    def update_managed_state(self, baseline: MonitorState | None, is_managed: bool, is_saved: bool):
         """Update dirty/managed visual indicators.
 
         When a monitor is managed, ALL options are overrides (monitor= is

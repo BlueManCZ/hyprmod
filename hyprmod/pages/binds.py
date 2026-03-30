@@ -107,20 +107,20 @@ class BindsPage:
     @contextmanager
     def _undo_track(self):
         """Capture before/after binds state and push an undo entry."""
-        old_items = copy.deepcopy(list(self._owned_binds))
-        old_baselines = copy.deepcopy(list(self._owned_binds._baselines))
-        old_overrides = copy.deepcopy(self._overrides._session_overrides)
+        old_items, old_baselines = self._owned_binds.snapshot()
+        old_overrides = self._overrides.snapshot_session()
         old_key = self._binds_key()
         yield
         if self._push_undo and self._binds_key() != old_key:
+            new_items, new_baselines = self._owned_binds.snapshot()
             self._push_undo(
                 BindsUndoEntry(
                     old_items=old_items,
-                    new_items=copy.deepcopy(list(self._owned_binds)),
+                    new_items=new_items,
                     old_baselines=old_baselines,
-                    new_baselines=copy.deepcopy(list(self._owned_binds._baselines)),
+                    new_baselines=new_baselines,
                     old_session_overrides=old_overrides,
-                    new_session_overrides=copy.deepcopy(self._overrides._session_overrides),
+                    new_session_overrides=self._overrides.snapshot_session(),
                 )
             )
 
@@ -129,13 +129,12 @@ class BindsPage:
         # Undo live: unbind all current owned, restore overridden originals
         for b in self._owned_binds:
             self._unbind_live(b)
-        for orig in self._overrides._session_overrides.values():
+        for orig in self._overrides.snapshot_session().values():
             self._apply_bind_live(orig)
 
         # Restore internal state
-        self._owned_binds._items[:] = items
-        self._owned_binds._baselines[:] = baselines
-        self._overrides._session_overrides = dict(session_overrides)
+        self._owned_binds.restore(items, baselines)
+        self._overrides.restore_session(session_overrides)
 
         # Redo live: unbind restored override originals, bind all restored
         for orig in session_overrides.values():
