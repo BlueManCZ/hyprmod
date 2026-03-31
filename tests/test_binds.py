@@ -18,14 +18,13 @@ from hyprmod.binds import (
 # ---------------------------------------------------------------------------
 
 
-def _mkbind(mods, key, dispatcher, arg="", bind_type="bind", owned=True):
+def _mkbind(mods, key, dispatcher, arg="", bind_type="bind"):
     return BindData(
         mods=mods,
         key=key,
         dispatcher=dispatcher,
         arg=arg,
         bind_type=bind_type,
-        owned=owned,
     )
 
 
@@ -43,7 +42,7 @@ class TestGetBindLines:
         assert len(lines) == 1
 
     def test_same_combo_override(self):
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         tracker = OverrideTracker(hypr)
         owned = [_mkbind(["SUPER"], "Q", "killactive")]
         lines = tracker.get_bind_lines(owned)
@@ -51,7 +50,7 @@ class TestGetBindLines:
         assert "killactive" in lines[1]
 
     def test_changed_combo_override(self):
-        hypr_bind = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_bind = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_bind])
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
         tracker.add_override(0, hypr_bind)
@@ -60,7 +59,7 @@ class TestGetBindLines:
         assert any("SUPER, Q" in ln for ln in unbind_lines)
 
     def test_no_duplicate_unbind(self):
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         tracker = OverrideTracker(hypr)
         owned = [
             _mkbind(["SUPER"], "Q", "killactive"),
@@ -70,7 +69,7 @@ class TestGetBindLines:
         assert sum(1 for line in lines if "unbind" in line) == 1
 
     def test_mixed_override_and_new(self):
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         tracker = OverrideTracker(hypr)
         owned = [
             _mkbind(["SUPER"], "Q", "killactive"),
@@ -114,21 +113,21 @@ class TestOverrideParsing:
 
     def test_same_combo_override(self):
         config_text = "unbind = SUPER, Q\nbind = SUPER, Q, exec, my-close-script\n"
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         owned = [_mkbind(["SUPER"], "Q", "exec", "my-close-script")]
         tracker = self._parse(config_text, owned, hypr)
         assert tracker.has_original(0)
 
     def test_changed_combo_override(self):
         config_text = "unbind = SUPER, Q\nbind = SUPER SHIFT, Q, killactive,\n"
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
         tracker = self._parse(config_text, owned, hypr)
         assert tracker.has_original(0)
 
     def test_regular_bind_not_override(self):
         config_text = "bind = SUPER, T, exec, kitty\n"
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         owned = [_mkbind(["SUPER"], "T", "exec", "kitty")]
         tracker = self._parse(config_text, owned, hypr)
         assert not tracker.has_original(0)
@@ -146,8 +145,8 @@ class TestOverrideParsing:
             "unbind = SUPER, V\nbind = SUPER, V, togglefloating,\n"
         )
         hypr = [
-            _mkbind(["SUPER"], "Q", "killactive", owned=False),
-            _mkbind(["SUPER"], "V", "togglefloating", owned=False),
+            _mkbind(["SUPER"], "Q", "killactive"),
+            _mkbind(["SUPER"], "V", "togglefloating"),
         ]
         owned = [
             _mkbind(["SUPER", "SHIFT"], "Q", "killactive"),
@@ -161,7 +160,7 @@ class TestOverrideParsing:
 
     def test_comment_between_unbind_and_bind(self):
         config_text = "unbind = SUPER, Q\n# comment\nbind = SUPER SHIFT, Q, killactive,\n"
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
         tracker = self._parse(config_text, owned, hypr)
         assert tracker.has_original(0)
@@ -170,7 +169,7 @@ class TestOverrideParsing:
         config_text = (
             "unbind = SUPER, Q\ngeneral:gaps_out = 5\nbind = SUPER SHIFT, Q, killactive,\n"
         )
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
         tracker = self._parse(config_text, owned, hypr)
         assert not tracker.has_original(0)
@@ -183,14 +182,14 @@ class TestOverrideParsing:
 
 class TestRefilterHyprBinds:
     def test_owned_bind_filtered(self):
-        hypr = [_mkbind(["SUPER"], "Q", "killactive", owned=False)]
+        hypr = [_mkbind(["SUPER"], "Q", "killactive")]
         tracker = OverrideTracker(hypr)
         assert len(tracker.filter_hypr_binds([_mkbind(["SUPER"], "Q", "killactive")])) == 0
 
     def test_unrelated_hypr_bind_kept(self):
         hypr = [
-            _mkbind(["SUPER"], "Q", "killactive", owned=False),
-            _mkbind(["SUPER"], "M", "exit", owned=False),
+            _mkbind(["SUPER"], "Q", "killactive"),
+            _mkbind(["SUPER"], "M", "exit"),
         ]
         tracker = OverrideTracker(hypr)
         filtered = tracker.filter_hypr_binds([_mkbind(["SUPER"], "Q", "killactive")])
@@ -198,20 +197,20 @@ class TestRefilterHyprBinds:
         assert filtered[0].key == "M"
 
     def test_changed_combo_override_filtered_session(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         tracker.add_override(0, hypr_q)
         filtered = tracker.filter_hypr_binds([_mkbind(["SUPER", "SHIFT"], "Q", "killactive")])
         assert len(filtered) == 0
 
     def test_deleted_override_restores_visibility(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         assert len(tracker.filter_hypr_binds([])) == 1
 
     def test_saved_override_filtered(self):
         """Original combo filtered via saved unbind originals after mark_saved."""
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         tracker.add_override(0, hypr_q)
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
@@ -245,7 +244,7 @@ class TestRefilterHyprBinds:
 
 class TestHasHyprOriginal:
     def test_session_override(self):
-        hypr_bind = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_bind = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_bind])
         tracker.add_override(0, hypr_bind)
         assert tracker.has_original(0)
@@ -255,7 +254,7 @@ class TestHasHyprOriginal:
         assert not tracker.has_original(0)
 
     def test_different_index(self):
-        hypr_bind = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_bind = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_bind])
         tracker.add_override(0, hypr_bind)
         assert not tracker.has_original(1)
@@ -268,8 +267,8 @@ class TestHasHyprOriginal:
 
 class TestReindexAfterDelete:
     def test_delete_first(self):
-        hb_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
-        hb_v = _mkbind(["SUPER"], "V", "togglefloating", owned=False)
+        hb_q = _mkbind(["SUPER"], "Q", "killactive")
+        hb_v = _mkbind(["SUPER"], "V", "togglefloating")
         tracker = OverrideTracker([hb_q, hb_v])
         tracker.add_override(0, hb_q)
         tracker.add_override(2, hb_v)
@@ -280,7 +279,7 @@ class TestReindexAfterDelete:
         assert tracker.has_original(1)  # was index 2, shifted down
 
     def test_delete_middle(self):
-        hb = _mkbind(["SUPER"], "V", "togglefloating", owned=False)
+        hb = _mkbind(["SUPER"], "V", "togglefloating")
         tracker = OverrideTracker([hb])
         tracker.add_override(2, hb)
 
@@ -289,7 +288,7 @@ class TestReindexAfterDelete:
         assert tracker.has_original(1)  # was index 2
 
     def test_delete_last_no_shift(self):
-        hb = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hb = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hb])
         tracker.add_override(0, hb)
 
@@ -305,7 +304,7 @@ class TestReindexAfterDelete:
 
 class TestOverrideFlow:
     def test_override_same_combo_then_delete(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         owned = []
 
@@ -322,7 +321,7 @@ class TestOverrideFlow:
         assert len(tracker.filter_hypr_binds(owned)) == 1
 
     def test_override_changed_combo_then_delete(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         owned = []
 
@@ -344,7 +343,7 @@ class TestOverrideFlow:
         import tempfile
         from pathlib import Path
 
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         owned = [_mkbind(["SUPER", "SHIFT"], "Q", "killactive")]
         tracker.add_override(0, hypr_q)
@@ -373,7 +372,7 @@ class TestOverrideFlow:
         assert len(tracker.filter_hypr_binds(owned)) == 1
 
     def test_new_bind_not_override(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
         owned = [_mkbind(["SUPER"], "T", "exec", "kitty")]
 
@@ -383,8 +382,8 @@ class TestOverrideFlow:
         assert filtered[0].key == "Q"
 
     def test_multiple_overrides_delete_first(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
-        hypr_v = _mkbind(["SUPER"], "V", "togglefloating", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
+        hypr_v = _mkbind(["SUPER"], "V", "togglefloating")
         tracker = OverrideTracker([hypr_q, hypr_v])
         owned = []
 
@@ -405,7 +404,7 @@ class TestOverrideFlow:
         assert filtered[0].key == "Q"
 
     def test_discard_restores_all(self):
-        hypr_q = _mkbind(["SUPER"], "Q", "killactive", owned=False)
+        hypr_q = _mkbind(["SUPER"], "Q", "killactive")
         tracker = OverrideTracker([hypr_q])
 
         tracker.add_override(0, hypr_q)

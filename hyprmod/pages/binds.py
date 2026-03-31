@@ -79,7 +79,6 @@ class BindsPage:
                     dispatcher=b.dispatcher,
                     arg=b.arg,
                     bind_type="bind",
-                    owned=False,
                 )
             )
 
@@ -419,7 +418,6 @@ class BindsPage:
         owned_binds = self._owned_binds
         overrides = self._overrides
         owned = copy.deepcopy(hypr_bind)
-        owned.owned = True
         hypr_c = hypr_bind.combo
 
         def on_apply(new_bind):

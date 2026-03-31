@@ -244,7 +244,6 @@ class OverrideTracker:
             expanded = self._document.expand(kw.raw.strip())
             bd = parse_bind_line(expanded)
             if bd is not None and bd.combo == combo:
-                bd.owned = False
                 return bd
         return None
 

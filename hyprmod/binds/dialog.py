@@ -557,5 +557,4 @@ class BindEditDialog(Adw.Dialog):
             key=combo.key,
             dispatcher=dispatcher,
             arg=self._arg_getter(),
-            owned=True,
         )
