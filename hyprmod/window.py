@@ -530,6 +530,9 @@ class HyprModWindow(Adw.ApplicationWindow):
                             refresh_kwargs[arg_name] = str(parent_value)
                     if refresh_kwargs:
                         opt_row.refresh_source(**refresh_kwargs)
+                        dep_state = self.app_state.get(dep_key)
+                        if dep_state and dep_state.live_value is not None:
+                            opt_row.set_value_silent(dep_state.live_value)
                 # Recurse: if this dependent also has dependents, update them too
                 if dep_key in self._dependents:
                     self._update_dependents(dep_key)
