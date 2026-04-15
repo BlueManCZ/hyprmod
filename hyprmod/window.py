@@ -14,6 +14,7 @@ from hyprmod.core.state import AppState
 from hyprmod.core.undo import (
     AnimationUndoEntry,
     BindsUndoEntry,
+    CursorUndoEntry,
     MonitorsUndoEntry,
     OptionChange,
     UndoManager,
@@ -21,6 +22,7 @@ from hyprmod.core.undo import (
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
 from hyprmod.pages.binds import BindsPage
+from hyprmod.pages.cursor import CursorPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.profiles import ProfilesPage
 from hyprmod.pages.settings import SettingsPage
@@ -75,6 +77,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._animations_page: AnimationsPage | None = None
         self._monitors_page: MonitorsPage | None = None
         self._binds_page: BindsPage | None = None
+        self._cursor_page: CursorPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
         self._pre_search_page_id: str | None = None
@@ -204,7 +207,12 @@ class HyprModWindow(Adw.ApplicationWindow):
         # Cache the list of section pages (animations, monitors, binds) — stable after build
         self._section_pages: list[SectionPage] = [
             p
-            for p in (self._animations_page, self._monitors_page, self._binds_page)
+            for p in (
+                self._animations_page,
+                self._monitors_page,
+                self._binds_page,
+                self._cursor_page,
+            )
             if p is not None
         ]
 
@@ -279,6 +287,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._page_stack.add_named(monitors_nav, "monitors")
         self._page_titles["monitors"] = "Monitors"
         self._search_page_builder.add_entries(self._monitors_page.get_search_entries())
+        self._search_page_builder.add_entries(CursorPage.get_search_entries())
 
         self._profiles_page = ProfilesPage(self)
         profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
@@ -320,6 +329,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         )
 
         is_animations = group.get("id") == "animations"
+        is_cursor = group.get("id") == "cursor"
 
         if is_animations:
             self._animations_page = AnimationsPage(
@@ -329,6 +339,15 @@ class HyprModWindow(Adw.ApplicationWindow):
                 saved_sections=self._saved_sections,
             )
             content_box.append(self._animations_page.build_curve_editor_widget())
+
+        if is_cursor:
+            self._cursor_page = CursorPage(
+                self,
+                on_dirty_changed=self._on_section_dirty,
+                push_undo=self._undo.push,
+                saved_sections=self._saved_sections,
+            )
+            content_box.append(self._cursor_page.build_widget())
 
         for pref_group in self._build_section_widgets(group):
             content_box.append(pref_group)
@@ -466,6 +485,8 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["binds"] += 1
         if self._monitors_page and self._monitors_page.is_dirty():
             counts["monitors"] += self._monitors_page.dirty_count()
+        if self._cursor_page and self._cursor_page.is_dirty():
+            counts["cursor"] += 1
 
         self._sidebar.update_badges(counts)
 
@@ -763,6 +784,11 @@ class HyprModWindow(Adw.ApplicationWindow):
             owned = entry.old_owned if undo else entry.new_owned
             self._monitors_page.restore_snapshot(monitors, owned)
             confirm(entry)
+        elif isinstance(entry, CursorUndoEntry) and self._cursor_page is not None:
+            theme = entry.old_theme if undo else entry.new_theme
+            size = entry.old_size if undo else entry.new_size
+            self._cursor_page.restore_snapshot(theme, size)
+            confirm(entry)
 
     # -- Save with animation --
 
@@ -796,17 +822,30 @@ class HyprModWindow(Adw.ApplicationWindow):
                 if used_curves:
                     bezier_lines = get_curve_store().get_curve_definitions(used_curves)
 
-        return bind_lines, monitor_lines, animation_lines, bezier_lines
+        env_lines = None
+        if self._cursor_page is not None:
+            has_managed = self._cursor_page.has_managed_env(saved_sections)
+            if has_managed or self._cursor_page.is_dirty():
+                env_lines = self._cursor_page.get_env_lines()
+
+        return bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines
 
     def _perform_save(self):
         values = self.app_state.get_all_live_values()
-        bind_lines, monitor_lines, animation_lines, bezier_lines = self._collect_save_sections()
+        (
+            bind_lines,
+            monitor_lines,
+            animation_lines,
+            bezier_lines,
+            env_lines,
+        ) = self._collect_save_sections()
         config.write_all(
             values,
             bind_lines=bind_lines,
             monitor_lines=monitor_lines,
             animation_lines=animation_lines,
             bezier_lines=bezier_lines,
+            env_lines=env_lines,
         )
         self.app_state.mark_saved()
         self.hypr.clear_pending()
@@ -853,6 +892,9 @@ class HyprModWindow(Adw.ApplicationWindow):
         # Monitors ownership may differ between profiles
         if self._monitors_page is not None:
             self._monitors_page.reload_from_saved()
+
+        if self._cursor_page is not None:
+            self._cursor_page.reload_from_saved(self._saved_sections)
 
         self._undo.clear()
         self._update_dna()

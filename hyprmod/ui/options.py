@@ -12,6 +12,7 @@ import math
 from gi.repository import Adw, Gdk, GLib, Gtk
 from hyprland_config import Color
 
+from hyprmod.ui.managed_row import make_combo_row, make_spin_float_row, make_spin_int_row
 from hyprmod.ui.row_actions import RowActions
 from hyprmod.ui.signals import SignalBlocker
 from hyprmod.ui.sources import MissingDependencyError, get_source_values
@@ -154,22 +155,13 @@ class SwitchOptionRow(OptionRow):
 
 class SpinIntOptionRow(OptionRow):
     def __init__(self, option, value, on_change, on_reset, on_discard=None):
-        min_val = option.get("min", 0)
-        max_val = option.get("max", 9999)
-        adjustment = Gtk.Adjustment(
-            value=int(value) if value is not None else option.get("default", 0),
-            lower=min_val,
-            upper=max_val,
-            step_increment=1,
-            page_increment=5,
-        )
-        row = Adw.ActionRow(
-            title=option.get("label", option["key"]),
+        row, self._spin = make_spin_int_row(
+            option.get("label", option["key"]),
             subtitle=option.get("description", ""),
+            value=int(value) if value is not None else option.get("default", 0),
+            lower=option.get("min", 0),
+            upper=option.get("max", 9999),
         )
-        self._spin = Gtk.SpinButton(adjustment=adjustment, digits=0)
-        self._spin.set_valign(Gtk.Align.CENTER)
-        row.add_suffix(self._spin)
         super().__init__(row, option, on_change, on_reset, on_discard)
         self._signal_widget = self._spin
 
@@ -184,27 +176,17 @@ class SpinIntOptionRow(OptionRow):
 
 class SpinFloatOptionRow(OptionRow):
     def __init__(self, option, value, on_change, on_reset, on_discard=None):
-        min_val = option.get("min", 0.0)
-        max_val = option.get("max", 100.0)
         step = option.get("step", 0.01)
-
-        adjustment = Gtk.Adjustment(
-            value=float(value) if value is not None else option.get("default", 0.0),
-            lower=min_val,
-            upper=max_val,
-            step_increment=step,
-            page_increment=step * 10,
-        )
-
         self._digits = digits_for_step(step)
-
-        row = Adw.ActionRow(
-            title=option.get("label", option["key"]),
+        row, self._spin = make_spin_float_row(
+            option.get("label", option["key"]),
             subtitle=option.get("description", ""),
+            value=float(value) if value is not None else option.get("default", 0.0),
+            lower=option.get("min", 0.0),
+            upper=option.get("max", 100.0),
+            step=step,
+            digits=self._digits,
         )
-        self._spin = Gtk.SpinButton(adjustment=adjustment, digits=self._digits)
-        self._spin.set_valign(Gtk.Align.CENTER)
-        row.add_suffix(self._spin)
         super().__init__(row, option, on_change, on_reset, on_discard)
         self._signal_widget = self._spin
 
@@ -555,16 +537,14 @@ class ComboOptionRow(OptionRow):
         self._labels = [v["label"] for v in values]
         self._ids = [v.get("id", str(i)) for i, v in enumerate(values)]
 
-        string_list = Gtk.StringList.new(self._labels)
-        row = Adw.ComboRow(
-            title=option.get("label", option["key"]),
-            subtitle=option.get("description", ""),
-            model=string_list,
-        )
-
         current_str = str(value) if value is not None else str(option.get("default", ""))
-        if current_str in self._ids:
-            row.set_selected(self._ids.index(current_str))
+        selected = self._ids.index(current_str) if current_str in self._ids else 0
+        row = make_combo_row(
+            option.get("label", option["key"]),
+            subtitle=option.get("description", ""),
+            model=Gtk.StringList.new(self._labels),
+            selected=selected,
+        )
 
         # IDs are always strings (from JSON schema), but live values from IPC
         # may be int.  Coerce emitted IDs to match so dirty checks work.

@@ -47,7 +47,19 @@ class MonitorsUndoEntry:
     new_owned: set
 
 
-type UndoEntry = OptionChange | AnimationUndoEntry | BindsUndoEntry | MonitorsUndoEntry
+@dataclass(slots=True)
+class CursorUndoEntry:
+    """Undo entry for a cursor theme/size change."""
+
+    old_theme: str
+    old_size: int
+    new_theme: str
+    new_size: int
+
+
+type UndoEntry = (
+    OptionChange | AnimationUndoEntry | BindsUndoEntry | MonitorsUndoEntry | CursorUndoEntry
+)
 
 
 class UndoManager:
@@ -76,6 +88,13 @@ class UndoManager:
         if merge and isinstance(entry, MonitorsUndoEntry) and isinstance(prev, MonitorsUndoEntry):
             prev.new_monitors = entry.new_monitors
             prev.new_owned = entry.new_owned
+            self._redo_stack.clear()
+            return
+        if merge and isinstance(entry, CursorUndoEntry) and isinstance(prev, CursorUndoEntry):
+            prev.new_theme = entry.new_theme
+            prev.new_size = entry.new_size
+            if prev.old_theme == prev.new_theme and prev.old_size == prev.new_size:
+                self._undo_stack.pop()
             self._redo_stack.clear()
             return
         self._undo_stack.append(entry)
