@@ -649,6 +649,12 @@ class HyprModWindow(Adw.ApplicationWindow):
         if state and value == state.live_value:
             return
 
+        # Clear dependent before applying the parent change to avoid invalid configs
+        for dep_key in self._dependents.get(key, []):
+            dep_option = self._options_flat.get(dep_key)
+            if dep_option and dep_option.get("source") and not dep_option.get("multi"):
+                self.app_state.set_live(dep_key, dep_option.get("default", ""))
+
         opt_row = self._option_rows.get(key)
         try:
             entry = self.app_state.set_live(key, value)

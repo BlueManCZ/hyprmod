@@ -629,16 +629,31 @@ class SourceComboOptionRow(OptionRow):
         self._labels = [v["label"] for v in values]
         self._ids = [v["id"] for v in values]
 
-        self.row.set_model(Gtk.StringList.new(self._labels))  # type: ignore[attr-defined]
-
-        current_str = str(select_value) if select_value is not None else ""
-        if current_str in self._ids:
-            self.row.set_selected(self._ids.index(current_str))  # type: ignore[attr-defined]
+        if self._change_handler_id is not None:
+            self.row.handler_block(self._change_handler_id)  # type: ignore[attr-defined]
+        try:
+            self.row.set_model(Gtk.StringList.new(self._labels))  # type: ignore[attr-defined]
+            current_str = "" if select_value is None else str(select_value)
+            try:
+                idx = self._ids.index(current_str)
+            except ValueError:
+                idx = None
+            if idx is not None:
+                self.row.set_selected(idx)  # type: ignore[attr-defined]
+        finally:
+            if self._change_handler_id is not None:
+                self.row.handler_unblock(self._change_handler_id)  # type: ignore[attr-defined]
 
     def refresh_source(self, **kwargs):
         """Re-populate the dropdown with updated source args."""
         self._source_args.update(kwargs)
-        self._populate(select_value=self.option.get("default", ""))
+        idx = self.row.get_selected()  # type: ignore[attr-defined]
+        prev = self._ids[idx] if 0 <= idx < len(self._ids) else None
+        self._populate(select_value=prev)
+        new_idx = self.row.get_selected()  # type: ignore[attr-defined]
+        new = self._ids[new_idx] if 0 <= new_idx < len(self._ids) else None
+        if new is not None and new != prev:
+            self._emit_change(new)
 
     @staticmethod
     def _on_factory_bind(_factory, list_item):
