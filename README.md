@@ -7,10 +7,13 @@ A native GTK4/libadwaita settings app for [Hyprland](https://hyprland.org) — t
   <img src="data/screenshots/curves.png" width="49%" alt="Bezier curve editor with control points and live animation preview">
 </p>
 
-## 📺 Video
+## 📺 Videos
 
 <a href="https://youtu.be/PF3qgfR0XP0" target="_blank">
   <img src="https://img.youtube.com/vi/PF3qgfR0XP0/maxresdefault.jpg" alt="Finally a Settings App for Hyprland — by saneAspect" width="49%">
+</a>
+<a href="https://youtu.be/tvjYWT2LOMk" target="_blank">
+  <img src="https://img.youtube.com/vi/tvjYWT2LOMk/maxresdefault.jpg" alt="New GUI Settings For Hyprland!! Game Changer! | HyprMod — by TheBlackDon" width="49%">
 </a>
 
 ## ⚡ Highlights
