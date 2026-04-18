@@ -126,23 +126,14 @@ banner.confirm-urgent > revealer > widget {
     background-color: alpha(@error_bg_color, 0.3);
 }
 
-/* Monitor capability badges (HDR, 10-bit, VRR) */
-.monitor-cap-badge {
-    background-color: alpha(@accent_bg_color, 0.15);
-    color: @accent_fg_color;
-    border-radius: 9999px;
-    padding: 2px 8px;
-    font-weight: bold;
-}
-
-/* Monitor managed badge */
+/* Monitor header badges: capabilities (HDR, 10-bit, VRR) and "Managed" */
+.monitor-cap-badge,
 .monitor-managed-badge {
-    background-color: alpha(@accent_bg_color, 0.25);
+    background-color: alpha(@accent_bg_color, 0.15);
     color: @accent_color;
     border-radius: 9999px;
     padding: 2px 8px;
-    font-size: 0.75em;
-    font-weight: 700;
+    font-weight: bold;
 }
 
 /* Wider dropdown popover for long labels (e.g. keyboard layouts) */

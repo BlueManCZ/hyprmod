@@ -9,7 +9,7 @@
           gpa:keywords='graphics objects group consolidate collect join'>
     <defs
             id='defs1'
-            fill='url("#gpa:foreground") rgb(0,0,0)'
+            fill='url("#gpa:foreground") currentColor'
             stroke='none'
             class='foreground foreground-fill'
             gpa:states='none'
@@ -22,7 +22,7 @@
             transform='none'
             opacity='1'
             fill='none'
-            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='url("#gpa:foreground") currentColor'
             stroke-width='2'
             stroke-linecap='round'
             stroke-linejoin='round'
@@ -36,7 +36,7 @@
     <path
             id='group'
             fill='none'
-            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='url("#gpa:foreground") currentColor'
             stroke-width='2'
             stroke-linecap='round'
             stroke-linejoin='round'

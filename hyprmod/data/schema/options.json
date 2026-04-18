@@ -522,7 +522,7 @@
     {
       "id": "cursor",
       "label": "Cursor",
-      "icon": "pointer-primary-click-symbolic",
+      "icon": "hyprmod-cursor-symbolic",
       "sections": [
         {
           "id": "cursor",

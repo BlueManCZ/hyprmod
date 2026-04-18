@@ -10,7 +10,7 @@
     <path
             id='display'
             fill='none'
-            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='url("#gpa:foreground") currentColor'
             stroke-width='2'
             stroke-linecap='round'
             stroke-linejoin='round'
@@ -24,7 +24,7 @@
     <path
             id='outline'
             fill='none'
-            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='url("#gpa:foreground") currentColor'
             stroke-width='2'
             stroke-linecap='round'
             stroke-linejoin='round'
@@ -37,9 +37,9 @@
     </path>
     <path
             id='fill'
-            fill='url("#gpa:foreground") rgb(0,0,0)'
+            fill='url("#gpa:foreground") currentColor'
             fill-rule='nonzero'
-            stroke='url("#gpa:foreground") rgb(0,0,0)'
+            stroke='url("#gpa:foreground") currentColor'
             stroke-width='2'
             stroke-linecap='round'
             stroke-linejoin='round'

@@ -99,6 +99,7 @@ class MonitorCard(Gtk.Box):
         header_box.append(self._actions_box)
 
         self._managed_badge = Gtk.Label(label="Managed")
+        self._managed_badge.add_css_class("caption")
         self._managed_badge.add_css_class("monitor-managed-badge")
         self._managed_badge.set_visible(False)
         self._managed_badge.set_valign(Gtk.Align.CENTER)
