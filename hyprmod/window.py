@@ -30,6 +30,7 @@ from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, ma
 from hyprmod.ui.banner import DirtyBanner
 from hyprmod.ui.options import digits_for_step
 from hyprmod.ui.search import MIN_QUERY_LENGTH, SearchPage
+from hyprmod.ui.shortcuts import build_shortcuts_window
 from hyprmod.ui.sidebar import Sidebar
 from hyprmod.ui.timer import Timer
 
@@ -45,6 +46,8 @@ class SectionPage(Protocol):
 
 CSS_PATH = Path(__file__).parent / "style.css"
 GSETTINGS_DIR = Path(__file__).parent / "data"
+SETTINGS_SCHEMA_ID = "io.github.bluemancz.hyprmod"
+LEGACY_SETTINGS_SCHEMA_ID = "com.github.hyprmod"
 
 
 class HyprModWindow(Adw.ApplicationWindow):
@@ -96,20 +99,62 @@ class HyprModWindow(Adw.ApplicationWindow):
             Gio.SettingsSchemaSource.get_default(),
             False,
         )
-        schema_obj = schema_source.lookup("io.github.bluemancz.hyprmod", False)
+        schema_obj = schema_source.lookup(SETTINGS_SCHEMA_ID, False)
         if schema_obj:
             self._settings = Gio.Settings.new_full(schema_obj, None, None)
+            self._migrate_legacy_settings(schema_source, schema_obj)
         else:
             self._settings = None
+
+    def _migrate_legacy_settings(
+        self,
+        schema_source: Gio.SettingsSchemaSource,
+        schema: Gio.SettingsSchema,
+    ):
+        """Copy user values from the legacy ``com.github.hyprmod`` schema.
+
+        The schema id was renamed in c208927, which also moved the dconf
+        path. Without this migration, users upgrading from older versions
+        would silently lose their ``auto-save`` / ``config-path``
+        preferences. Migrated keys are reset on the old path so this runs
+        at most once per user.
+
+        TODO: remove this method (and ``LEGACY_SETTINGS_SCHEMA_ID`` plus
+        ``hyprmod/data/com.github.hyprmod.gschema.xml``) after a few
+        releases — target ~6 months post-rename, or v0.3+. Users who
+        haven't upgraded by then can reconfigure their two preferences
+        manually.
+        """
+        if self._settings is None:
+            return
+        legacy_schema = schema_source.lookup(LEGACY_SETTINGS_SCHEMA_ID, False)
+        if legacy_schema is None:
+            return
+        legacy = Gio.Settings.new_full(legacy_schema, None, None)
+        shared_keys = set(legacy_schema.list_keys()) & set(schema.list_keys())
+        for key in shared_keys:
+            old_value = legacy.get_user_value(key)
+            if old_value is None:
+                continue
+            # Respect any value the user already set under the new schema.
+            if self._settings.get_user_value(key) is None:
+                try:
+                    self._settings.set_value(key, old_value)
+                except (GLib.Error, TypeError):
+                    # Type changed between schemas — skip without resetting
+                    # so a future migration attempt can try again.
+                    continue
+            legacy.reset(key)
 
     @staticmethod
     def _recompile_schemas_if_stale():
         """Recompile GSettings schemas if the compiled file is stale or missing."""
-        compiled = GSETTINGS_DIR / "gschemas.compiled"
-        xml = GSETTINGS_DIR / "io.github.bluemancz.hyprmod.gschema.xml"
-        if not xml.exists():
+        xml_files = list(GSETTINGS_DIR.glob("*.gschema.xml"))
+        if not xml_files:
             return
-        if not compiled.exists() or compiled.stat().st_mtime < xml.stat().st_mtime:
+        compiled = GSETTINGS_DIR / "gschemas.compiled"
+        latest_xml_mtime = max(xml.stat().st_mtime for xml in xml_files)
+        if not compiled.exists() or compiled.stat().st_mtime < latest_xml_mtime:
             import subprocess
 
             subprocess.run(
@@ -217,6 +262,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         ]
 
         self._setup_shortcuts()
+        self._setup_help_overlay()
 
         if groups:
             first_id = groups[0]["id"]
@@ -316,8 +362,16 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         menu_button = Gtk.MenuButton()
         menu_button.set_icon_name("menu-symbolic")
+
         menu = Gio.Menu()
-        menu.append("Auto-save", "win.auto-save")
+        prefs_section = Gio.Menu()
+        prefs_section.append("Auto-save", "win.auto-save")
+        menu.append_section(None, prefs_section)
+
+        help_section = Gio.Menu()
+        help_section.append("Keyboard Shortcuts", "win.show-help-overlay")
+        menu.append_section(None, help_section)
+
         menu_button.set_menu_model(menu)
         header.pack_end(menu_button)
 
@@ -563,6 +617,20 @@ class HyprModWindow(Adw.ApplicationWindow):
             action.connect("activate", lambda _a, _p, fn=handler: fn())
             self.add_action(action)
             app.set_accels_for_action(f"win.{name}", accels)
+
+    def _setup_help_overlay(self):
+        """Attach a ``Gtk.ShortcutsWindow`` and bind ``win.show-help-overlay``.
+
+        ``set_help_overlay`` registers the action automatically; we only need
+        to add the accelerators. ``<Control>question`` is the GNOME-standard
+        shortcut; ``F1`` is included as a familiar fallback.
+        """
+        shortcuts_window = build_shortcuts_window()
+        self.set_help_overlay(shortcuts_window)
+
+        app = self.get_application()
+        if app is not None:
+            app.set_accels_for_action("win.show-help-overlay", ["<Control>question", "F1"])
 
     # -- Search --
 

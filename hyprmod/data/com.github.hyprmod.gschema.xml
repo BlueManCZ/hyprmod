@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Legacy schema kept solely for the one-shot migration of user values to
+  io.github.bluemancz.hyprmod. See HyprModWindow._migrate_legacy_settings.
+
+  TODO: remove this file after a few releases (target: ~6 months past the
+  c208927 rename, or v0.3+). Anyone still on the pre-rename version by then
+  will lose their auto-save / config-path preferences on upgrade, which is
+  an acceptable cost for shedding the migration code. When removing, also
+  delete `_migrate_legacy_settings` and `LEGACY_SETTINGS_SCHEMA_ID` in
+  hyprmod/window.py.
+-->
+<schemalist>
+  <schema id="com.github.hyprmod" path="/com/github/hyprmod/">
+    <key name="auto-save" type="b">
+      <default>false</default>
+      <summary>Auto-save</summary>
+      <description>Automatically save changes to hyprland-gui.conf after each modification.</description>
+    </key>
+    <key name="config-path" type="s">
+      <default>''</default>
+      <summary>Config file path</summary>
+      <description>Path to the hyprland-gui.conf file. Empty string uses the default location.</description>
+    </key>
+  </schema>
+</schemalist>
