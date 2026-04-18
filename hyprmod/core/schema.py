@@ -1,16 +1,48 @@
 """Load and validate the Hyprland options schema."""
 
 import json
+import logging
 from collections.abc import Mapping
 from pathlib import Path
 
-from hyprland_schema import OPTIONS_BY_KEY, HyprOption
+import hyprland_schema
+from hyprland_schema import HyprOption
+
+logger = logging.getLogger(__name__)
 
 
-def load_schema(path: Path | None = None) -> dict:
+def load_schema(version: str | None = None, path: Path | None = None) -> dict:
+    """Load the option schema, preferring the catalog that matches *version*.
+
+    *version* is the running Hyprland version as reported by
+    ``HyprlandState.version`` — typically ``"0.54.3"`` (no ``v`` prefix).
+    When ``None`` (Hyprland offline) or when the version can't be resolved
+    (unknown tag, no network, migration failure), falls back to the bundled
+    latest schema.
+    """
     overlay = _load_options_json(path)
-    _merge(overlay, OPTIONS_BY_KEY)
+    _merge(overlay, _resolve_schema_options(version))
     return overlay
+
+
+def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
+    """Resolve the version-matched option catalog, falling back to the bundle."""
+    if version is None:
+        return hyprland_schema.OPTIONS_BY_KEY
+
+    # hyprland_schema.load() keys versions by the GitHub tag (``vX.Y.Z``),
+    # while HyprlandState.version drops the prefix (``X.Y.Z``). Normalise.
+    tag = version if version.startswith("v") else f"v{version}"
+    try:
+        return hyprland_schema.load(tag).options_by_key
+    except hyprland_schema.MigrationError as exc:
+        logger.warning(
+            "Could not load schema for Hyprland %s (%s); using bundled %s",
+            version,
+            exc,
+            hyprland_schema.HYPRLAND_VERSION,
+        )
+        return hyprland_schema.OPTIONS_BY_KEY
 
 
 def _load_options_json(path: Path | None = None) -> dict:

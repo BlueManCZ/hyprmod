@@ -65,13 +65,16 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._init_settings()
         self._apply_saved_config_path()
 
-        self._schema = schema.load_schema()
         self._saved_values, self._saved_sections = config.read_all_sections()
         self.hypr = HyprlandState()
         self._hyprland_available = self.hypr.online
         if self._hyprland_available:
             self.hypr.reload_compositor()  # Reset runtime state to match config files
         self._has_touchpad = self.hypr.has_touchpad() if self._hyprland_available else True
+        # Load the option catalog matching the running compositor version.
+        # Falls back to the bundled catalog when Hyprland is offline or the
+        # version cannot be resolved (see core.schema.load_schema).
+        self._schema = schema.load_schema(version=self.hypr.version)
         self.app_state = AppState(self.hypr)
         self._option_rows: dict[str, OptionRow] = {}
         self._dependents: dict[str, list[str]] = {}  # parent_key -> [dependent_keys]
@@ -645,7 +648,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
     def _on_show_about(self, *_args):
         """Show the About dialog."""
-        build_about_dialog().present(self)
+        build_about_dialog(running_hyprland_version=self.hypr.version).present(self)
 
     # -- Search --
 
