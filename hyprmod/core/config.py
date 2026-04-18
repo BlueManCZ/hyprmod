@@ -21,7 +21,18 @@ def set_gui_conf(path: Path | None) -> None:
     _gui_conf_override = path
 
 
-_NON_BIND_SPECIAL = frozenset(("monitor", "animation", "bezier", "unbind", "env"))
+# Hyprland special-section keyword names. Unlike regular ``key = value``
+# options, these can appear multiple times in a config (e.g. one ``monitor =``
+# per display) and must be tracked as ordered lists rather than scalar values.
+KEYWORD_MONITOR = "monitor"
+KEYWORD_ANIMATION = "animation"
+KEYWORD_BEZIER = "bezier"
+KEYWORD_UNBIND = "unbind"
+KEYWORD_ENV = "env"
+
+_NON_BIND_SPECIAL = frozenset(
+    (KEYWORD_MONITOR, KEYWORD_ANIMATION, KEYWORD_BEZIER, KEYWORD_UNBIND, KEYWORD_ENV)
+)
 
 
 class _BindKeysSentinel:
@@ -109,7 +120,7 @@ def remove_animation(name: str) -> None:
     if not path.exists():
         return
     doc = load_document(path, follow_sources=False)
-    doc.remove_where("animation", lambda v: v.split(",")[0].strip() == name)
+    doc.remove_where(KEYWORD_ANIMATION, lambda v: v.split(",")[0].strip() == name)
     doc.save()
 
 

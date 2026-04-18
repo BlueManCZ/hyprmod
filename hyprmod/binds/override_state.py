@@ -197,7 +197,7 @@ class OverrideTracker:
             if not isinstance(node, Keyword):
                 continue
 
-            if node.key == "unbind":
+            if node.key == config.KEYWORD_UNBIND:
                 parts = [p.strip() for p in node.value.split(",", 1)]
                 if len(parts) == 2:
                     mods = tuple(sorted(m.upper() for m in parts[0].split() if m.strip()))

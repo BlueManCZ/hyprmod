@@ -34,6 +34,10 @@ from hyprmod.ui.shortcuts import build_shortcuts_window
 from hyprmod.ui.sidebar import Sidebar
 from hyprmod.ui.timer import Timer
 
+# Hyprland option keys
+ANIMATIONS_ENABLED = "animations:enabled"
+INPUT_TOUCHPAD = "input:touchpad"
+
 
 class SectionPage(Protocol):
     """Interface for special pages (animations, monitors, binds) that manage
@@ -426,7 +430,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
             # Disable sections for unavailable hardware
             section_id = section.get("id", "")
-            if section_id == "input:touchpad" and not self._has_touchpad:
+            if section_id == INPUT_TOUCHPAD and not self._has_touchpad:
                 pref_group.set_description("No touchpad detected")
                 pref_group.set_sensitive(False)
                 result.append(pref_group)
@@ -496,7 +500,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         # Set initial visibility of animation details based on animations:enabled
         if self._anim_details_box is not None:
-            state = self.app_state.get("animations:enabled")
+            state = self.app_state.get(ANIMATIONS_ENABLED)
             self._anim_details_box.set_visible(bool(state and state.live_value))
 
     def _update_dna(self):
@@ -809,7 +813,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._update_sidebar_badges()
         self._sync_option_row(key)
 
-        if key == "animations:enabled" and self._anim_details_box is not None:
+        if key == ANIMATIONS_ENABLED and self._anim_details_box is not None:
             state = self.app_state.get(key)
             self._anim_details_box.set_visible(bool(state and state.live_value))
 
@@ -886,14 +890,15 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         monitor_lines = None
         if self._monitors_page is not None:
-            if config.collect_section(saved_sections, "monitor") or self._monitors_page.is_dirty():
+            saved_monitors = config.collect_section(saved_sections, config.KEYWORD_MONITOR)
+            if saved_monitors or self._monitors_page.is_dirty():
                 monitor_lines = self._monitors_page.get_monitor_lines()
 
         animation_lines = None
         bezier_lines = None
         if self._animations_page is not None:
             anim_dirty = self._animations_page.is_dirty()
-            existing_anims = config.collect_section(saved_sections, "animation")
+            existing_anims = config.collect_section(saved_sections, config.KEYWORD_ANIMATION)
             if anim_dirty or existing_anims:
                 animation_lines, used_curves = self._animations_page.get_animation_lines()
                 if used_curves:

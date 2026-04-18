@@ -62,7 +62,7 @@ class BindsPage:
     def _unbind_live(self, bind: BindData) -> bool:
         """Remove a bind from the running Hyprland instance."""
         try:
-            self._window.hypr.keyword("unbind", f"{bind.mods_str}, {bind.key}")
+            self._window.hypr.keyword(config.KEYWORD_UNBIND, f"{bind.mods_str}, {bind.key}")
             return True
         except HyprlandError as e:
             self._window.show_toast(f"Unbind failed — {e}", timeout=5)

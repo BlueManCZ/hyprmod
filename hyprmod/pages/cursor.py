@@ -6,6 +6,7 @@ from typing import cast
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
+from hyprmod.core import config
 from hyprmod.core.cursor_themes import CursorTheme, discover
 from hyprmod.core.undo import CursorUndoEntry
 from hyprmod.core.xcursor import crop_to_content, load_pointer, pad_to_square, scale_nearest
@@ -51,7 +52,7 @@ def _theme_label(item: "_ThemeItem") -> str:
 
 def _iter_env(sections: dict[str, list[str]]):
     """Yield (name, value) for each ``env = NAME,VALUE`` entry."""
-    for raw in sections.get("env", []):
+    for raw in sections.get(config.KEYWORD_ENV, []):
         body = raw.split("=", 1)[1].strip() if "=" in raw else ""
         name, _, val = body.partition(",")
         yield name.strip(), val.strip()

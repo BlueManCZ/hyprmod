@@ -139,10 +139,10 @@ class MonitorsPage:
         self._monitors = sorted(self._window.hypr.monitors.get_all() or [], key=lambda m: m.name)
         self._snap_scales()
         if saved_sections is not None:
-            saved = config.collect_section(saved_sections, "monitor")
+            saved = config.collect_section(saved_sections, config.KEYWORD_MONITOR)
         else:
             _, sections = config.read_all_sections()
-            saved = config.collect_section(sections, "monitor")
+            saved = config.collect_section(sections, config.KEYWORD_MONITOR)
         if saved:
             merge_saved_state(self._monitors, saved)
         self._ownership = OwnershipSet(self._managed_names_from_lines(saved))
@@ -155,7 +155,7 @@ class MonitorsPage:
     @staticmethod
     def _monitor_name_from_line(line: str) -> str:
         """Extract the monitor name from a ``monitor = NAME, ...`` config line."""
-        cleaned = line.removeprefix("monitor").strip().removeprefix("=").strip()
+        cleaned = line.removeprefix(config.KEYWORD_MONITOR).strip().removeprefix("=").strip()
         return cleaned.split(",")[0].strip()
 
     def _clear_unmanaged_extras(self, saved_lines: list[str]):
@@ -417,7 +417,7 @@ class MonitorsPage:
         if doc is None:
             return
         excluded = frozenset({config.gui_conf().resolve()})
-        user_lines = doc.find_all("monitor", exclude_sources=excluded)
+        user_lines = doc.find_all(config.KEYWORD_MONITOR, exclude_sources=excluded)
         # Find the last matching line (Hyprland semantics)
         parts: list[str] = []
         for kw in user_lines:

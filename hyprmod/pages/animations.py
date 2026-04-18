@@ -165,10 +165,10 @@ class AnimationsPage:
     def load_owned_names(self, saved_sections=None):
         """Load which animation names HyprMod owns from the config file."""
         if saved_sections is not None:
-            saved_lines = config.collect_section(saved_sections, "animation")
+            saved_lines = config.collect_section(saved_sections, config.KEYWORD_ANIMATION)
         else:
             _, sections = config.read_all_sections()
-            saved_lines = config.collect_section(sections, "animation")
+            saved_lines = config.collect_section(sections, config.KEYWORD_ANIMATION)
         names: set[str] = set()
         for line in saved_lines:
             _, _, val = line.partition("=")
