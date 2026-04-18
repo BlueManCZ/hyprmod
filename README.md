@@ -35,9 +35,17 @@ A native GTK4/libadwaita settings app for [Hyprland](https://hyprland.org) — t
 
 ## 📦 Installation
 
-> HyprMod is in active development and not yet packaged for distribution.
+> HyprMod is in active development and not yet packaged for most distributions.
 
 Requires Python 3.12+, GTK4, libadwaita, and a running Hyprland instance.
+
+**Arch Linux:** install the [`hyprmod-git`](https://aur.archlinux.org/packages/hyprmod-git) AUR package with your favorite helper:
+
+```bash
+yay -S hyprmod-git
+```
+
+Other distributions — build from source:
 
 ```bash
 git clone https://github.com/BlueManCZ/hyprmod.git

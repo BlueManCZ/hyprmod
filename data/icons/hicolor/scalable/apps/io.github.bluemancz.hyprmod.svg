@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="64" y1="8" x2="64" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3584e4"/>
+      <stop offset="1" stop-color="#1a5fb4"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="64" y1="8" x2="64" y2="72" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square badge -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg)"/>
+  <rect x="8" y="8" width="112" height="64" rx="24" fill="url(#gloss)"/>
+
+  <!-- Three horizontal sliders: track (faded) + filled portion + thumb -->
+  <g>
+    <!-- Slider 1 (top), thumb near right -->
+    <rect x="24" y="39" width="80" height="6" rx="3" fill="#ffffff" opacity="0.30"/>
+    <rect x="24" y="39" width="56" height="6" rx="3" fill="#ffffff" opacity="0.85"/>
+    <circle cx="80" cy="42" r="9" fill="#ffffff"/>
+
+    <!-- Slider 2 (middle), thumb near left -->
+    <rect x="24" y="61" width="80" height="6" rx="3" fill="#ffffff" opacity="0.30"/>
+    <rect x="24" y="61" width="26" height="6" rx="3" fill="#ffffff" opacity="0.85"/>
+    <circle cx="50" cy="64" r="9" fill="#ffffff"/>
+
+    <!-- Slider 3 (bottom), thumb toward right -->
+    <rect x="24" y="83" width="80" height="6" rx="3" fill="#ffffff" opacity="0.30"/>
+    <rect x="24" y="83" width="66" height="6" rx="3" fill="#ffffff" opacity="0.85"/>
+    <circle cx="90" cy="86" r="9" fill="#ffffff"/>
+  </g>
+</svg>

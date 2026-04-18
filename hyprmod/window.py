@@ -96,7 +96,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             Gio.SettingsSchemaSource.get_default(),
             False,
         )
-        schema_obj = schema_source.lookup("com.github.hyprmod", False)
+        schema_obj = schema_source.lookup("io.github.bluemancz.hyprmod", False)
         if schema_obj:
             self._settings = Gio.Settings.new_full(schema_obj, None, None)
         else:
@@ -106,7 +106,7 @@ class HyprModWindow(Adw.ApplicationWindow):
     def _recompile_schemas_if_stale():
         """Recompile GSettings schemas if the compiled file is stale or missing."""
         compiled = GSETTINGS_DIR / "gschemas.compiled"
-        xml = GSETTINGS_DIR / "com.github.hyprmod.gschema.xml"
+        xml = GSETTINGS_DIR / "io.github.bluemancz.hyprmod.gschema.xml"
         if not xml.exists():
             return
         if not compiled.exists() or compiled.stat().st_mtime < xml.stat().st_mtime:

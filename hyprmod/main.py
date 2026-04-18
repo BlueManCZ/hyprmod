@@ -12,7 +12,7 @@ from hyprmod.window import HyprModWindow
 class HyprModApp(Adw.Application):
     def __init__(self):
         super().__init__(
-            application_id="com.github.hyprmod",
+            application_id="io.github.bluemancz.hyprmod",
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
 
