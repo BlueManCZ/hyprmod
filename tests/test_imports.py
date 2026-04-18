@@ -23,6 +23,7 @@ ALL_MODULES = [
     # ui
     "hyprmod.ui",
     "hyprmod.ui.options",
+    "hyprmod.ui.about",
     "hyprmod.ui.banner",
     "hyprmod.ui.dna",
     "hyprmod.ui.search",

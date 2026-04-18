@@ -27,6 +27,7 @@ from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.profiles import ProfilesPage
 from hyprmod.pages.settings import SettingsPage
 from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, make_page_layout
+from hyprmod.ui.about import build_about_dialog
 from hyprmod.ui.banner import DirtyBanner
 from hyprmod.ui.options import digits_for_step
 from hyprmod.ui.search import MIN_QUERY_LENGTH, SearchPage
@@ -224,6 +225,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         self.add_action(auto_save_action)
         self._auto_save_action = auto_save_action
 
+        # About action (window-level, referenced by menu)
+        about_action = Gio.SimpleAction.new("show-about", None)
+        about_action.connect("activate", self._on_show_about)
+        self.add_action(about_action)
+
         # Hyprland status banner
         self._hyprland_banner = Adw.Banner(
             title="Hyprland not detected — changes will be saved to config files "
@@ -374,6 +380,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         help_section = Gio.Menu()
         help_section.append("Keyboard Shortcuts", "win.show-help-overlay")
+        help_section.append("About HyprMod", "win.show-about")
         menu.append_section(None, help_section)
 
         menu_button.set_menu_model(menu)
@@ -635,6 +642,10 @@ class HyprModWindow(Adw.ApplicationWindow):
         app = self.get_application()
         if app is not None:
             app.set_accels_for_action("win.show-help-overlay", ["<Control>question", "F1"])
+
+    def _on_show_about(self, *_args):
+        """Show the About dialog."""
+        build_about_dialog().present(self)
 
     # -- Search --
 
