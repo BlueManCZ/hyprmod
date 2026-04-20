@@ -1,9 +1,20 @@
 """Read/write hyprland-gui.conf — hyprmod's managed config file."""
 
+import logging
 from pathlib import Path
 
-from hyprland_config import Assignment, Keyword, atomic_write, is_bind_keyword
+from hyprland_config import (
+    Assignment,
+    Keyword,
+    atomic_write,
+    check_deprecated,
+    is_bind_keyword,
+    migrate,
+    parse_string,
+)
 from hyprland_config import load as load_document
+
+log = logging.getLogger(__name__)
 
 HYPRMOD_DIR = Path.home() / ".config" / "hypr" / "hyprmod"
 _DEFAULT_GUI_CONF = Path.home() / ".config" / "hypr" / "hyprland-gui.conf"
@@ -131,6 +142,42 @@ def _append_section(lines: list[str], header: str, section_lines: list[str]) -> 
         lines.append(line if line.endswith("\n") else line + "\n")
 
 
+def _auto_migrate_content(content: str) -> str:
+    """Normalize outgoing config against known Hyprland deprecations.
+
+    Parses the serialized config, logs any deprecated syntax found for
+    debuggability, and applies known automatic migrations in place.  The
+    file is fully owned by hyprmod, so renamed keys can be rewritten
+    silently — this keeps our file current without touching the user's
+    own ``hyprland.conf``.
+
+    Falls back to the original content if parsing or migration raises.
+    """
+    try:
+        doc = parse_string(content, name="hyprland-gui.conf", lenient=True)
+    except Exception:  # noqa: BLE001 — migration must never block a save
+        log.exception("failed to parse outgoing config for migration; writing as-is")
+        return content
+
+    for d in check_deprecated(doc):
+        log.info("deprecated syntax in outgoing config: %s", d)
+
+    try:
+        result = migrate(doc)
+    except Exception:  # noqa: BLE001 — migration must never block a save
+        log.exception("migration raised; writing un-migrated content")
+        return content
+
+    if result.applied:
+        log.info(
+            "auto-migrated %d rule(s) on save: %s",
+            len(result.applied),
+            "; ".join(result.applied),
+        )
+        return doc.serialize()
+    return content
+
+
 def write_all(
     values: dict[str, str],
     bind_lines: list[str] | None = None,
@@ -158,4 +205,5 @@ def write_all(
     if bind_lines:
         _append_section(lines, "Keybinds", bind_lines)
 
-    atomic_write(gui_conf(), "".join(lines))
+    content = _auto_migrate_content("".join(lines))
+    atomic_write(gui_conf(), content)

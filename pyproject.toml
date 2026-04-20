@@ -5,20 +5,20 @@ description = "A native GTK4/libadwaita settings app for Hyprland"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
-    "PyGObject>=3.50",
-    "hyprland-config>=0.4.2",
+    "pygobject>=3.56.2",
+    "hyprland-config>=0.4.3",
     "hyprland-schema>=0.4.0",
     "hyprland-state>=0.2.0",
     "hyprland-monitors>=0.4.0",
     "hyprland-socket>=0.9.1",
-    "pygobject-stubs>=2.16.0",
+    "pygobject-stubs>=2.17.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0",
     "pyright>=1.1",
-    "ruff>=0.15.6",
+    "ruff>=0.15.11",
 ]
 
 [project.scripts]
@@ -29,6 +29,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.custom]
+
+[tool.pyright]
+include = ["hyprmod", "tests"]
 
 [tool.ruff]
 target-version = "py312"

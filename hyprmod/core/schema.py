@@ -59,18 +59,19 @@ def _merge(overlay: dict, schema_by_key: Mapping[str, HyprOption]) -> None:
                 src = schema_by_key.get(option["key"])
                 if src is None:
                     continue
-                schema_type = src.type
-                option.setdefault("type", schema_type)
-                option.setdefault("default", src.default)
-                option.setdefault("description", src.description)
-                desc = option.get("description", "")
+                # HyprOption.to_dict() already omits None optionals (e.g. min/max
+                # when unset and enum_values when absent), so we can use setdefault
+                # directly without `is not None` guards.
+                src_d = src.to_dict()
+                for field in ("type", "default", "description"):
+                    option.setdefault(field, src_d[field])
+                desc = option["description"]
                 if desc and desc[0].islower():
                     option["description"] = desc[0].upper() + desc[1:]
                 if option["type"] in ("int", "float"):
-                    if src.min is not None:
-                        option.setdefault("min", src.min)
-                    if src.max is not None:
-                        option.setdefault("max", src.max)
+                    for field in ("min", "max"):
+                        if field in src_d:
+                            option.setdefault(field, src_d[field])
                 if src.enum_values and "values" not in option:
                     option["values"] = [
                         {"id": str(i), "label": v} for i, v in enumerate(src.enum_values)
