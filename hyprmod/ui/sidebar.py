@@ -126,17 +126,26 @@ class Sidebar:
     def populate(self, groups_by_id: dict[str, dict]) -> None:
         """Add category headers and navigation rows for schema groups."""
 
+        # Categories attach to the sidebar lazily on first row — so if every
+        # schema group in a category was dropped by the version guard (e.g.
+        # ``scrolling`` on Hyprland < 0.50), we don't end up with an orphan
+        # header floating above no rows.
+        pending_headers: dict[Gtk.ListBox, Gtk.Label] = {}
+
         def new_category(label: str) -> Gtk.ListBox:
-            self._sidebar_box.append(self._make_category_label(label))
             listbox = Gtk.ListBox()
             listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
             listbox.add_css_class("navigation-sidebar")
             listbox.connect("row-selected", self._on_row_selected)
-            self._lists.append(listbox)
-            self._sidebar_box.append(listbox)
+            pending_headers[listbox] = self._make_category_label(label)
             return listbox
 
         def add_row(listbox: Gtk.ListBox, group_id: str, label: str, icon: str | None) -> None:
+            header = pending_headers.pop(listbox, None)
+            if header is not None:
+                self._sidebar_box.append(header)
+                self._sidebar_box.append(listbox)
+                self._lists.append(listbox)
             row = SidebarRow(group_id=group_id, title=label)
             row.set_activatable(True)
             if icon:
@@ -145,7 +154,12 @@ class Sidebar:
             self._rows_by_id[group_id] = row
 
         def add_schema_row(listbox: Gtk.ListBox, group_id: str) -> None:
-            group = groups_by_id[group_id]
+            # Groups are filtered by the running Hyprland version, so a hard-
+            # coded id may not be in ``groups_by_id``. Skip silently — the
+            # sidebar only shows pages the compositor can actually configure.
+            group = groups_by_id.get(group_id)
+            if group is None:
+                return
             add_row(listbox, group_id, group["label"], group.get("icon"))
 
         appearance = new_category("Appearance")
