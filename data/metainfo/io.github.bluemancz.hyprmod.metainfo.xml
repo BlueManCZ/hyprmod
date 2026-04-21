@@ -66,6 +66,14 @@
     <keyword>keybinds</keyword>
   </keywords>
 
+  <releases>
+    <release version="0.1.0" date="2026-04-21">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+
   <provides>
     <binary>hyprmod</binary>
   </provides>
