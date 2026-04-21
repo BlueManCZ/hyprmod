@@ -19,9 +19,14 @@ def load_schema(version: str | None = None, path: Path | None = None) -> dict:
     When ``None`` (Hyprland offline) or when the version can't be resolved
     (unknown tag, no network, migration failure), falls back to the bundled
     latest schema.
+
+    Groups whose options are entirely unavailable in the running Hyprland
+    version (e.g. ``scrolling`` on 0.49, before the layout was added) are
+    dropped so they don't appear as empty pages in the sidebar.
     """
     overlay = _load_options_json(path)
     _merge(overlay, _resolve_schema_options(version))
+    _drop_unavailable(overlay)
     return overlay
 
 
@@ -76,6 +81,30 @@ def _merge(overlay: dict, schema_by_key: Mapping[str, HyprOption]) -> None:
                     option["values"] = [
                         {"id": str(i), "label": v} for i, v in enumerate(src.enum_values)
                     ]
+
+
+def _drop_unavailable(overlay: dict) -> None:
+    """Drop options, sections, and groups unavailable in the running Hyprland.
+
+    An option is considered unavailable when it has no ``type`` field after
+    the merge — meaning neither the overlay nor the version-matched schema
+    could supply one, so ``create_option_row`` would return ``None`` and the
+    option would silently disappear. Sections with no remaining options are
+    dropped; groups with no remaining sections are dropped, which hides the
+    corresponding sidebar entry (e.g. ``Scrolling`` on Hyprland < 0.50).
+    """
+    kept_groups: list[dict] = []
+    for group in overlay.get("groups", []):
+        kept_sections: list[dict] = []
+        for section in group.get("sections", []):
+            kept_options = [opt for opt in section.get("options", []) if "type" in opt]
+            if kept_options:
+                section["options"] = kept_options
+                kept_sections.append(section)
+        if kept_sections:
+            group["sections"] = kept_sections
+            kept_groups.append(group)
+    overlay["groups"] = kept_groups
 
 
 def get_groups(schema: dict) -> list[dict]:

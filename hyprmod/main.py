@@ -1,9 +1,10 @@
 """HyprMod application entry point."""
 
+import signal
 import sys
 from pathlib import Path
 
-from gi.repository import Adw, Gdk, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from hyprmod.core.setup import needs_setup, run_setup
 from hyprmod.window import HyprModWindow
@@ -139,6 +140,19 @@ class HyprModApp(Adw.Application):
 
 def main():
     app = HyprModApp()
+
+    # Route SIGINT/SIGTERM through the GLib main loop so Ctrl-C from the
+    # terminal (or `kill`) shuts the app down cleanly. Python's default
+    # SIGINT handler can't interrupt GLib's C-level loop — the exception
+    # only surfaces when control next returns to Python, which typically
+    # produces a stray traceback after the UI has already been frozen.
+    def _on_signal(*_args) -> bool:
+        app.quit()
+        return GLib.SOURCE_REMOVE
+
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, _on_signal)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, _on_signal)
+
     return app.run(sys.argv)
 
 

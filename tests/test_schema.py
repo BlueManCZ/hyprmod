@@ -2,7 +2,7 @@
 
 import pytest
 
-from hyprmod.core.schema import load_schema
+from hyprmod.core.schema import _drop_unavailable, load_schema
 
 VALID_TYPES = {"bool", "int", "float", "string", "choice", "color", "gradient", "vec2"}
 
@@ -249,3 +249,100 @@ class TestSchemaMerge:
         """vec2 type from schema should be preserved."""
         opt = next(o for o in all_options if o["key"] == "decoration:shadow:offset")
         assert opt["type"] == "vec2"
+
+
+class TestDropUnavailable:
+    """Verify that options/sections/groups unmatched by the running schema are
+    dropped, so older Hyprland versions don't render empty sidebar pages (the
+    Scrolling-on-0.49 bug: layout didn't exist yet, so every option lacked a
+    ``type`` and the page showed only section titles)."""
+
+    def test_option_without_type_is_dropped(self):
+        overlay = {
+            "groups": [
+                {
+                    "id": "g",
+                    "label": "G",
+                    "sections": [
+                        {
+                            "id": "s",
+                            "label": "S",
+                            "options": [
+                                {"key": "a", "label": "A", "type": "bool", "default": False},
+                                {"key": "b", "label": "B"},  # no type — unavailable
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+        _drop_unavailable(overlay)
+        keys = [o["key"] for o in overlay["groups"][0]["sections"][0]["options"]]
+        assert keys == ["a"]
+
+    def test_empty_section_is_dropped(self):
+        overlay = {
+            "groups": [
+                {
+                    "id": "g",
+                    "label": "G",
+                    "sections": [
+                        {
+                            "id": "keep",
+                            "label": "Keep",
+                            "options": [
+                                {"key": "a", "label": "A", "type": "bool", "default": False},
+                            ],
+                        },
+                        {
+                            "id": "empty",
+                            "label": "Empty",
+                            "options": [{"key": "b", "label": "B"}],
+                        },
+                    ],
+                }
+            ]
+        }
+        _drop_unavailable(overlay)
+        section_ids = [s["id"] for s in overlay["groups"][0]["sections"]]
+        assert section_ids == ["keep"]
+
+    def test_empty_group_is_dropped(self):
+        """Group with only unavailable options is removed entirely — the
+        sidebar iterates ``schema.groups`` so the entry disappears."""
+        overlay = {
+            "groups": [
+                {
+                    "id": "keep",
+                    "label": "Keep",
+                    "sections": [
+                        {
+                            "id": "s",
+                            "label": "S",
+                            "options": [
+                                {"key": "a", "label": "A", "type": "bool", "default": False},
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "id": "scrolling",
+                    "label": "Scrolling",
+                    "sections": [
+                        {
+                            "id": "scrolling",
+                            "label": "Columns",
+                            "options": [{"key": "scrolling:column_width", "label": "Width"}],
+                        },
+                        {
+                            "id": "scrolling:focus",
+                            "label": "Focus",
+                            "options": [{"key": "scrolling:follow_focus", "label": "Follow"}],
+                        },
+                    ],
+                },
+            ]
+        }
+        _drop_unavailable(overlay)
+        group_ids = [g["id"] for g in overlay["groups"]]
+        assert group_ids == ["keep"]
