@@ -804,6 +804,69 @@
       ]
     },
     {
+      "id": "scrolling",
+      "label": "Scrolling",
+      "icon": "view-more-symbolic",
+      "sections": [
+        {
+          "id": "scrolling",
+          "label": "Columns",
+          "options": [
+            {
+              "key": "scrolling:column_width",
+              "label": "Default column width",
+              "description": "Default width of a column as a fraction of the screen",
+              "step": 0.05
+            },
+            {
+              "key": "scrolling:explicit_column_widths",
+              "label": "Preset column widths"
+            },
+            {
+              "key": "scrolling:direction",
+              "label": "Scroll direction",
+              "default": "right",
+              "values": [
+                { "id": "right", "label": "Right" },
+                { "id": "left", "label": "Left" },
+                { "id": "down", "label": "Down" },
+                { "id": "up", "label": "Up" }
+              ]
+            },
+            {
+              "key": "scrolling:fullscreen_on_one_column",
+              "label": "Single column fullscreen"
+            }
+          ]
+        },
+        {
+          "id": "scrolling:focus",
+          "label": "Focus",
+          "options": [
+            {
+              "key": "scrolling:focus_fit_method",
+              "label": "Focus fit method",
+              "values": [
+                { "label": "Center" },
+                { "label": "Fit" }
+              ]
+            },
+            {
+              "key": "scrolling:follow_focus",
+              "label": "Follow focus",
+              "description": "Move the layout automatically to bring the focused window into view"
+            },
+            {
+              "key": "scrolling:follow_min_visible",
+              "label": "Minimum visible fraction",
+              "step": 0.05,
+              "depends_on": "scrolling:follow_focus"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "xwayland",
       "label": "XWayland",
       "icon": "application-x-executable-symbolic",

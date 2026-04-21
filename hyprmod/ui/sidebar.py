@@ -163,6 +163,7 @@ class Sidebar:
         layouts = new_category("Layouts")
         add_schema_row(layouts, "dwindle")
         add_schema_row(layouts, "master")
+        add_schema_row(layouts, "scrolling")
 
         other = new_category("Other")
         add_schema_row(other, "xwayland")
