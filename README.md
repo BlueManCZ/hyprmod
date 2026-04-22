@@ -52,6 +52,12 @@ Requires Python 3.12+, GTK4, libadwaita, and a running Hyprland instance.
 yay -S hyprmod-git
 ```
 
+**Gentoo:** available via the [`edgets`](https://github.com/BlueManCZ/edgets) overlay:
+
+```bash
+emerge --ask --autounmask gui-apps/hyprmod
+```
+
 Other distributions — build from source:
 
 ```bash
