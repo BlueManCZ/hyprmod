@@ -3,7 +3,6 @@
 import subprocess
 from collections import Counter
 from pathlib import Path
-from typing import Protocol
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 from hyprland_config import coerce_config_value, value_to_conf
@@ -27,6 +26,7 @@ from hyprmod.pages.cursor import CursorPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.pending import PendingChangesPage
 from hyprmod.pages.profiles import ProfilesPage
+from hyprmod.pages.section import SectionPage
 from hyprmod.pages.settings import SettingsPage
 from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, make_page_layout
 from hyprmod.ui.about import build_about_dialog
@@ -40,15 +40,6 @@ from hyprmod.ui.timer import Timer
 # Hyprland option keys
 ANIMATIONS_ENABLED = "animations:enabled"
 INPUT_TOUCHPAD = "input:touchpad"
-
-
-class SectionPage(Protocol):
-    """Interface for special pages (animations, monitors, binds) that manage
-    their own dirty/save/discard lifecycle independently of AppState."""
-
-    def is_dirty(self) -> bool: ...
-    def mark_saved(self) -> None: ...
-    def discard(self) -> None: ...
 
 
 CSS_PATH = Path(__file__).parent / "style.css"

@@ -15,6 +15,7 @@ from hyprmod.core import config
 from hyprmod.core.ownership import OwnershipSet
 from hyprmod.core.undo import AnimationUndoEntry
 from hyprmod.data.bezier_data import get_curve_store
+from hyprmod.pages.section import SectionPage
 from hyprmod.ui.bezier_editor import BezierEditorDialog
 from hyprmod.ui.row_actions import RowActions
 from hyprmod.ui.signals import SignalBlocker
@@ -80,12 +81,10 @@ def _curve_display_names(curve_names: list[str]) -> list[str]:
     return [f"\u2605 {n}" if n in user_set else n for n in curve_names]
 
 
-class AnimationsPage:
+class AnimationsPage(SectionPage):
     def __init__(self, window, on_dirty_changed=None, push_undo=None, saved_sections=None):
-        self._window = window
+        super().__init__(window, on_dirty_changed, push_undo)
         self._rows: dict[str, _AnimRow] = {}
-        self._on_dirty_changed = on_dirty_changed
-        self._push_undo = push_undo
         self._anims = window.hypr.animations
 
         # Initialize library cache from IPC
@@ -110,10 +109,6 @@ class AnimationsPage:
     @property
     def anims(self):
         return self._anims
-
-    def _notify_dirty(self):
-        if self._on_dirty_changed:
-            self._on_dirty_changed()
 
     def get_state(self, name: str) -> AnimState | None:
         return self._anims.get_cached(name)

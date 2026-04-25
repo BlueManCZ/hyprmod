@@ -1,7 +1,6 @@
 """Monitor management page — orchestrates cards, preview, and Hyprland IPC."""
 
 import copy
-from contextlib import contextmanager
 
 from gi.repository import Adw, GLib, Gtk
 from hyprland_monitors import get_monitor_capabilities
@@ -24,6 +23,7 @@ from hyprmod.core.ownership import OwnershipSet
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm import ConfirmController
+from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.monitor_preview import MonitorLayoutPreview
 from hyprmod.ui.timer import Timer
@@ -31,7 +31,7 @@ from hyprmod.ui.timer import Timer
 _EXTRA_FIELDS = ("bit_depth", "vrr", "color_management", "mirror_of")
 
 
-class MonitorsPage:
+class MonitorsPage(SectionPage):
     """Builds the monitor management page."""
 
     _RESTORABLE_FIELDS = (
@@ -50,9 +50,7 @@ class MonitorsPage:
     )
 
     def __init__(self, window, on_dirty_changed=None, push_undo=None, saved_sections=None):
-        self._window = window
-        self._on_dirty_changed = on_dirty_changed
-        self._push_undo = push_undo
+        super().__init__(window, on_dirty_changed, push_undo)
         self._monitors: list[MonitorState] = []
         self._cards: list[MonitorCard] = []
         self._preview: MonitorLayoutPreview | None = None
@@ -81,33 +79,32 @@ class MonitorsPage:
         managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
         return sorted(lines_from_monitors(managed)), frozenset(self._ownership.owned)
 
-    def _snap_undo_state(self):
-        """Capture current monitors + ownership for undo."""
+    def _capture_undo(self):
+        """Snapshot current monitors + ownership for undo."""
         return copy.deepcopy(self._monitors), self._ownership.snapshot()
 
-    def _push_undo_from(self, old_monitors, old_owned, *, old_key=None):
-        """Push a MonitorsUndoEntry given a captured 'before' state."""
-        if not self._push_undo:
-            return
-        if old_key is not None and self._monitors_key() == old_key:
-            return
-        new_monitors, new_owned = self._snap_undo_state()
-        self._push_undo(
-            MonitorsUndoEntry(
-                old_monitors=old_monitors,
-                new_monitors=new_monitors,
-                old_owned=old_owned,
-                new_owned=new_owned,
-            )
+    def _undo_key(self):
+        return self._monitors_key()
+
+    def _build_undo_entry(self, old, new):
+        old_monitors, old_owned = old
+        new_monitors, new_owned = new
+        return MonitorsUndoEntry(
+            old_monitors=old_monitors,
+            new_monitors=new_monitors,
+            old_owned=old_owned,
+            new_owned=new_owned,
         )
 
-    @contextmanager
-    def _undo_track(self):
-        """Capture before/after monitors state and push an undo entry."""
-        old_monitors, old_owned = self._snap_undo_state()
-        old_key = self._monitors_key()
-        yield
-        self._push_undo_from(old_monitors, old_owned, old_key=old_key)
+    def _push_undo_from(self, old):
+        """Push a MonitorsUndoEntry given a captured 'before' snapshot.
+
+        Used by the preview drag path, where the snapshot is captured at
+        drag-start (rather than via ``_undo_track``).
+        """
+        if self._push_undo is None:
+            return
+        self._push_undo(self._build_undo_entry(old, self._capture_undo()))
 
     def restore_snapshot(self, monitor_copies, owned_names):
         """Restore monitors state from an undo/redo snapshot."""
@@ -321,10 +318,6 @@ class MonitorsPage:
                     is_managed = False
             card.update_managed_state(baseline, is_managed, is_saved)
 
-    def _notify_dirty(self):
-        if self._on_dirty_changed:
-            self._on_dirty_changed()
-
     # -- Applying changes --
 
     def _apply_change(self, mon: MonitorState, new_vals: dict):
@@ -472,7 +465,9 @@ class MonitorsPage:
             real = actual_by_name.get(mon.name)
             if not real:
                 continue
-            mon.update_geometry_from_ipc(real)
+            # MonitorState and Monitor share the geometry fields used here;
+            # update_geometry_from_ipc declares Monitor but tolerates either.
+            mon.update_geometry_from_ipc(real)  # type: ignore[arg-type]
             vs = compute_valid_scales(mon.width, mon.height)
             si = nearest_scale_index(vs, real.scale)
             mon.scale = vs[si][0]
@@ -489,7 +484,7 @@ class MonitorsPage:
     # -- Preview drag --
 
     def _on_preview_drag_start(self):
-        self._drag_undo_state = self._snap_undo_state()
+        self._drag_undo_state = self._capture_undo()
 
     def _on_preview_drag(self, idx: int, x: int, y: int):
         if self._applying:
@@ -507,7 +502,7 @@ class MonitorsPage:
             self._ownership.own(self._monitors[idx].name)
         self._commit_to_hyprland()
         if self._drag_undo_state is not None:
-            self._push_undo_from(*self._drag_undo_state)
+            self._push_undo_from(self._drag_undo_state)
             self._drag_undo_state = None
 
     def _on_refresh(self, _button):

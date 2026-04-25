@@ -10,6 +10,7 @@ from hyprmod.core import config
 from hyprmod.core.cursor_themes import CursorTheme, discover
 from hyprmod.core.undo import CursorUndoEntry
 from hyprmod.core.xcursor import crop_to_content, load_pointer, pad_to_square, scale_nearest
+from hyprmod.pages.section import SectionPage
 from hyprmod.ui.managed_row import ManagedRow, make_combo_row
 
 _THEME_VARS = ("XCURSOR_THEME", "HYPRCURSOR_THEME")
@@ -66,7 +67,7 @@ def _run(*args: str) -> None:
         pass
 
 
-class CursorPage:
+class CursorPage(SectionPage):
     """Manages the cursor theme picker widget on the Cursor page."""
 
     def __init__(
@@ -76,9 +77,7 @@ class CursorPage:
         push_undo=None,
         saved_sections: dict | None = None,
     ):
-        self._window = window
-        self._on_dirty_changed = on_dirty_changed
-        self._push_undo = push_undo
+        super().__init__(window, on_dirty_changed, push_undo)
         self._themes: list[CursorTheme] = discover()
         self._thumb_cache: dict[str, Gdk.Texture | None] = {}
 
@@ -278,8 +277,7 @@ class CursorPage:
         if self._field is not None:
             self._field.refresh()
         self._schedule_apply()
-        if self._on_dirty_changed:
-            self._on_dirty_changed()
+        self._notify_dirty()
 
     # ── Live apply (debounced) ──
 
@@ -322,8 +320,7 @@ class CursorPage:
         self._last_pushed = _State(theme, size)
         if self._field is not None:
             self._field.refresh()
-        if self._on_dirty_changed:
-            self._on_dirty_changed()
+        self._notify_dirty()
         self._schedule_apply()
 
     def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:

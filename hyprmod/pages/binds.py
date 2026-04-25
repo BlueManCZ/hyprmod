@@ -1,7 +1,6 @@
 """Keybind management page — categorized list with override support."""
 
 import copy
-from contextlib import contextmanager
 from html import escape as html_escape
 
 from gi.repository import Adw, GLib, Gtk
@@ -19,6 +18,7 @@ from hyprmod.binds.dialog import BindEditDialog
 from hyprmod.core import config
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.undo import BindsUndoEntry
+from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.row_actions import RowActions
 
@@ -27,13 +27,11 @@ from hyprmod.ui.row_actions import RowActions
 # ---------------------------------------------------------------------------
 
 
-class BindsPage:
+class BindsPage(SectionPage):
     """Builds the keybinds management page with categorized layout."""
 
     def __init__(self, window, on_dirty_changed=None, push_undo=None, saved_sections=None):
-        self._window = window
-        self._on_dirty_changed = on_dirty_changed
-        self._push_undo = push_undo
+        super().__init__(window, on_dirty_changed, push_undo)
         self._hypr_binds: list[BindData] = []
         self._search_term: str = ""
         self._group_widgets: dict[str, Adw.PreferencesGroup] = {}
@@ -103,25 +101,24 @@ class BindsPage:
         """Serialized representation of current binds state for comparison."""
         return [b.to_line() for b in self._owned_binds]
 
-    @contextmanager
-    def _undo_track(self):
-        """Capture before/after binds state and push an undo entry."""
-        old_items, old_baselines = self._owned_binds.snapshot()
-        old_overrides = self._overrides.snapshot_session()
-        old_key = self._binds_key()
-        yield
-        if self._push_undo and self._binds_key() != old_key:
-            new_items, new_baselines = self._owned_binds.snapshot()
-            self._push_undo(
-                BindsUndoEntry(
-                    old_items=old_items,
-                    new_items=new_items,
-                    old_baselines=old_baselines,
-                    new_baselines=new_baselines,
-                    old_session_overrides=old_overrides,
-                    new_session_overrides=self._overrides.snapshot_session(),
-                )
-            )
+    def _capture_undo(self):
+        """Snapshot binds + override state for undo."""
+        return self._owned_binds.snapshot(), self._overrides.snapshot_session()
+
+    def _undo_key(self):
+        return self._binds_key()
+
+    def _build_undo_entry(self, old, new):
+        (old_items, old_baselines), old_overrides = old
+        (new_items, new_baselines), new_overrides = new
+        return BindsUndoEntry(
+            old_items=old_items,
+            new_items=new_items,
+            old_baselines=old_baselines,
+            new_baselines=new_baselines,
+            old_session_overrides=old_overrides,
+            new_session_overrides=new_overrides,
+        )
 
     def restore_snapshot(self, items, baselines, session_overrides):
         """Restore binds state from an undo/redo snapshot."""
@@ -453,10 +450,6 @@ class BindsPage:
         self._rebuild_list()
 
     # -- Dirty state --
-
-    def _notify_dirty(self):
-        if self._on_dirty_changed:
-            self._on_dirty_changed()
 
     def _discard_bind_at(self, idx: int):
         """Revert a single bind to its saved state."""
