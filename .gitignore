@@ -14,3 +14,6 @@ wheels/
 
 # GLib compiled schemas
 gschemas.compiled
+
+# Local development files
+/local/
