@@ -12,16 +12,21 @@ A native GTK4/libadwaita settings app for [Hyprland](https://hyprland.org) — t
   <img src="data/screenshots/curves.png" width="49%" alt="Bezier curve editor with control points and live animation preview">
 </p>
 
-## 📺 Videos
+## 🎬 Wall of Video Fame
+
+Huge thanks to the creators below — without you, HyprMod would reach far fewer people. ❤️
 
 <a href="https://youtu.be/PF3qgfR0XP0" target="_blank">
-  <img src="https://img.youtube.com/vi/PF3qgfR0XP0/maxresdefault.jpg" alt="Finally a Settings App for Hyprland — by saneAspect" width="32%">
+  <img src="https://img.youtube.com/vi/PF3qgfR0XP0/maxresdefault.jpg" alt="Finally a Settings App for Hyprland — by saneAspect" width="24%">
 </a>
 <a href="https://youtu.be/tvjYWT2LOMk" target="_blank">
-  <img src="https://img.youtube.com/vi/tvjYWT2LOMk/maxresdefault.jpg" alt="New GUI Settings For Hyprland!! Game Changer! | HyprMod — by TheBlackDon" width="32%">
+  <img src="https://img.youtube.com/vi/tvjYWT2LOMk/maxresdefault.jpg" alt="New GUI Settings For Hyprland!! Game Changer! | HyprMod — by TheBlackDon" width="24%">
 </a>
 <a href="https://youtu.be/61M_uI4kTo0" target="_blank">
-  <img src="https://img.youtube.com/vi/61M_uI4kTo0/maxresdefault.jpg" alt="Hyprmod: The Game-Changing Settings Tool Every Hyprland Beginner Needs — by Mattscreative" width="32%">
+  <img src="https://img.youtube.com/vi/61M_uI4kTo0/maxresdefault.jpg" alt="Hyprmod: The Game-Changing Settings Tool Every Hyprland Beginner Needs — by Mattscreative" width="24%">
+</a>
+<a href="https://youtu.be/8CzY9Qihip8" target="_blank">
+  <img src="https://img.youtube.com/vi/8CzY9Qihip8/maxresdefault.jpg" alt="FIZERAM uma CENTRAL DE CONFIG PRO HYPRLAND (e tá insano de bom kkk) — by Raell Tech" width="24%">
 </a>
 
 ## ⚡ Highlights

@@ -267,8 +267,7 @@ class ProfilesPage:
             self._activate_now(profile_id)
 
     def _confirm_activate(self, profile_id: str):
-        prof = self._find_profile(profile_id)
-        name = prof.get("name", "profile") if prof else "profile"
+        name = self._profile_name(profile_id)
 
         confirm(
             self._window,
@@ -280,16 +279,14 @@ class ProfilesPage:
         )
 
     def _activate_now(self, profile_id: str):
-        prof = self._find_profile(profile_id)
-        name = prof.get("name", "profile") if prof else "profile"
+        name = self._profile_name(profile_id)
         profiles.activate(profile_id, self._window.hypr)
         self._window.reload_after_profile()
         self.rebuild()
         self._show_toast(f"Switched to {name}")
 
     def _confirm_delete(self, profile_id: str):
-        prof = self._find_profile(profile_id)
-        name = prof.get("name", "this profile") if prof else "this profile"
+        name = self._profile_name(profile_id, fallback="this profile")
 
         def do_delete():
             profiles.delete(profile_id)
@@ -395,6 +392,11 @@ class ProfilesPage:
 
     def _find_profile(self, profile_id: str) -> dict | None:
         return next((p for p in self._cached_profiles if p["id"] == profile_id), None)
+
+    def _profile_name(self, profile_id: str, *, fallback: str = "profile") -> str:
+        """Look up a profile's display name, returning *fallback* if missing."""
+        prof = self._find_profile(profile_id)
+        return prof.get("name", fallback) if prof else fallback
 
     def _show_toast(self, message: str):
         if self._last_toast is not None:

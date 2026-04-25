@@ -106,6 +106,8 @@ class SavedList[T]:
         return self._items[idx]
 
     def __setitem__(self, idx: int, value: T) -> None:
+        # Baseline stays put — replacing an item is the standard "edit" path,
+        # and dirty tracking compares the new value against the saved baseline.
         self._items[idx] = value
 
     def __iter__(self):

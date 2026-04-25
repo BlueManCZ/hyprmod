@@ -1,5 +1,6 @@
 """Main application window with sidebar navigation."""
 
+import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Protocol
@@ -24,6 +25,7 @@ from hyprmod.pages.animations import AnimationsPage
 from hyprmod.pages.binds import BindsPage
 from hyprmod.pages.cursor import CursorPage
 from hyprmod.pages.monitors import MonitorsPage
+from hyprmod.pages.pending import PendingChangesPage
 from hyprmod.pages.profiles import ProfilesPage
 from hyprmod.pages.settings import SettingsPage
 from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, make_page_layout
@@ -91,6 +93,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._cursor_page: CursorPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
+        self._pending_page: PendingChangesPage | None = None
         self._pre_search_page_id: str | None = None
         self._search_results: list | None = None
 
@@ -163,8 +166,6 @@ class HyprModWindow(Adw.ApplicationWindow):
         compiled = GSETTINGS_DIR / "gschemas.compiled"
         latest_xml_mtime = max(xml.stat().st_mtime for xml in xml_files)
         if not compiled.exists() or compiled.stat().st_mtime < latest_xml_mtime:
-            import subprocess
-
             subprocess.run(
                 ["glib-compile-schemas", str(GSETTINGS_DIR)],
                 check=False,
@@ -194,7 +195,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
     @config_path.setter
     def config_path(self, value: str):
-        default = str(config._DEFAULT_GUI_CONF)
+        default = str(config.default_gui_conf())
         path = None if value == default else Path(value)
         config.set_gui_conf(path)
         if self._settings:
@@ -352,6 +353,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
         self._page_stack.add_named(profiles_nav, "profiles")
         self._page_titles["profiles"] = "Profiles"
+
+        self._pending_page = PendingChangesPage(self)
+        pending_nav = self._pending_page.build(header=self._make_page_header("Pending Changes"))
+        self._page_stack.add_named(pending_nav, "pending")
+        self._page_titles["pending"] = "Pending Changes"
 
         self._settings_page = SettingsPage(self)
         settings_nav = self._settings_page.build(header=self._make_page_header("Settings"))
@@ -527,6 +533,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._update_banner()
         self._update_sidebar_badges()
 
+    def _schedule_pending_refresh(self):
+        """Coalesce a Pending Changes page rebuild if the page exists."""
+        if self._pending_page is not None:
+            self._pending_page.schedule_refresh()
+
     def _refresh_all_modified_indicators(self):
         for key, opt_row in self._option_rows.items():
             state = self.app_state.get(key)
@@ -555,6 +566,9 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["monitors"] += self._monitors_page.dirty_count()
         if self._cursor_page and self._cursor_page.is_dirty():
             counts["cursor"] += 1
+
+        # The pending-changes row totals everything else
+        counts["pending"] = sum(counts.values())
 
         self._sidebar.update_badges(counts)
 
@@ -724,6 +738,9 @@ class HyprModWindow(Adw.ApplicationWindow):
         if gid in self._page_titles:
             if self._monitors_page and gid != "monitors":
                 self._monitors_page.confirm_changes()
+            if gid == "pending" and self._pending_page is not None:
+                # Catch up on any changes that happened while the page wasn't visible
+                self._pending_page.refresh()
             self._page_stack.set_visible_child_name(gid)
             self._content_nav.set_title(self._page_titles[gid])
 
@@ -826,6 +843,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._update_banner()
         self._update_sidebar_badges()
         self._sync_option_row(key)
+        self._schedule_pending_refresh()
 
         if key == ANIMATIONS_ENABLED and self._anim_details_box is not None:
             state = self.app_state.get(key)
@@ -835,6 +853,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         """Called when any section (animations, binds, monitors) changes."""
         self._update_banner()
         self._update_sidebar_badges()
+        self._schedule_pending_refresh()
         if self.auto_save and self.has_dirty():
             self._schedule_auto_save()
 
@@ -898,7 +917,7 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         bind_lines = None
         if self._binds_page is not None:
-            has_saved = config.collect_section(saved_sections, config.BIND_KEYS)
+            has_saved = config.collect_bind_section(saved_sections)
             if has_saved or self._binds_page.is_dirty():
                 bind_lines = self._binds_page.get_bind_lines()
 
@@ -950,6 +969,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._undo.clear()
         self._update_dna()
         self._refresh_all_modified_indicators()
+        self._schedule_pending_refresh()
 
     def save(self):
         """Public save API — performs save and shows banner animation."""
@@ -1081,6 +1101,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._banner.hide()
         self._undo.clear()
         self._refresh_all_modified_indicators()
+        self._schedule_pending_refresh()
 
     # -- Auto-save --
 

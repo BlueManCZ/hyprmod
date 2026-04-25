@@ -84,10 +84,10 @@ class BindsPage:
 
         parsed_binds: list[BindData] = []
         if saved_sections is not None:
-            bind_lines = config.collect_section(saved_sections, config.BIND_KEYS)
+            bind_lines = config.collect_bind_section(saved_sections)
         else:
             _, sections = config.read_all_sections()
-            bind_lines = config.collect_section(sections, config.BIND_KEYS)
+            bind_lines = config.collect_bind_section(sections)
         for line in bind_lines:
             parsed = parse_bind_line(line)
             if parsed:

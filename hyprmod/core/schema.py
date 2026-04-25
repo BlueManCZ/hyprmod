@@ -8,7 +8,7 @@ from pathlib import Path
 import hyprland_schema
 from hyprland_schema import HyprOption
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def load_schema(version: str | None = None, path: Path | None = None) -> dict:
@@ -41,7 +41,7 @@ def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
     try:
         return hyprland_schema.load(tag).options_by_key
     except hyprland_schema.MigrationError as exc:
-        logger.warning(
+        log.warning(
             "Could not load schema for Hyprland %s (%s); using bundled %s",
             version,
             exc,

@@ -13,6 +13,8 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
+from hyprmod.core.cursor_themes import read_index_theme, search_dirs
+
 _MAGIC = b"Xcur"
 _IMAGE_TYPE = 0xFFFD0002
 
@@ -153,8 +155,6 @@ def _load_from_theme(
         if img is not None:
             return img
 
-    from hyprmod.core.cursor_themes import search_dirs
-
     for parent in _inherited_themes(theme_dir):
         for base in (theme_dir.parent, *search_dirs()):
             candidate = base / parent
@@ -166,16 +166,5 @@ def _load_from_theme(
 
 
 def _inherited_themes(theme_dir: Path) -> list[str]:
-    index = theme_dir / "index.theme"
-    if not index.is_file():
-        return []
-    try:
-        text = index.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return []
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("Inherits"):
-            _, _, val = line.partition("=")
-            return [p.strip() for p in val.split(",") if p.strip()]
-    return []
+    raw = read_index_theme(theme_dir).get("Inherits", "")
+    return [p.strip() for p in raw.split(",") if p.strip()]

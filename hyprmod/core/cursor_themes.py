@@ -1,8 +1,11 @@
 """Discover installed cursor themes (XCursor and Hyprcursor)."""
 
+import configparser
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+_ICON_THEME_SECTION = "Icon Theme"
 
 
 @dataclass(frozen=True)
@@ -68,23 +71,32 @@ def _has_hyprcursor(path: Path) -> bool:
     return False
 
 
+class _CaseSensitiveParser(configparser.RawConfigParser):
+    """``RawConfigParser`` that preserves original option-name case."""
+
+    def optionxform(self, optionstr: str) -> str:
+        return optionstr
+
+
+def read_index_theme(theme_dir: Path) -> dict[str, str]:
+    """Return key/value pairs from a theme's ``index.theme`` Icon Theme section.
+
+    Returns an empty dict if the file is missing or unparseable. Localised
+    variants (``Name[de]`` etc.) are kept as-is in the returned mapping.
+    """
+    index = theme_dir / "index.theme"
+    if not index.is_file():
+        return {}
+    parser = _CaseSensitiveParser(strict=False, interpolation=None)
+    try:
+        parser.read(index, encoding="utf-8")
+    except (OSError, configparser.Error):
+        return {}
+    if not parser.has_section(_ICON_THEME_SECTION):
+        return {}
+    return dict(parser.items(_ICON_THEME_SECTION))
+
+
 def _read_display_name(path: Path) -> str | None:
     """Extract Name= from index.theme's [Icon Theme] section."""
-    index = path / "index.theme"
-    if not index.is_file():
-        return None
-    try:
-        text = index.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    in_section = False
-    for raw in text.splitlines():
-        line = raw.strip()
-        if line.startswith("[") and line.endswith("]"):
-            in_section = line == "[Icon Theme]"
-            continue
-        if in_section and line.startswith("Name"):
-            key, _, val = line.partition("=")
-            if key.strip() == "Name":
-                return val.strip()
-    return None
+    return read_index_theme(path).get("Name")

@@ -103,6 +103,12 @@ class Sidebar:
         self._pinned_list.add_css_class("navigation-sidebar")
         self._pinned_list.connect("row-selected", self._on_row_selected)
 
+        pending_row = SidebarRow(group_id="pending", title="Pending Changes")
+        pending_row.set_activatable(True)
+        pending_row.add_prefix(Gtk.Image.new_from_icon_name("view-list-symbolic"))
+        self._pinned_list.append(pending_row)
+        self._rows_by_id["pending"] = pending_row
+
         profiles_row = SidebarRow(group_id="profiles", title="Profiles")
         profiles_row.set_activatable(True)
         profiles_row.add_prefix(Gtk.Image.new_from_icon_name("user-bookmarks-symbolic"))

@@ -19,7 +19,6 @@ from hyprmod.ui.bezier_editor import BezierEditorDialog
 from hyprmod.ui.row_actions import RowActions
 from hyprmod.ui.signals import SignalBlocker
 
-# UI labels and grouping (removed from a library, now local)
 ANIM_LABELS: dict[str, str] = {
     "global": "Global",
     "windows": "Windows",
@@ -157,10 +156,6 @@ class AnimationsPage:
                 updated = replace(state, curve="default")
                 self._anims.update_cached(name, updated)
                 self._apply_with_curves(updated)
-
-    def _refresh_all_rows(self):
-        for row in self._rows.values():
-            row.refresh()
 
     def load_owned_names(self, saved_sections=None):
         """Load which animation names HyprMod owns from the config file."""

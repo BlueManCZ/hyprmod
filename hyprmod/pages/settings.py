@@ -5,7 +5,6 @@ from pathlib import Path
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from hyprmod.core import config
-from hyprmod.core.config import _DEFAULT_GUI_CONF
 from hyprmod.core.setup import migrate_config_path
 from hyprmod.ui import confirm, make_page_layout
 
@@ -25,7 +24,7 @@ class SettingsPage:
             description="Manage where HyprMod reads and writes Hyprland settings.",
         )
 
-        default_str = str(_DEFAULT_GUI_CONF)
+        default_str = str(config.default_gui_conf())
         self._config_path_row = Adw.EntryRow(title="Config file path")
         self._config_path_row.set_text(self._window.config_path)
         self._config_path_row.set_show_apply_button(True)
@@ -110,7 +109,7 @@ class SettingsPage:
     def _on_config_path_apply(self, row):
         text = row.get_text().strip()
         if not text:
-            text = str(_DEFAULT_GUI_CONF)
+            text = str(config.default_gui_conf())
         if text != self._window.config_path:
             self._apply_new_path(text)
         self._reset_path_text(self._window.config_path)
@@ -130,7 +129,8 @@ class SettingsPage:
     def _on_file_chosen(self, dialog, result):
         try:
             gfile = dialog.save_finish(result)
-        except Exception:
+        except GLib.Error:
+            # User cancelled the dialog or chooser failed — nothing to apply.
             return
         if gfile:
             self._apply_new_path(gfile.get_path(), overwrite_confirmed=True)

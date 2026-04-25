@@ -25,10 +25,7 @@ class Timer:
     def schedule(self, delay_ms: int, callback, *args) -> None:
         """Cancel any pending timeout and schedule a new one."""
         self.cancel()
-        if args:
-            self._id = GLib.timeout_add(delay_ms, self._fire, callback, args)
-        else:
-            self._id = GLib.timeout_add(delay_ms, self._fire, callback, None)
+        self._id = GLib.timeout_add(delay_ms, self._fire, callback, args)
 
     def cancel(self) -> None:
         """Cancel the pending timeout if any."""
@@ -38,7 +35,7 @@ class Timer:
 
     def _fire(self, callback, args):
         try:
-            result = callback(*args) if args else callback()
+            result = callback(*args)
         except Exception:
             self._id = None
             raise
