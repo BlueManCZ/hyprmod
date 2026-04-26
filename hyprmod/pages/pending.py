@@ -19,6 +19,8 @@ from hyprland_monitors.monitors import MonitorState, lines_from_monitors
 from hyprland_state import ANIM_FLAT, ANIM_LOOKUP, AnimState
 
 from hyprmod.core import config, schema
+from hyprmod.core.autostart import KEYWORD_LABELS as AUTOSTART_LABELS
+from hyprmod.core.autostart import iter_item_changes as iter_autostart_changes
 from hyprmod.pages.animations import ANIM_LABELS
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.diff import ConfigDiffWidget
@@ -28,12 +30,13 @@ if TYPE_CHECKING:
 
 
 # Categories shown in the page, in the order they appear.
-_CATEGORY_ORDER = ("Options", "Animations", "Keybinds", "Monitors", "Cursor")
+_CATEGORY_ORDER = ("Options", "Animations", "Keybinds", "Monitors", "Cursor", "Autostart")
 
 # Sidebar icons for fixed pages. Schema-group icons are looked up dynamically
 # from the schema (see ``_group_icon``).
 _BINDS_ICON = "keyboard-shortcuts-symbolic"
 _MONITORS_ICON = "display-symbolic"
+_AUTOSTART_ICON = "media-playback-start-symbolic"
 _FALLBACK_ICON = "preferences-system-symbolic"
 
 # Visual label and CSS class for each kind of change.
@@ -83,6 +86,7 @@ class PendingChangesPage:
         self._group_icons: dict[str, str] = {
             "binds": _BINDS_ICON,
             "monitors": _MONITORS_ICON,
+            "autostart": _AUTOSTART_ICON,
         }
         for g in schema.get_groups(window._schema):
             icon = g.get("icon")
@@ -308,7 +312,7 @@ class PendingChangesPage:
         """
         win = self._window
         values = win.app_state.get_all_live_values()
-        bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines = (
+        bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines, exec_lines = (
             win._collect_save_sections()
         )
         return config.build_content(
@@ -318,6 +322,7 @@ class PendingChangesPage:
             animation_lines=animation_lines,
             bezier_lines=bezier_lines,
             env_lines=env_lines,
+            exec_lines=exec_lines,
         )
 
     # ── Change collection ──
@@ -330,6 +335,7 @@ class PendingChangesPage:
         out.extend(self._collect_bind_changes())
         out.extend(self._collect_monitor_changes())
         out.extend(self._collect_cursor_changes())
+        out.extend(self._collect_autostart_changes())
         return out
 
     # -- Options --
@@ -634,6 +640,91 @@ class PendingChangesPage:
     def _cursor_theme_label(theme: str) -> str:
         # Avoid leaking the internal sentinel into the UI.
         return "System default" if theme.startswith("__") else theme
+
+    # -- Autostart --
+
+    def _collect_autostart_changes(self) -> list[PendingChange]:
+        page = self._window._autostart_page
+        if page is None or not page.is_dirty():
+            return []
+        result: list[PendingChange] = []
+        owned = page._owned
+
+        # Drive both per-item rows and the badge counter off the same
+        # iterator (in ``core.autostart``) so the sidebar count and
+        # the pending-list length can't drift apart.
+        baselines = [owned.get_baseline(i) for i in range(len(owned))]
+        for kind, idx, item, baseline in iter_autostart_changes(
+            owned.saved, list(owned), baselines
+        ):
+            result.append(self._make_autostart_change(page, kind, idx, item, baseline))
+
+        # Reorder is a single roll-up entry — separate from the per-item
+        # add/edit/remove rows above. Discarding it restores the saved
+        # order for items present in both lists while preserving any
+        # in-flight value edits and any new/removed items, so users
+        # don't lose unrelated work.
+        if page.is_reordered():
+            common_count = len({e.to_line() for e in owned} & {b.to_line() for b in owned.saved})
+            result.append(
+                PendingChange(
+                    category="Autostart",
+                    title="Reordered",
+                    subtitle=f"{common_count} entries in a different order",
+                    kind="modified",
+                    revert=page.revert_reorder,
+                    navigate_to="autostart",
+                    icon=_AUTOSTART_ICON,
+                )
+            )
+        return result
+
+    @staticmethod
+    def _make_autostart_change(
+        page: Any,
+        kind: str,
+        idx: int,
+        item: Any,
+        baseline: Any,
+    ) -> PendingChange:
+        """Build a ``PendingChange`` for one tuple from ``iter_item_changes``."""
+        keyword_label = AUTOSTART_LABELS.get(item.keyword, item.keyword)
+        if kind == "added":
+            return PendingChange(
+                category="Autostart",
+                title=item.command,
+                subtitle=f"new · {keyword_label}",
+                kind="added",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="autostart",
+                icon=_AUTOSTART_ICON,
+            )
+        if kind == "modified":
+            if baseline.command != item.command:
+                subtitle = f"{baseline.command} → {item.command}"
+            else:
+                old_label = AUTOSTART_LABELS.get(baseline.keyword, baseline.keyword)
+                subtitle = f"{old_label} → {keyword_label}"
+            return PendingChange(
+                category="Autostart",
+                title=item.command,
+                subtitle=subtitle,
+                kind="modified",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="autostart",
+                icon=_AUTOSTART_ICON,
+            )
+        # removed — ``item`` is the saved value (the entry that disappeared);
+        # revert re-adds it as a new row, keeping other in-flight edits intact.
+        return PendingChange(
+            category="Autostart",
+            title=item.command,
+            subtitle=f"deleted · {keyword_label}",
+            kind="removed",
+            revert=lambda e=item: page._on_restore_deleted(e),
+            navigate_to="autostart",
+            icon=_AUTOSTART_ICON,
+        )
 
     # Bezier curves are written automatically based on used animations,
     # so they're surfaced through the diff preview rather than as standalone

@@ -210,3 +210,26 @@ row.wide-dropdown popover > contents {
     background-color: transparent;
     font-feature-settings: "tnum";
 }
+
+
+/* Autostart drag-to-reorder insertion-line indicators.
+   Inset box-shadow (rather than border) so the line doesn't shift
+   the row's content by its thickness. Accent colour matches the
+   profile-active and dirty styles for visual consistency. */
+row.autostart-drop-above {
+    box-shadow: inset 0 2px 0 0 @accent_bg_color;
+}
+row.autostart-drop-below {
+    box-shadow: inset 0 -2px 0 0 @accent_bg_color;
+}
+
+/* Drag source: applied to the row being dragged so the
+   ``WidgetPaintable`` ghost has an explicit background. ``Adw.ActionRow``
+   inherits its visible card styling from the parent ``PreferencesGroup``,
+   so when GTK paints the row in isolation as the drag icon there's no
+   background. The light shadow gives the ghost a "lifted" feel. */
+row.autostart-drag-source {
+    background-color: @card_bg_color;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px alpha(black, 0.35);
+}

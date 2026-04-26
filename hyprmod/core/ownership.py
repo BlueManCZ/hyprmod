@@ -157,6 +157,35 @@ class SavedList[T]:
             self._items[idx] = self._copy_item(baseline)
         return baseline
 
+    def move(self, from_idx: int, to_idx: int) -> None:
+        """Move an item — and its baseline — from one position to another.
+
+        Indices are interpreted in the post-pop sense: ``move(0, 2)`` on
+        a 3-item list ``[A, B, C]`` yields ``[B, C, A]``. ``move(2, 0)``
+        on the same list yields ``[C, A, B]``. ``from_idx == to_idx``
+        is a no-op.
+
+        Raises ``IndexError`` for out-of-range inputs.
+
+        Effect on dirty tracking: the *list* compares against the saved
+        snapshot in order, so reordering flips ``is_dirty()`` to True if
+        the new order differs from the saved order. The *moved item*
+        keeps its baseline (they travel as a pair), so
+        ``is_item_dirty()`` for that item stays False — its value
+        didn't change, only its position relative to siblings.
+        """
+        n = len(self._items)
+        if not 0 <= from_idx < n:
+            raise IndexError(f"from_idx {from_idx} out of range [0, {n})")
+        if not 0 <= to_idx < n:
+            raise IndexError(f"to_idx {to_idx} out of range [0, {n})")
+        if from_idx == to_idx:
+            return
+        item = self._items.pop(from_idx)
+        baseline = self._baselines.pop(from_idx)
+        self._items.insert(to_idx, item)
+        self._baselines.insert(to_idx, baseline)
+
     # -- Lifecycle --
 
     def mark_saved(self):

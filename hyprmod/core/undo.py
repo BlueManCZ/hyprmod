@@ -57,8 +57,28 @@ class CursorUndoEntry:
     new_size: int
 
 
+@dataclass(slots=True)
+class AutostartUndoEntry:
+    """Undo entry for an autostart (``exec``/``exec-once``) snapshot.
+
+    Mirrors ``BindsUndoEntry``: each entry captures the full owned-list
+    plus its per-item baselines so a single add/edit/remove can be
+    replayed without recomputing baselines.
+    """
+
+    old_items: list
+    new_items: list
+    old_baselines: list
+    new_baselines: list
+
+
 type UndoEntry = (
-    OptionChange | AnimationUndoEntry | BindsUndoEntry | MonitorsUndoEntry | CursorUndoEntry
+    OptionChange
+    | AnimationUndoEntry
+    | BindsUndoEntry
+    | MonitorsUndoEntry
+    | CursorUndoEntry
+    | AutostartUndoEntry
 )
 
 

@@ -186,6 +186,7 @@ class Sidebar:
         add_schema_row(layouts, "scrolling")
 
         other = new_category("Other")
+        add_row(other, "autostart", "Autostart", "media-playback-start-symbolic")
         add_schema_row(other, "xwayland")
         add_schema_row(other, "ecosystem")
         add_schema_row(other, "misc")

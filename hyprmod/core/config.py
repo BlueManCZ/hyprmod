@@ -45,9 +45,19 @@ KEYWORD_ANIMATION = "animation"
 KEYWORD_BEZIER = "bezier"
 KEYWORD_UNBIND = "unbind"
 KEYWORD_ENV = "env"
+KEYWORD_EXEC = "exec"
+KEYWORD_EXEC_ONCE = "exec-once"
 
 _NON_BIND_SPECIAL = frozenset(
-    (KEYWORD_MONITOR, KEYWORD_ANIMATION, KEYWORD_BEZIER, KEYWORD_UNBIND, KEYWORD_ENV)
+    (
+        KEYWORD_MONITOR,
+        KEYWORD_ANIMATION,
+        KEYWORD_BEZIER,
+        KEYWORD_UNBIND,
+        KEYWORD_ENV,
+        KEYWORD_EXEC,
+        KEYWORD_EXEC_ONCE,
+    )
 )
 
 
@@ -175,6 +185,7 @@ def build_content(
     animation_lines: list[str] | None = None,
     bezier_lines: list[str] | None = None,
     env_lines: list[str] | None = None,
+    exec_lines: list[str] | None = None,
 ) -> str:
     """Build the config file content without writing it.
 
@@ -198,6 +209,12 @@ def build_content(
         _append_section(lines, "Monitors", monitor_lines)
     if bind_lines:
         _append_section(lines, "Keybinds", bind_lines)
+    # Autostart goes last: ``exec`` re-runs on every reload, so any
+    # config later in the file that affects the exec'd process (env
+    # vars, monitor layout, …) is already in effect by the time the
+    # commands run.
+    if exec_lines:
+        _append_section(lines, "Autostart", exec_lines)
 
     return _auto_migrate_content("".join(lines))
 
@@ -209,6 +226,7 @@ def write_all(
     animation_lines: list[str] | None = None,
     bezier_lines: list[str] | None = None,
     env_lines: list[str] | None = None,
+    exec_lines: list[str] | None = None,
 ) -> None:
     """Write all values and special lines to the config file."""
     content = build_content(
@@ -218,5 +236,6 @@ def write_all(
         animation_lines=animation_lines,
         bezier_lines=bezier_lines,
         env_lines=env_lines,
+        exec_lines=exec_lines,
     )
     atomic_write(gui_conf(), content)

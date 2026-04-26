@@ -13,6 +13,7 @@ from hyprmod.core import config, profiles, schema
 from hyprmod.core.state import AppState
 from hyprmod.core.undo import (
     AnimationUndoEntry,
+    AutostartUndoEntry,
     BindsUndoEntry,
     CursorUndoEntry,
     MonitorsUndoEntry,
@@ -21,6 +22,7 @@ from hyprmod.core.undo import (
 )
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
+from hyprmod.pages.autostart import AutostartPage
 from hyprmod.pages.binds import BindsPage
 from hyprmod.pages.cursor import CursorPage
 from hyprmod.pages.monitors import MonitorsPage
@@ -82,6 +84,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._monitors_page: MonitorsPage | None = None
         self._binds_page: BindsPage | None = None
         self._cursor_page: CursorPage | None = None
+        self._autostart_page: AutostartPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
         self._pending_page: PendingChangesPage | None = None
@@ -262,6 +265,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._monitors_page,
                 self._binds_page,
                 self._cursor_page,
+                self._autostart_page,
             )
             if p is not None
         ]
@@ -339,6 +343,16 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._page_titles["monitors"] = "Monitors"
         self._search_page_builder.add_entries(self._monitors_page.get_search_entries())
         self._search_page_builder.add_entries(CursorPage.get_search_entries())
+
+        self._autostart_page = AutostartPage(
+            self,
+            on_dirty_changed=self._on_section_dirty,
+            push_undo=self._undo.push,
+            saved_sections=self._saved_sections,
+        )
+        autostart_nav = self._autostart_page.build(header=self._make_page_header("Autostart"))
+        self._page_stack.add_named(autostart_nav, "autostart")
+        self._page_titles["autostart"] = "Autostart"
 
         self._profiles_page = ProfilesPage(self)
         profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
@@ -557,6 +571,8 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["monitors"] += self._monitors_page.dirty_count()
         if self._cursor_page and self._cursor_page.is_dirty():
             counts["cursor"] += 1
+        if self._autostart_page and self._autostart_page.is_dirty():
+            counts["autostart"] += self._autostart_page.pending_change_count()
 
         # The pending-changes row totals everything else
         counts["pending"] = sum(counts.values())
@@ -894,6 +910,11 @@ class HyprModWindow(Adw.ApplicationWindow):
             size = entry.old_size if undo else entry.new_size
             self._cursor_page.restore_snapshot(theme, size)
             confirm(entry)
+        elif isinstance(entry, AutostartUndoEntry) and self._autostart_page is not None:
+            items = entry.old_items if undo else entry.new_items
+            baselines = entry.old_baselines if undo else entry.new_baselines
+            self._autostart_page.restore_snapshot(items, baselines)
+            confirm(entry)
 
     # -- Save with animation --
 
@@ -934,7 +955,13 @@ class HyprModWindow(Adw.ApplicationWindow):
             if has_managed or self._cursor_page.is_dirty():
                 env_lines = self._cursor_page.get_env_lines()
 
-        return bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines
+        exec_lines = None
+        if self._autostart_page is not None:
+            has_managed_autostart = AutostartPage.has_managed_section(saved_sections)
+            if has_managed_autostart or self._autostart_page.is_dirty():
+                exec_lines = self._autostart_page.get_exec_lines()
+
+        return bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines, exec_lines
 
     def _perform_save(self):
         values = self.app_state.get_all_live_values()
@@ -944,6 +971,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             animation_lines,
             bezier_lines,
             env_lines,
+            exec_lines,
         ) = self._collect_save_sections()
         config.write_all(
             values,
@@ -952,6 +980,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             animation_lines=animation_lines,
             bezier_lines=bezier_lines,
             env_lines=env_lines,
+            exec_lines=exec_lines,
         )
         self.app_state.mark_saved()
         self.hypr.clear_pending()
@@ -1002,6 +1031,9 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         if self._cursor_page is not None:
             self._cursor_page.reload_from_saved(self._saved_sections)
+
+        if self._autostart_page is not None:
+            self._autostart_page.reload_from_saved(self._saved_sections)
 
         self._undo.clear()
         self._update_dna()
