@@ -14,7 +14,7 @@ from hyprmod.binds.dispatchers import (
     format_action,
 )
 from hyprmod.binds.helpers import MODIFIER_KEYVALS, gdk_state_to_mods
-from hyprmod.ui import clear_children
+from hyprmod.ui import clear_children, confirm
 
 BIND_TYPE_KEYS = list(BIND_TYPES.keys())
 BIND_TYPE_LABELS = [v["label"] for v in BIND_TYPES.values()]
@@ -526,25 +526,23 @@ class BindEditDialog(Adw.Dialog):
             for c in conflicts
         ]
         detail = "\n".join(detail_lines)
-        dialog = Adw.AlertDialog(
+
+        def on_confirm():
+            if self._on_apply_callback:
+                self._on_apply_callback(bind)
+            self.close()
+
+        confirm(
+            self._window,
             heading="Duplicate keybind",
-            body=f"This key combination is already used by:\n{detail}\n\n"
-            f"Hyprland will trigger all matching binds.",
+            body=(
+                f"This key combination is already used by:\n{detail}\n\n"
+                f"Hyprland will trigger all matching binds."
+            ),
+            label="Add Anyway",
+            cancel_label="Go Back",
+            on_confirm=on_confirm,
         )
-        dialog.add_response("back", "Go Back")
-        dialog.add_response("add", "Add Anyway")
-        dialog.set_response_appearance("add", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response("back")
-        dialog.set_close_response("back")
-
-        def on_response(_dialog, response):
-            if response == "add":
-                if self._on_apply_callback:
-                    self._on_apply_callback(bind)
-                self.close()
-
-        dialog.connect("response", on_response)
-        dialog.present(self._window)
 
     def get_bind(self) -> BindData:
         combo = self._get_current_key_combo()

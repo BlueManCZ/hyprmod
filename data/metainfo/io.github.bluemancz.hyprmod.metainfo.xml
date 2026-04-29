@@ -20,7 +20,7 @@
       HyprMod is a native GTK4/libadwaita settings app for Hyprland.
       Every change applies instantly to the running compositor, and
       your hand-crafted config stays untouched — HyprMod writes only
-      to its own hyprland-gui.conf.
+      to its own managed config file.
     </p>
     <p>Features:</p>
     <ul>

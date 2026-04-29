@@ -2,6 +2,7 @@
 
 import functools
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 
 from gi.repository import Adw, Gdk, Gtk
@@ -75,11 +76,19 @@ def confirm(
     label: str,
     on_confirm: Callable[[], object],
     *,
+    cancel_label: str = "Cancel",
     appearance: Adw.ResponseAppearance = Adw.ResponseAppearance.DESTRUCTIVE,
 ) -> Adw.AlertDialog:
-    """Present a simple confirmation dialog. Calls on_confirm() if accepted."""
+    """Present a simple confirmation dialog. Calls on_confirm() if accepted.
+
+    Use this for yes/no questions where the only inputs are the two
+    response buttons. Form dialogs (with entry rows, live validation,
+    or custom focus handling) should build ``Adw.AlertDialog`` directly
+    — wrapping them here would obscure the form logic without
+    saving meaningful boilerplate.
+    """
     dialog = Adw.AlertDialog(heading=heading, body=body)
-    dialog.add_response("cancel", "Cancel")
+    dialog.add_response("cancel", cancel_label)
     dialog.add_response("confirm", label)
     dialog.set_response_appearance("confirm", appearance)
     dialog.set_default_response("cancel")
@@ -92,3 +101,50 @@ def confirm(
     dialog.connect("response", on_response)
     dialog.present(parent)
     return dialog
+
+
+def try_with_toast(
+    show_toast: Callable[..., object],
+    error_prefix: str,
+    action: Callable[[], object],
+    *,
+    catch: type[BaseException] | tuple[type[BaseException], ...] = Exception,
+    timeout: int = 5,
+) -> bool:
+    """Run *action*; toast and return ``False`` on caught error, else ``True``.
+
+    Consolidates the common shape::
+
+        try:
+            self._window.hypr.keyword(...)
+            return True
+        except HyprlandError as e:
+            self._window.show_toast(f"... — {e}", timeout=5)
+            return False
+
+    *show_toast* is the bound method to call (typically
+    ``window.show_toast``); the helper passes the formatted message
+    as the first positional arg and ``timeout`` as a keyword arg, so
+    it works with the project's ``show_toast(message, timeout=...)``
+    signature. *catch* defaults to ``Exception`` but should usually
+    be narrowed to the IPC-specific class (``HyprlandError``).
+    """
+    try:
+        action()
+    except catch as e:
+        show_toast(f"{error_prefix} — {e}", timeout=timeout)
+        return False
+    return True
+
+
+def display_path(path: Path) -> str:
+    """Return *path* as a string with ``$HOME`` collapsed to ``~``.
+
+    Used in user-facing UI strings (source-line previews, external-
+    rule provenance) where absolute home paths are noise. Falls back
+    to the absolute path verbatim when *path* is outside ``$HOME``.
+    """
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)

@@ -6,7 +6,9 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
+from hyprmod.core import config
 from hyprmod.core.setup import needs_setup, run_setup
+from hyprmod.ui import display_path
 from hyprmod.window import HyprModWindow
 
 
@@ -117,7 +119,10 @@ class HyprModApp(Adw.Application):
         code_view.set_right_margin(14)
         code_view.set_hexpand(True)
         code_view.set_size_request(420, -1)
-        code_view.get_buffer().set_text("source = ~/.config/hypr/hyprland-gui.conf")
+        # Render the source line against the *live* configured path so a
+        # user who pre-set ``hyprmod.config-path`` to a custom location
+        # sees that location in the onboarding instead of a stale default.
+        code_view.get_buffer().set_text(f"source = {display_path(config.gui_conf())}")
         code_view.add_css_class("code-block-text")
         code_box.append(code_view)
         box.append(code_box)

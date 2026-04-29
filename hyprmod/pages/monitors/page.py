@@ -24,7 +24,7 @@ from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm import ConfirmController
 from hyprmod.pages.section import SectionPage
-from hyprmod.ui import clear_children, make_page_layout
+from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.monitor_preview import MonitorLayoutPreview
 from hyprmod.ui.timer import Timer
 
@@ -353,10 +353,12 @@ class MonitorsPage(SectionPage):
                         if other.mirror_of == mon.name:
                             other.mirror_of = None
                             self._ownership.own(other.name)
-                try:
-                    self._window.hypr.monitors.apply(self._monitors)
-                except HyprlandError as e:
-                    self._window.show_toast(f"Monitor config failed — {e}", timeout=5)
+                if not try_with_toast(
+                    self._window.show_toast,
+                    "Monitor config failed",
+                    lambda: self._window.hypr.monitors.apply(self._monitors),
+                    catch=HyprlandError,
+                ):
                     return
                 self._push_to_ui()
             finally:

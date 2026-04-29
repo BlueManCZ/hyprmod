@@ -4,12 +4,12 @@
     <key name="auto-save" type="b">
       <default>false</default>
       <summary>Auto-save</summary>
-      <description>Automatically save changes to hyprland-gui.conf after each modification.</description>
+      <description>Automatically save changes to the HyprMod managed config after each modification.</description>
     </key>
     <key name="config-path" type="s">
       <default>''</default>
       <summary>Config file path</summary>
-      <description>Path to the hyprland-gui.conf file. Empty string uses the default location.</description>
+      <description>Path to the HyprMod managed config file. Empty string uses the default location (~/.config/hypr/hyprland-gui.conf).</description>
     </key>
   </schema>
 </schemalist>

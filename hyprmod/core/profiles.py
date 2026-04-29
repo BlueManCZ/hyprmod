@@ -94,7 +94,7 @@ def read_profile_values(profile_id: str) -> dict[str, str]:
 
 
 def save_current_as(name: str, description: str = "") -> str:
-    """Save the current hyprland-gui.conf as a new profile. Returns the profile ID."""
+    """Snapshot the current managed config as a new profile. Returns the profile ID."""
     profile_id = uuid.uuid4().hex[:12]
     pdir = _profile_dir(profile_id)
     pdir.mkdir(parents=True, exist_ok=True)
@@ -129,7 +129,7 @@ def update(profile_id: str) -> None:
 
 
 def activate_meta(profile_id: str) -> bool:
-    """Set a profile as active and copy its config to hyprland-gui.conf."""
+    """Set a profile as active and copy its snapshot to the managed config path."""
     pdir = _profile_dir(profile_id)
     conf_src = pdir / "hyprland-gui.conf"
     if not conf_src.exists():
@@ -140,7 +140,7 @@ def activate_meta(profile_id: str) -> bool:
 
 
 def activate(profile_id: str, hypr: HyprlandState) -> bool:
-    """Load a profile: apply all values via IPC, copy to hyprland-gui.conf, reload."""
+    """Load a profile: apply all values via IPC, copy to the managed config, reload."""
     values = read_profile_values(profile_id)
     if values:
         hypr.apply_batch(list(values.items()), validate=False)

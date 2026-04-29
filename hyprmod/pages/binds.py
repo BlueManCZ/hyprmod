@@ -19,7 +19,7 @@ from hyprmod.core import config
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.undo import BindsUndoEntry
 from hyprmod.pages.section import SectionPage
-from hyprmod.ui import clear_children, make_page_layout
+from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.row_actions import RowActions
 
 # ---------------------------------------------------------------------------
@@ -47,24 +47,26 @@ class BindsPage(SectionPage):
 
     def _apply_bind_live(self, bind: BindData) -> bool:
         """Register a bind in the running Hyprland instance."""
-        try:
-            self._window.hypr.keyword(
+        return try_with_toast(
+            self._window.show_toast,
+            "Bind failed",
+            lambda: self._window.hypr.keyword(
                 bind.bind_type,
                 f"{bind.mods_str}, {bind.key}, {bind.dispatcher}, {bind.arg}",
-            )
-            return True
-        except HyprlandError as e:
-            self._window.show_toast(f"Bind failed — {e}", timeout=5)
-            return False
+            ),
+            catch=HyprlandError,
+        )
 
-    def _unbind_live(self, bind: BindData) -> bool:
+    def _revert_bind_live(self, bind: BindData) -> bool:
         """Remove a bind from the running Hyprland instance."""
-        try:
-            self._window.hypr.keyword(config.KEYWORD_UNBIND, f"{bind.mods_str}, {bind.key}")
-            return True
-        except HyprlandError as e:
-            self._window.show_toast(f"Unbind failed — {e}", timeout=5)
-            return False
+        return try_with_toast(
+            self._window.show_toast,
+            "Unbind failed",
+            lambda: self._window.hypr.keyword(
+                config.KEYWORD_UNBIND, f"{bind.mods_str}, {bind.key}"
+            ),
+            catch=HyprlandError,
+        )
 
     def _load_binds(self, saved_sections=None):
         live_binds = self._window.hypr.get_binds() or []
@@ -124,7 +126,7 @@ class BindsPage(SectionPage):
         """Restore binds state from an undo/redo snapshot."""
         # Undo live: unbind all current owned, restore overridden originals
         for b in self._owned_binds:
-            self._unbind_live(b)
+            self._revert_bind_live(b)
         for orig in self._overrides.snapshot_session().values():
             self._apply_bind_live(orig)
 
@@ -134,7 +136,7 @@ class BindsPage(SectionPage):
 
         # Redo live: unbind restored override originals, bind all restored
         for orig in session_overrides.values():
-            self._unbind_live(orig)
+            self._revert_bind_live(orig)
         for b in items:
             self._apply_bind_live(b)
 
@@ -397,7 +399,7 @@ class BindsPage(SectionPage):
 
         def on_apply(new_bind):
             with self._undo_track():
-                self._unbind_live(bind)
+                self._revert_bind_live(bind)
                 self._apply_bind_live(new_bind)
                 owned_binds[idx] = new_bind
             self._notify_dirty()
@@ -419,7 +421,7 @@ class BindsPage(SectionPage):
 
         def on_apply(new_bind):
             with self._undo_track():
-                self._unbind_live(hypr_bind)
+                self._revert_bind_live(hypr_bind)
                 self._apply_bind_live(new_bind)
                 owned_binds.append_new(new_bind)
                 idx = len(owned_binds) - 1
@@ -442,7 +444,7 @@ class BindsPage(SectionPage):
             return
         with self._undo_track():
             removed = self._owned_binds.pop_at(idx)
-            self._unbind_live(removed)
+            self._revert_bind_live(removed)
             original = self._overrides.remove_at(idx, removed_bind=removed)
             if original:
                 self._apply_bind_live(original)
@@ -461,7 +463,7 @@ class BindsPage(SectionPage):
         # Revert to saved version — _undo_track handles pop-or-push
         with self._undo_track():
             current = self._owned_binds[idx]
-            self._unbind_live(current)
+            self._revert_bind_live(current)
             self._apply_bind_live(baseline)
             self._owned_binds.discard_at(idx)
         self._notify_dirty()
@@ -489,7 +491,7 @@ class BindsPage(SectionPage):
 
         for b in self._owned_binds:
             if b.to_line() not in saved_lines:
-                self._unbind_live(b)
+                self._revert_bind_live(b)
         for b in self._owned_binds.saved:
             if b.to_line() not in current_lines:
                 self._apply_bind_live(b)

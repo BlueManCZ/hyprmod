@@ -19,6 +19,7 @@ from hyprmod.core.undo import (
     MonitorsUndoEntry,
     OptionChange,
     UndoManager,
+    WindowRulesUndoEntry,
 )
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
@@ -30,6 +31,7 @@ from hyprmod.pages.pending import PendingChangesPage
 from hyprmod.pages.profiles import ProfilesPage
 from hyprmod.pages.section import SectionPage
 from hyprmod.pages.settings import SettingsPage
+from hyprmod.pages.window_rules import WindowRulesPage
 from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, make_page_layout
 from hyprmod.ui.about import build_about_dialog
 from hyprmod.ui.banner import DirtyBanner
@@ -85,6 +87,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._binds_page: BindsPage | None = None
         self._cursor_page: CursorPage | None = None
         self._autostart_page: AutostartPage | None = None
+        self._window_rules_page: WindowRulesPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
         self._pending_page: PendingChangesPage | None = None
@@ -266,6 +269,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._binds_page,
                 self._cursor_page,
                 self._autostart_page,
+                self._window_rules_page,
             )
             if p is not None
         ]
@@ -353,6 +357,18 @@ class HyprModWindow(Adw.ApplicationWindow):
         autostart_nav = self._autostart_page.build(header=self._make_page_header("Autostart"))
         self._page_stack.add_named(autostart_nav, "autostart")
         self._page_titles["autostart"] = "Autostart"
+
+        self._window_rules_page = WindowRulesPage(
+            self,
+            on_dirty_changed=self._on_section_dirty,
+            push_undo=self._undo.push,
+            saved_sections=self._saved_sections,
+        )
+        window_rules_nav = self._window_rules_page.build(
+            header=self._make_page_header("Window Rules")
+        )
+        self._page_stack.add_named(window_rules_nav, "window_rules")
+        self._page_titles["window_rules"] = "Window Rules"
 
         self._profiles_page = ProfilesPage(self)
         profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
@@ -573,6 +589,8 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["cursor"] += 1
         if self._autostart_page and self._autostart_page.is_dirty():
             counts["autostart"] += self._autostart_page.pending_change_count()
+        if self._window_rules_page and self._window_rules_page.is_dirty():
+            counts["window_rules"] += self._window_rules_page.pending_change_count()
 
         # The pending-changes row totals everything else
         counts["pending"] = sum(counts.values())
@@ -915,14 +933,19 @@ class HyprModWindow(Adw.ApplicationWindow):
             baselines = entry.old_baselines if undo else entry.new_baselines
             self._autostart_page.restore_snapshot(items, baselines)
             confirm(entry)
+        elif isinstance(entry, WindowRulesUndoEntry) and self._window_rules_page is not None:
+            items = entry.old_items if undo else entry.new_items
+            baselines = entry.old_baselines if undo else entry.new_baselines
+            self._window_rules_page.restore_snapshot(items, baselines)
+            confirm(entry)
 
     # -- Save with animation --
 
     def _collect_save_sections(self):
         """Collect sections to save: dirty sections + previously saved sections.
 
-        A section is only included if it was already in hyprland-gui.conf
-        (HyprMod owns it) or the user changed it in this session.
+        A section is only included if it was already in hyprmod's managed
+        config (HyprMod owns it) or the user changed it in this session.
         Parses the config file once to check all sections.
         """
         _, saved_sections = config.read_all_sections()
@@ -961,7 +984,21 @@ class HyprModWindow(Adw.ApplicationWindow):
             if has_managed_autostart or self._autostart_page.is_dirty():
                 exec_lines = self._autostart_page.get_exec_lines()
 
-        return bind_lines, monitor_lines, animation_lines, bezier_lines, env_lines, exec_lines
+        window_rule_lines = None
+        if self._window_rules_page is not None:
+            has_managed_rules = WindowRulesPage.has_managed_section(saved_sections)
+            if has_managed_rules or self._window_rules_page.is_dirty():
+                window_rule_lines = self._window_rules_page.get_window_rule_lines()
+
+        return (
+            bind_lines,
+            monitor_lines,
+            animation_lines,
+            bezier_lines,
+            env_lines,
+            exec_lines,
+            window_rule_lines,
+        )
 
     def _perform_save(self):
         values = self.app_state.get_all_live_values()
@@ -972,6 +1009,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             bezier_lines,
             env_lines,
             exec_lines,
+            window_rule_lines,
         ) = self._collect_save_sections()
         config.write_all(
             values,
@@ -981,6 +1019,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             bezier_lines=bezier_lines,
             env_lines=env_lines,
             exec_lines=exec_lines,
+            window_rule_lines=window_rule_lines,
         )
         self.app_state.mark_saved()
         self.hypr.clear_pending()
@@ -1034,6 +1073,9 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         if self._autostart_page is not None:
             self._autostart_page.reload_from_saved(self._saved_sections)
+
+        if self._window_rules_page is not None:
+            self._window_rules_page.reload_from_saved(self._saved_sections)
 
         self._undo.clear()
         self._update_dna()

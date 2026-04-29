@@ -1,4 +1,4 @@
-"""Read/write hyprland-gui.conf — hyprmod's managed config file."""
+"""Read/write hyprmod's managed config file (path is user-configurable via ``set_gui_conf``)."""
 
 import logging
 from pathlib import Path
@@ -47,6 +47,14 @@ KEYWORD_UNBIND = "unbind"
 KEYWORD_ENV = "env"
 KEYWORD_EXEC = "exec"
 KEYWORD_EXEC_ONCE = "exec-once"
+# ``windowrule`` is the Hyprland 0.53+ canonical name; ``windowrulev2`` is
+# the 0.48–0.52 spelling for the same syntax. We accept both on read; the
+# Window Rules page writes ``windowrulev2`` (the form well-supported across
+# the long tail of installed versions). When ``hyprland_config.migrate()``
+# learns the v2 → v3 rename, the auto-migration on save will rewrite our
+# output without UI changes.
+KEYWORD_WINDOWRULE = "windowrule"
+KEYWORD_WINDOWRULEV2 = "windowrulev2"
 
 _NON_BIND_SPECIAL = frozenset(
     (
@@ -57,6 +65,8 @@ _NON_BIND_SPECIAL = frozenset(
         KEYWORD_ENV,
         KEYWORD_EXEC,
         KEYWORD_EXEC_ONCE,
+        KEYWORD_WINDOWRULE,
+        KEYWORD_WINDOWRULEV2,
     )
 )
 
@@ -82,11 +92,19 @@ def read_all_sections(
     Returns (options, sections) where:
     - options: key -> value for regular option lines
     - sections: section_key -> [raw lines] for special keys (bind, monitor, etc.)
+
+    The Document is run through ``hyprland_config.migrate`` before
+    line collection so deprecated syntax (e.g. ``exec_once``,
+    ``windowrulev2``, the legacy ``decoration:blur_*`` flat keys) is
+    rewritten to its current form transparently. Hyprmod's internal
+    code only ever sees the migrated shape, which is also what we
+    write back on save.
     """
     path = path or gui_conf()
     if not path.exists():
         return {}, {}
     doc = load_document(path, follow_sources=False)
+    migrate(doc)
     options: dict[str, str] = {}
     sections: dict[str, list[str]] = {}
     for line in doc.lines:
@@ -154,7 +172,9 @@ def _auto_migrate_content(content: str) -> str:
     Falls back to the original content if parsing or migration raises.
     """
     try:
-        doc = parse_string(content, name="hyprland-gui.conf", lenient=True)
+        # Use the live filename so parser error messages reference the
+        # actual file the user has configured, not the default name.
+        doc = parse_string(content, name=gui_conf().name, lenient=True)
     except Exception:  # noqa: BLE001 — migration must never block a save
         log.exception("failed to parse outgoing config for migration; writing as-is")
         return content
@@ -186,6 +206,7 @@ def build_content(
     bezier_lines: list[str] | None = None,
     env_lines: list[str] | None = None,
     exec_lines: list[str] | None = None,
+    window_rule_lines: list[str] | None = None,
 ) -> str:
     """Build the config file content without writing it.
 
@@ -209,6 +230,11 @@ def build_content(
         _append_section(lines, "Monitors", monitor_lines)
     if bind_lines:
         _append_section(lines, "Keybinds", bind_lines)
+    # Window rules sit before autostart so any rule overrides (e.g.
+    # ``opacity 0.9 0.7, class:^(kitty)$``) are in effect before
+    # exec'd processes spawn matching windows on reload.
+    if window_rule_lines:
+        _append_section(lines, "Window rules", window_rule_lines)
     # Autostart goes last: ``exec`` re-runs on every reload, so any
     # config later in the file that affects the exec'd process (env
     # vars, monitor layout, …) is already in effect by the time the
@@ -227,6 +253,7 @@ def write_all(
     bezier_lines: list[str] | None = None,
     env_lines: list[str] | None = None,
     exec_lines: list[str] | None = None,
+    window_rule_lines: list[str] | None = None,
 ) -> None:
     """Write all values and special lines to the config file."""
     content = build_content(
@@ -237,5 +264,6 @@ def write_all(
         bezier_lines=bezier_lines,
         env_lines=env_lines,
         exec_lines=exec_lines,
+        window_rule_lines=window_rule_lines,
     )
     atomic_write(gui_conf(), content)

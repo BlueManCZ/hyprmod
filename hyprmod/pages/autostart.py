@@ -9,7 +9,7 @@ Unlike the keybinds page, autostart edits are *not* live-applied —
 ``hyprctl keyword exec foo`` would actually launch ``foo`` immediately,
 which is rarely what someone editing the list wants (you'd get a second
 ``waybar`` while tweaking the existing entry). Instead, edits land in
-``hyprland-gui.conf`` and take effect on the next Hyprland reload. A
+hyprmod's managed config and take effect on the next Hyprland reload. A
 per-row "Run now" action lets users test a command without firing
 everything else on the page.
 

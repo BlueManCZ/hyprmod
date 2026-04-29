@@ -72,6 +72,21 @@ class AutostartUndoEntry:
     new_baselines: list
 
 
+@dataclass(slots=True)
+class WindowRulesUndoEntry:
+    """Undo entry for a window-rules snapshot.
+
+    Same shape as ``AutostartUndoEntry`` — the page mutates a
+    ``SavedList[WindowRule]`` and snapshots both items and baselines so
+    add/edit/remove/reorder all undo through the same single entry type.
+    """
+
+    old_items: list
+    new_items: list
+    old_baselines: list
+    new_baselines: list
+
+
 type UndoEntry = (
     OptionChange
     | AnimationUndoEntry
@@ -79,6 +94,7 @@ type UndoEntry = (
     | MonitorsUndoEntry
     | CursorUndoEntry
     | AutostartUndoEntry
+    | WindowRulesUndoEntry
 )
 
 
