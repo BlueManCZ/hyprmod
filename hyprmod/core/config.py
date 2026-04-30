@@ -48,11 +48,10 @@ KEYWORD_ENV = "env"
 KEYWORD_EXEC = "exec"
 KEYWORD_EXEC_ONCE = "exec-once"
 # ``windowrule`` is the Hyprland 0.53+ canonical name; ``windowrulev2`` is
-# the 0.48–0.52 spelling for the same syntax. We accept both on read; the
-# Window Rules page writes ``windowrulev2`` (the form well-supported across
-# the long tail of installed versions). When ``hyprland_config.migrate()``
-# learns the v2 → v3 rename, the auto-migration on save will rewrite our
-# output without UI changes.
+# the 0.48–0.52 spelling for the same syntax. We accept both on read.
+# Output is always v3 ``windowrule`` — migration is skipped for window
+# rules on save because ``hyprland_config.migrate()`` incorrectly
+# converts v3 windowrule → windowrulev2.
 KEYWORD_WINDOWRULE = "windowrule"
 KEYWORD_WINDOWRULEV2 = "windowrulev2"
 
@@ -238,11 +237,18 @@ def build_content(
     # Autostart goes last: ``exec`` re-runs on every reload, so any
     # config later in the file that affects the exec'd process (env
     # vars, monitor layout, …) is already in effect by the time the
-    # commands run.
+    # exec'd commands run.
     if exec_lines:
         _append_section(lines, "Autostart", exec_lines)
 
-    return _auto_migrate_content("".join(lines))
+    content = "".join(lines)
+    if window_rule_lines:
+        non_rule_content = content[: content.rfind("# Window rules\n")].rstrip("\n")
+        if non_rule_content:
+            migrated = _auto_migrate_content(non_rule_content)
+            rule_section_start = content.find("# Window rules\n")
+            return migrated + "\n" + content[rule_section_start:]
+    return _auto_migrate_content(content)
 
 
 def write_all(

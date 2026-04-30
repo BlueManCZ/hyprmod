@@ -142,8 +142,7 @@ class WindowRulesPage(SectionPage):
             _, saved_sections = config.read_all_sections()
         # Read both ``windowrule`` and ``windowrulev2`` so users with
         # hand-rolled lines in either form see them in the UI. The
-        # write path emits ``windowrulev2`` for new rules but preserves
-        # the original keyword on edit (see WindowRuleEditDialog).
+        # write path emits ``windowrule`` (v3) for all rules.
         raw_lines = config.collect_section(saved_sections, *WINDOW_RULE_KEYWORDS)
         items = parse_window_rule_lines(raw_lines)
         self._owned = SavedList(items, key=lambda r: r.to_line())
