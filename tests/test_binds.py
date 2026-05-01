@@ -1,17 +1,26 @@
 """Tests for keybind override tracking and dispatcher presentation data."""
 
 from hyprland_config import BindData
+from hyprland_socket import Bind
 
 from hyprmod.binds import (
     BIND_TYPES,
+    BINDM_DISPATCHERS,
     CATEGORY_BY_ID,
     DISPATCHER_CATEGORIES,
     DISPATCHER_INFO,
+    GDK_BUTTON_TO_MOUSE_KEY,
+    KEY_BIND_TYPES,
+    MOUSE_BUTTON_PRESETS,
     OverrideTracker,
+    bind_dispatcher_label,
+    categorize_bind,
     categorize_dispatcher,
     dispatcher_label,
     format_action,
+    format_bind_action,
 )
+from hyprmod.pages.binds import _live_bind_to_data
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -457,3 +466,277 @@ class TestDispatchers:
 
     def test_format_action_unknown_dispatcher(self):
         assert format_action("foobar", "") == "foobar"
+
+
+# ---------------------------------------------------------------------------
+# Live bind -> BindData conversion
+# ---------------------------------------------------------------------------
+
+
+SUPER_MASK = 64  # Hyprland modmask bit for SUPER
+
+
+class TestLiveBindToData:
+    def test_plain_bind_passes_through(self):
+        bind = Bind(modmask=SUPER_MASK, key="Q", dispatcher="killactive", arg="")
+        bd = _live_bind_to_data(bind)
+        assert bd.bind_type == "bind"
+        assert bd.mods == ["SUPER"]
+        assert bd.key == "Q"
+        assert bd.dispatcher == "killactive"
+        assert bd.arg == ""
+
+    def test_bindm_unwraps_dispatcher_and_arg(self):
+        """Hyprland reports bindm as ``dispatcher='mouse', arg='movewindow'``."""
+        bind = Bind(
+            modmask=SUPER_MASK,
+            key="mouse:272",
+            dispatcher="mouse",
+            arg="movewindow",
+            mouse=True,
+        )
+        bd = _live_bind_to_data(bind)
+        assert bd.bind_type == "bindm"
+        assert bd.dispatcher == "movewindow"
+        assert bd.arg == ""
+
+    def test_bindm_round_trip_emits_no_trailing_comma(self):
+        """Roundtripping a live bindm must not produce ``bindm = ..., movewindow,``."""
+        bind = Bind(
+            modmask=SUPER_MASK,
+            key="mouse:273",
+            dispatcher="mouse",
+            arg="resizewindow",
+            mouse=True,
+        )
+        bd = _live_bind_to_data(bind)
+        assert bd.to_line() == "bindm = SUPER, mouse:273, resizewindow"
+
+    def test_binde_flag(self):
+        bind = Bind(modmask=SUPER_MASK, key="L", dispatcher="resizeactive", arg="10 0", repeat=True)
+        assert _live_bind_to_data(bind).bind_type == "binde"
+
+    def test_bindl_flag(self):
+        bind = Bind(modmask=0, key="XF86AudioPlay", dispatcher="exec", arg="playerctl", locked=True)
+        assert _live_bind_to_data(bind).bind_type == "bindl"
+
+    def test_bindr_flag(self):
+        bind = Bind(modmask=SUPER_MASK, key="A", dispatcher="exec", arg="x", release=True)
+        assert _live_bind_to_data(bind).bind_type == "bindr"
+
+    def test_bindn_flag(self):
+        bind = Bind(modmask=0, key="A", dispatcher="exec", arg="x", non_consuming=True)
+        assert _live_bind_to_data(bind).bind_type == "bindn"
+
+    def test_no_modmask_yields_empty_mods(self):
+        bind = Bind(modmask=0, key="Print", dispatcher="exec", arg="screenshot")
+        assert _live_bind_to_data(bind).mods == []
+
+
+# ---------------------------------------------------------------------------
+# Mouse-drag categorisation, dispatchers, and presets
+# ---------------------------------------------------------------------------
+
+
+class TestCategorizeBind:
+    def test_bindm_always_categorises_as_mouse_button(self):
+        # ``movewindow`` lives in window_focus for keyboard binds, but for
+        # bindm it must bucket under mouse_button regardless of dispatcher.
+        assert categorize_bind("bindm", "movewindow") == "mouse_button"
+        assert categorize_bind("bindm", "resizewindow") == "mouse_button"
+        # Even if the dispatcher is unknown, bindm forces mouse_button.
+        assert categorize_bind("bindm", "weird_custom") == "mouse_button"
+
+    def test_keyboard_bind_uses_dispatcher_category(self):
+        assert categorize_bind("bind", "movewindow") == "window_focus"
+        assert categorize_bind("bind", "killactive") == "window_mgmt"
+        assert categorize_bind("binde", "resizeactive") == "window_focus"
+
+    def test_unknown_dispatcher_falls_back_to_advanced(self):
+        assert categorize_bind("bind", "no_such_dispatcher") == "advanced"
+
+
+class TestBindDispatcherLabel:
+    def test_bindm_uses_bindm_label(self):
+        # In bindm mode movewindow is presented as the drag action,
+        # not as the directional ``Move window`` keyboard variant.
+        assert bind_dispatcher_label("bindm", "movewindow") == "Move window"
+        assert bind_dispatcher_label("bindm", "resizewindow") == "Resize window"
+
+    def test_keyboard_bind_uses_default_label(self):
+        assert bind_dispatcher_label("bind", "killactive") == "Close window"
+        assert bind_dispatcher_label("bind", "exec") == "Run command"
+
+    def test_bindm_unknown_dispatcher_falls_through(self):
+        assert bind_dispatcher_label("bindm", "weird_thing") == "weird_thing"
+
+
+class TestFormatBindAction:
+    def test_bindm_no_arg(self):
+        assert format_bind_action("bindm", "movewindow", "") == "Move window"
+
+    def test_bindm_with_arg(self):
+        # Hyprland's stock bindm dispatchers don't take args but the format
+        # helper still composes "label: arg" for completeness.
+        assert format_bind_action("bindm", "movewindow", "x") == "Move window: x"
+
+    def test_keyboard_bind(self):
+        assert format_bind_action("bind", "exec", "firefox") == "Run command: firefox"
+
+
+class TestMouseDragCategoryRegistered:
+    def test_category_present_in_DISPATCHER_CATEGORIES(self):
+        ids = [c["id"] for c in DISPATCHER_CATEGORIES]
+        assert "mouse_button" in ids
+
+    def test_category_in_lookup(self):
+        assert "mouse_button" in CATEGORY_BY_ID
+        assert CATEGORY_BY_ID["mouse_button"]["label"] == "Mouse Button"
+
+    def test_category_dispatchers_kept_empty(self):
+        # ``movewindow`` and ``resizewindow`` would clobber their entries in
+        # the keyboard categories of the flat ``DISPATCHER_INFO`` lookup, so
+        # the mouse_button category is intentionally empty in DISPATCHER_INFO.
+        assert "movewindow" in DISPATCHER_INFO
+        assert DISPATCHER_INFO["movewindow"]["category_id"] != "mouse_button"
+
+
+class TestMouseButtonPresets:
+    def test_left_right_middle_present(self):
+        values = {v for v, _ in MOUSE_BUTTON_PRESETS}
+        assert "mouse:272" in values  # Left
+        assert "mouse:273" in values  # Right
+        assert "mouse:274" in values  # Middle
+
+    def test_gdk_button_map_covers_standard_buttons(self):
+        # GtkGestureClick reports button 1 = left, 2 = middle, 3 = right.
+        # The map must translate these to the matching ``mouse:NNN`` codes.
+        assert GDK_BUTTON_TO_MOUSE_KEY[1] == "mouse:272"  # Left
+        assert GDK_BUTTON_TO_MOUSE_KEY[2] == "mouse:274"  # Middle
+        assert GDK_BUTTON_TO_MOUSE_KEY[3] == "mouse:273"  # Right
+
+
+class TestBindmDispatchers:
+    def test_movewindow_and_resizewindow_listed(self):
+        assert "movewindow" in BINDM_DISPATCHERS
+        assert "resizewindow" in BINDM_DISPATCHERS
+
+    def test_key_bind_types_excludes_bindm(self):
+        # The dialog's key-mode "Bind type" combo must not offer ``bindm``;
+        # users reach it through the dedicated trigger toggle instead.
+        assert "bindm" not in KEY_BIND_TYPES
+        assert "bind" in KEY_BIND_TYPES
+        assert "binde" in KEY_BIND_TYPES
+        # Sanity: the full BIND_TYPES still includes bindm for serialisation.
+        assert "bindm" in BIND_TYPES
+
+
+# ---------------------------------------------------------------------------
+# BindEditDialog — trigger mode wiring
+# ---------------------------------------------------------------------------
+
+
+class TestBindEditDialog:
+    """Smoke tests for the dialog's trigger-mode plumbing.
+
+    Instantiating ``BindEditDialog`` requires libadwaita, so the tests
+    init it once and reuse a minimal fake window object.
+    """
+
+    @staticmethod
+    def _dialog(bind=None, initial_category=""):
+        # Local imports keep the GTK init out of the module-import critical
+        # path (a few unrelated tests in this file are pure data).
+        import gi
+
+        gi.require_version("Adw", "1")
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Adw
+
+        from hyprmod.binds.dialog import BindEditDialog
+
+        Adw.init()
+
+        class _Hypr:
+            def keyword(self, *a):
+                pass
+
+            def dispatch(self, *a):
+                pass
+
+        class _Window:
+            hypr = _Hypr()
+
+            def show_toast(self, *a, **k):
+                pass
+
+            def get_root(self):
+                return None
+
+        return BindEditDialog(bind=bind, window=_Window(), initial_category=initial_category)
+
+    def test_new_bind_defaults_to_key_mode(self):
+        d = self._dialog()
+        assert d._is_mouse_mode is False
+        assert d.get_bind().bind_type == "bind"
+
+    def test_initial_category_mouse_button_starts_in_mouse_mode(self):
+        d = self._dialog(initial_category="mouse_button")
+        assert d._is_mouse_mode is True
+        b = d.get_bind()
+        assert b.bind_type == "bindm"
+        # No button is prefilled — the user must pick one. This mirrors the
+        # empty key entry shown in keyboard mode for new binds; otherwise
+        # the capture label would read back whatever happens to sit at index
+        # 0 (e.g. "mouse:272") as if the user already configured it.
+        assert b.key == ""
+
+    def test_new_mouse_bind_capture_label_is_none(self):
+        d = self._dialog(initial_category="mouse_button")
+        # Capture label is driven by ``format_shortcut`` of the current combo;
+        # with nothing picked, it should read "(none)" — same as key mode.
+        assert d._capture_label.get_label() == "(none)"
+
+    def test_existing_bindm_opens_in_mouse_mode(self):
+        existing = BindData(
+            bind_type="bindm", mods=["SUPER"], key="mouse:273", dispatcher="resizewindow"
+        )
+        d = self._dialog(bind=existing)
+        assert d._is_mouse_mode is True
+        b = d.get_bind()
+        assert b.bind_type == "bindm"
+        assert b.key == "mouse:273"
+        assert b.dispatcher == "resizewindow"
+
+    def test_existing_regular_bind_opens_in_key_mode(self):
+        existing = BindData(bind_type="bind", mods=["SUPER"], key="Q", dispatcher="killactive")
+        d = self._dialog(bind=existing)
+        assert d._is_mouse_mode is False
+        b = d.get_bind()
+        assert b.bind_type == "bind"
+        assert b.key == "Q"
+
+    def test_toggle_to_mouse_swaps_action_list_and_hides_arg(self):
+        d = self._dialog()
+        d._trigger_mouse_btn.set_active(True)
+        assert d._is_mouse_mode is True
+        assert "movewindow" in d._current_dispatcher_keys
+        assert "resizewindow" in d._current_dispatcher_keys
+        # bindm dispatchers take no argument.
+        assert d._arg_container.get_visible() is False
+        # Bind-type Advanced group is meaningless for bindm.
+        assert d._adv_group.get_visible() is False
+
+    def test_toggle_back_to_key_restores_bind_type(self):
+        d = self._dialog()
+        d._trigger_mouse_btn.set_active(True)
+        d._trigger_key_btn.set_active(True)
+        assert d._is_mouse_mode is False
+        assert d.get_bind().bind_type == "bind"
+
+    def test_custom_mouse_button_round_trips(self):
+        existing = BindData(
+            bind_type="bindm", mods=["SUPER"], key="mouse:280", dispatcher="movewindow"
+        )
+        d = self._dialog(bind=existing)
+        assert d.get_bind().key == "mouse:280"

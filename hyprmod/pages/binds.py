@@ -5,14 +5,14 @@ from html import escape as html_escape
 
 from gi.repository import Adw, GLib, Gtk
 from hyprland_config import BindData, parse_bind_line
-from hyprland_socket import HyprlandError, modmask_to_str
+from hyprland_socket import Bind, HyprlandError, modmask_to_str
 
 from hyprmod.binds import (
     CATEGORY_BY_ID,
     DISPATCHER_CATEGORIES,
     OverrideTracker,
-    categorize_dispatcher,
-    format_action,
+    categorize_bind,
+    format_bind_action,
 )
 from hyprmod.binds.dialog import BindEditDialog
 from hyprmod.core import config
@@ -21,6 +21,51 @@ from hyprmod.core.undo import BindsUndoEntry
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.row_actions import RowActions
+
+# ---------------------------------------------------------------------------
+# Live bind conversion
+# ---------------------------------------------------------------------------
+
+
+def _live_bind_to_data(b: Bind) -> BindData:
+    """Convert a Hyprland live ``Bind`` to a ``BindData``.
+
+    Hyprland reports flag-variant binds (``bindm``/``binde``/``bindl``/…) as
+    plain ``bind`` entries with boolean flags; this restores the original
+    ``bind_type`` so overrides round-trip correctly. For mouse binds the
+    runtime also reports ``dispatcher="mouse"`` with the real dispatcher in
+    ``arg``, which is unwound here so categorisation works.
+    """
+    if b.mouse:
+        bind_type = "bindm"
+    elif b.repeat:
+        bind_type = "binde"
+    elif b.locked:
+        bind_type = "bindl"
+    elif b.release:
+        bind_type = "bindr"
+    elif b.non_consuming:
+        bind_type = "bindn"
+    else:
+        bind_type = "bind"
+
+    # Hyprland's ``bindm`` IPC representation: ``dispatcher="mouse"`` with
+    # the real dispatcher (``movewindow``/``resizewindow``) in ``arg``.
+    if b.mouse and b.dispatcher == "mouse":
+        dispatcher = b.arg
+        arg = ""
+    else:
+        dispatcher = b.dispatcher
+        arg = b.arg
+
+    return BindData(
+        bind_type=bind_type,
+        mods=modmask_to_str(b.modmask).split(" + ") if b.modmask else [],
+        key=b.key,
+        dispatcher=dispatcher,
+        arg=arg,
+    )
+
 
 # ---------------------------------------------------------------------------
 # BindsPage
@@ -46,14 +91,19 @@ class BindsPage(SectionPage):
         self._load_binds(saved_sections)
 
     def _apply_bind_live(self, bind: BindData) -> bool:
-        """Register a bind in the running Hyprland instance."""
+        """Register a bind in the running Hyprland instance.
+
+        ``bindm`` rejects a trailing comma (``bind: too many args``) so the
+        argument is only appended when present. Other bind variants tolerate
+        either form.
+        """
+        value = f"{bind.mods_str}, {bind.key}, {bind.dispatcher}"
+        if bind.arg:
+            value += f", {bind.arg}"
         return try_with_toast(
             self._window.show_toast,
             "Bind failed",
-            lambda: self._window.hypr.keyword(
-                bind.bind_type,
-                f"{bind.mods_str}, {bind.key}, {bind.dispatcher}, {bind.arg}",
-            ),
+            lambda: self._window.hypr.keyword(bind.bind_type, value),
             catch=HyprlandError,
         )
 
@@ -70,17 +120,7 @@ class BindsPage(SectionPage):
 
     def _load_binds(self, saved_sections=None):
         live_binds = self._window.hypr.get_binds() or []
-        all_hypr_binds = []
-        for b in live_binds:
-            all_hypr_binds.append(
-                BindData(
-                    mods=modmask_to_str(b.modmask).split(" + ") if b.modmask else [],
-                    key=b.key,
-                    dispatcher=b.dispatcher,
-                    arg=b.arg,
-                    bind_type="bind",
-                )
-            )
+        all_hypr_binds = [_live_bind_to_data(b) for b in live_binds]
 
         parsed_binds: list[BindData] = []
         if saved_sections is not None:
@@ -194,7 +234,7 @@ class BindsPage(SectionPage):
             categories[cat["id"]] = []
 
         for i, bind in enumerate(self._owned_binds):
-            cat_id = categorize_dispatcher(bind.dispatcher)
+            cat_id = categorize_bind(bind.bind_type, bind.dispatcher)
             if cat_id not in categories:
                 cat_id = "advanced"
             categories[cat_id].append((bind, True, i))
@@ -203,7 +243,7 @@ class BindsPage(SectionPage):
         for bind in self._hypr_binds:
             if bind.combo in owned_combos:
                 continue
-            cat_id = categorize_dispatcher(bind.dispatcher)
+            cat_id = categorize_bind(bind.bind_type, bind.dispatcher)
             if cat_id not in categories:
                 cat_id = "advanced"
             categories[cat_id].append((bind, False, -1))
@@ -269,7 +309,7 @@ class BindsPage(SectionPage):
         self, bind: BindData, editable: bool, index: int = -1, icon: str = ""
     ) -> Adw.ActionRow:
         shortcut = bind.format_shortcut()
-        action_str = format_action(bind.dispatcher, bind.arg)
+        action_str = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg)
 
         row = Adw.ActionRow(
             title=html_escape(shortcut),
@@ -339,7 +379,7 @@ class BindsPage(SectionPage):
             for row, bind, _editable in self._row_widgets:
                 if row.get_parent() is None:
                     continue
-                row_cat = categorize_dispatcher(bind.dispatcher)
+                row_cat = categorize_bind(bind.bind_type, bind.dispatcher)
                 if row_cat != cat_id:
                     continue
                 if not term:
@@ -347,7 +387,7 @@ class BindsPage(SectionPage):
                     visible_count += 1
                 else:
                     shortcut = bind.format_shortcut().lower()
-                    action = format_action(bind.dispatcher, bind.arg).lower()
+                    action = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg).lower()
                     cat_label = CATEGORY_BY_ID.get(cat_id, {}).get("label", "").lower()
                     if term in shortcut or term in action or term in cat_label:
                         row.set_visible(True)

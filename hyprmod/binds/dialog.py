@@ -6,9 +6,13 @@ from hyprland_socket import MOD_BITS, HyprlandError
 
 from hyprmod.binds.dispatchers import (
     BIND_TYPES,
+    BINDM_DISPATCHERS,
     CATEGORY_BY_ID,
     DISPATCHER_CATEGORIES,
     DISPATCHER_INFO,
+    GDK_BUTTON_TO_MOUSE_KEY,
+    KEY_BIND_TYPES,
+    MOUSE_BUTTON_PRESETS,
     DispatcherCategory,
     categorize_dispatcher,
     format_action,
@@ -16,12 +20,46 @@ from hyprmod.binds.dispatchers import (
 from hyprmod.binds.helpers import MODIFIER_KEYVALS, gdk_state_to_mods
 from hyprmod.ui import clear_children, confirm
 
+# Bind types selectable in "Key combination" trigger mode (everything except
+# ``bindm``, which is reached via the dedicated "Mouse button" trigger mode).
+KEY_BIND_TYPE_KEYS = list(KEY_BIND_TYPES.keys())
+KEY_BIND_TYPE_LABELS = [v["label"] for v in KEY_BIND_TYPES.values()]
+
+# UI-specific filtered views: exclude the catch-all "advanced" group AND the
+# bindm-only "mouse_button" group — the latter has its own trigger mode and
+# isn't selectable from the keyboard-action category combo.
+DIALOG_CATEGORIES = [
+    c for c in DISPATCHER_CATEGORIES if c["id"] not in ("advanced", "mouse_button")
+]
+DIALOG_CATEGORY_LABELS = [c["label"] for c in DIALOG_CATEGORIES]
+
+# bindm dispatcher list ordered by definition in BINDM_DISPATCHERS.
+_BINDM_DISPATCHER_KEYS = list(BINDM_DISPATCHERS.keys())
+_BINDM_DISPATCHER_LABELS = list(BINDM_DISPATCHERS.values())
+
+# Mouse-button picker model layout:
+#   index 0:                          placeholder for "no selection"
+#   indices 1..len(MOUSE_BUTTON_PRESETS):  the preset entries
+#   final index:                      "Custom…" → swaps in a free-text row
+#
+# The placeholder is the default for new bindm binds so the dialog opens
+# with no pre-selected button (mirroring the empty key entry in keyboard
+# mode), avoiding the false-prefill UX where the capture label reads back
+# whatever happened to sit at index 0.
+_MOUSE_BUTTON_VALUES = [v for v, _ in MOUSE_BUTTON_PRESETS]
+_MOUSE_BUTTON_NONE_INDEX = 0
+_MOUSE_BUTTON_PRESET_OFFSET = 1
+_MOUSE_BUTTON_CUSTOM_INDEX = _MOUSE_BUTTON_PRESET_OFFSET + len(_MOUSE_BUTTON_VALUES)
+_MOUSE_BUTTON_DISPLAY_LABELS = (
+    ["Pick a button…"]
+    + [f"{label} ({value})" for value, label in MOUSE_BUTTON_PRESETS]
+    + ["Custom…"]
+)
+
+
+# Kept for back-compat with any external import; equals the full BIND_TYPES.
 BIND_TYPE_KEYS = list(BIND_TYPES.keys())
 BIND_TYPE_LABELS = [v["label"] for v in BIND_TYPES.values()]
-
-# UI-specific filtered views: exclude the "advanced" catch-all from dialog dropdowns.
-DIALOG_CATEGORIES = [c for c in DISPATCHER_CATEGORIES if c["id"] != "advanced"]
-DIALOG_CATEGORY_LABELS = [c["label"] for c in DIALOG_CATEGORIES]
 
 # ---------------------------------------------------------------------------
 # Argument widget builders
@@ -171,7 +209,7 @@ def _on_direction_toggled(active_btn, active_val, buttons):
 
 
 class BindEditDialog(Adw.Dialog):
-    """Dialog for adding/editing a keybind with category -> action cascade."""
+    """Dialog for adding/editing a keybind with trigger mode + action cascade."""
 
     def __init__(
         self,
@@ -192,8 +230,19 @@ class BindEditDialog(Adw.Dialog):
         self._on_apply_callback = on_apply
         self._conflict_finder = conflict_finder
         self._key_controller = None
+        self._mouse_gesture = None
         self._focus_handler = None
         self._current_dispatcher_keys: list[str] = []
+
+        # Trigger mode: ``"mouse"`` for ``bindm`` (mouse drag), else ``"key"``.
+        # When opening from the "Mouse Button" category's add button, default
+        # to mouse mode for new binds too.
+        if not self._is_new and self._bind.bind_type == "bindm":
+            self._is_mouse_mode = True
+        elif self._is_new and initial_category == "mouse_button":
+            self._is_mouse_mode = True
+        else:
+            self._is_mouse_mode = False
 
         self.connect("closed", self._on_dialog_closed)
 
@@ -225,14 +274,19 @@ class BindEditDialog(Adw.Dialog):
         content.set_margin_bottom(18)
         content.set_margin_start(18)
         content.set_margin_end(18)
+        self._content = content
 
-        key_group = Adw.PreferencesGroup(title="Key Combination")
-        self._build_key_section(key_group)
-        content.append(key_group)
+        trigger_group = Adw.PreferencesGroup(title="Trigger")
+        self._build_trigger_section(trigger_group)
+        content.append(trigger_group)
 
-        action_group = Adw.PreferencesGroup(title="Action")
-        self._build_action_section(action_group)
-        content.append(action_group)
+        self._key_group = Adw.PreferencesGroup()
+        self._build_key_section(self._key_group)
+        content.append(self._key_group)
+
+        self._action_group = Adw.PreferencesGroup(title="Action")
+        self._build_action_section(self._action_group)
+        content.append(self._action_group)
 
         self._arg_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content.append(self._arg_container)
@@ -245,9 +299,98 @@ class BindEditDialog(Adw.Dialog):
         toolbar.set_content(scrolled)
         self.set_child(toolbar)
 
+        # Mouse click capture controller. Lives on the content box so
+        # it can intercept clicks anywhere in the dialog body during
+        # mouse-drag recording.
+        self._mouse_gesture = Gtk.GestureClick.new()
+        self._mouse_gesture.set_button(0)  # any button
+        self._mouse_gesture.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._mouse_gesture.connect("pressed", self._on_mouse_captured)
+        content.add_controller(self._mouse_gesture)
+
+        self._apply_trigger_mode()
         self._refresh_arg_widget()
 
-    # -- Key section --
+    # -- Trigger mode --
+
+    def _build_trigger_section(self, group):
+        row = Adw.ActionRow(title="Trigger")
+        row.set_subtitle("How this binding is activated")
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        box.add_css_class("linked")
+        box.set_valign(Gtk.Align.CENTER)
+
+        self._trigger_key_btn = Gtk.ToggleButton(label="Key combination")
+        self._trigger_mouse_btn = Gtk.ToggleButton(label="Mouse button")
+        self._trigger_mouse_btn.set_group(self._trigger_key_btn)
+        if self._is_mouse_mode:
+            self._trigger_mouse_btn.set_active(True)
+        else:
+            self._trigger_key_btn.set_active(True)
+        self._trigger_key_btn.connect("toggled", self._on_trigger_toggled)
+        self._trigger_mouse_btn.connect("toggled", self._on_trigger_toggled)
+
+        box.append(self._trigger_key_btn)
+        box.append(self._trigger_mouse_btn)
+        row.add_suffix(box)
+        group.add(row)
+
+    def _on_trigger_toggled(self, btn):
+        # Both buttons share a group, so each toggle fires twice; only act on
+        # the activation, not the deactivation, to avoid flicker.
+        if not btn.get_active():
+            return
+        new_mode = self._trigger_mouse_btn.get_active()
+        if new_mode == self._is_mouse_mode:
+            return
+        if self._capturing:
+            self._stop_capture()
+        self._is_mouse_mode = new_mode
+        # Switching domains invalidates the captured key — modifiers are kept
+        # because they apply to both domains.
+        self._key_entry.set_text("")
+        self._mouse_combo.set_selected(_MOUSE_BUTTON_NONE_INDEX)
+        self._mouse_custom_entry.set_text("")
+        # Toggling domains needs a fresh action list (and a fresh selection,
+        # since e.g. ``killactive`` makes no sense in mouse mode).
+        self._apply_trigger_mode(rebuild_actions=True)
+        self._refresh_arg_widget()
+        self._update_capture_display()
+
+    def _apply_trigger_mode(self, rebuild_actions: bool = False):
+        """Show/hide widgets and adjust labels for the active trigger mode.
+
+        When *rebuild_actions* is true the action combo is repopulated for
+        the new mode (used when the user toggles the trigger). At dialog
+        initialisation the action combo has already been built by
+        :meth:`_build_action_section` with the correct selection, so the
+        rebuild is skipped to avoid clobbering it.
+        """
+        is_mouse = self._is_mouse_mode
+
+        self._key_group.set_title("Mouse Button" if is_mouse else "Key Combination")
+        self._capture_row.set_title("Click to record" if is_mouse else "Shortcut")
+
+        # Manual-edit picker rows
+        self._key_entry.set_visible(not is_mouse)
+        self._mouse_combo.set_visible(is_mouse)
+        self._mouse_custom_entry.set_visible(
+            is_mouse and self._mouse_combo.get_selected() == _MOUSE_BUTTON_CUSTOM_INDEX
+        )
+
+        # Action layout
+        self._category_combo.set_visible(not is_mouse)
+        if rebuild_actions:
+            if is_mouse:
+                self._update_action_model_mouse()
+            else:
+                self._update_action_model(self._get_selected_category()["id"])
+
+        # Bind type advanced section is only meaningful for keyboard binds
+        self._adv_group.set_visible(not is_mouse)
+
+    # -- Key / mouse section --
 
     def _build_key_section(self, group):
         current_mods = [m.upper() for m in self._bind.mods]
@@ -277,10 +420,37 @@ class BindEditDialog(Adw.Dialog):
             self._mod_checks[mod_name] = row
             manual_expander.add_row(row)
 
+        # Key text entry (visible when trigger mode is "key").
         self._key_entry = Adw.EntryRow(title="Key")
-        self._key_entry.set_text(current_key)
+        if not self._is_mouse_mode:
+            self._key_entry.set_text(current_key)
         self._key_entry.connect("changed", self._on_manual_key_changed)
         manual_expander.add_row(self._key_entry)
+
+        # Mouse-button preset combo (visible when trigger mode is "mouse").
+        self._mouse_combo = Adw.ComboRow(
+            title="Mouse button",
+            model=Gtk.StringList.new(_MOUSE_BUTTON_DISPLAY_LABELS),
+        )
+        if self._is_mouse_mode and current_key in _MOUSE_BUTTON_VALUES:
+            self._mouse_combo.set_selected(
+                _MOUSE_BUTTON_PRESET_OFFSET + _MOUSE_BUTTON_VALUES.index(current_key)
+            )
+        elif self._is_mouse_mode and current_key:
+            # Existing custom button — drop into "Custom…" with the value preserved.
+            self._mouse_combo.set_selected(_MOUSE_BUTTON_CUSTOM_INDEX)
+        else:
+            # New bind in mouse mode (or non-mouse mode): no button preselected.
+            self._mouse_combo.set_selected(_MOUSE_BUTTON_NONE_INDEX)
+        self._mouse_combo.connect("notify::selected", self._on_mouse_button_changed)
+        manual_expander.add_row(self._mouse_combo)
+
+        self._mouse_custom_entry = Adw.EntryRow(title="Custom button (e.g. mouse:277)")
+        if self._is_mouse_mode and current_key and current_key not in _MOUSE_BUTTON_VALUES:
+            self._mouse_custom_entry.set_text(current_key)
+        self._mouse_custom_entry.connect("changed", self._on_mouse_custom_changed)
+        manual_expander.add_row(self._mouse_custom_entry)
+
         group.add(manual_expander)
 
     def _on_start_capture(self, _btn):
@@ -288,7 +458,12 @@ class BindEditDialog(Adw.Dialog):
             self._stop_capture()
             return
         self._capturing = True
-        self._capture_label.set_label("Press a key combination\u2026")
+        prompt = (
+            "Click any mouse button\u2026"
+            if self._is_mouse_mode
+            else "Press a key combination\u2026"
+        )
+        self._capture_label.set_label(prompt)
         self._capture_btn.set_label("Cancel")
         self._capture_btn.add_css_class("destructive-action")
         self._capture_btn.remove_css_class("suggested-action")
@@ -305,6 +480,9 @@ class BindEditDialog(Adw.Dialog):
                 "notify::is-active", self._on_window_focus_changed
             )
 
+        # Key controller is active in both modes: in mouse mode it still
+        # handles Escape (cancel) and modifier-only presses (preview), so
+        # the user can hold SUPER and then click to record SUPER + click.
         self._key_controller = Gtk.EventControllerKey.new()
         self._key_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         self._key_controller.connect("key-pressed", self._on_key_captured)
@@ -357,10 +535,16 @@ class BindEditDialog(Adw.Dialog):
             self._stop_capture()
             return True
         if key_name in MODIFIER_KEYVALS:
+            # Modifier-only press updates the live preview in either mode.
             mods = gdk_state_to_mods(state)
             preview_parts = [m.upper() for m in mods]
-            preview_parts.append("...")
+            preview_parts.append("click…" if self._is_mouse_mode else "...")
             self._capture_label.set_label(" + ".join(preview_parts))
+            return True
+        if self._is_mouse_mode:
+            # Real keys are not valid input while recording a mouse drag —
+            # but we let it through so the user can keep typing modifiers
+            # via Shift+letter combos without losing capture.
             return True
         mods = gdk_state_to_mods(state)
         display_key = key_name.upper() if len(key_name) == 1 else key_name
@@ -371,6 +555,36 @@ class BindEditDialog(Adw.Dialog):
         self._stop_capture()
         return True
 
+    def _on_mouse_captured(self, gesture, _n_press, _x, _y):
+        if not self._capturing or not self._is_mouse_mode:
+            return
+        button = gesture.get_current_button()
+        mouse_key = GDK_BUTTON_TO_MOUSE_KEY.get(button)
+        if mouse_key is None:
+            return
+        event = gesture.get_current_event()
+        state = event.get_modifier_state() if event else Gdk.ModifierType(0)
+        mods = gdk_state_to_mods(state)
+        for mod_name, switch in self._mod_checks.items():
+            switch.set_active(mod_name in mods)
+        self._set_mouse_key(mouse_key)
+        self._update_capture_display()
+        self._stop_capture()
+        # Claim the gesture so the click doesn't reach whatever button it
+        # happened to land on.
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
+    def _set_mouse_key(self, mouse_key: str) -> None:
+        """Set the mouse-button picker to *mouse_key*, using a preset or Custom."""
+        if mouse_key in _MOUSE_BUTTON_VALUES:
+            self._mouse_combo.set_selected(
+                _MOUSE_BUTTON_PRESET_OFFSET + _MOUSE_BUTTON_VALUES.index(mouse_key)
+            )
+            self._mouse_custom_entry.set_text("")
+        else:
+            self._mouse_combo.set_selected(_MOUSE_BUTTON_CUSTOM_INDEX)
+            self._mouse_custom_entry.set_text(mouse_key)
+
     def _on_manual_mod_changed(self, *_args):
         if not self._capturing:
             self._update_capture_display()
@@ -379,12 +593,40 @@ class BindEditDialog(Adw.Dialog):
         if not self._capturing:
             self._update_capture_display()
 
+    def _on_mouse_button_changed(self, *_args):
+        # Show the custom-entry row only when "Custom…" is chosen.
+        is_custom = self._mouse_combo.get_selected() == _MOUSE_BUTTON_CUSTOM_INDEX
+        self._mouse_custom_entry.set_visible(self._is_mouse_mode and is_custom)
+        if not self._capturing:
+            self._update_capture_display()
+
+    def _on_mouse_custom_changed(self, *_args):
+        if not self._capturing:
+            self._update_capture_display()
+
     def _update_capture_display(self):
         self._capture_label.set_label(self._get_current_key_combo().format_shortcut())
 
+    def _current_key_value(self) -> str:
+        """Return the current key value, picking from the mouse combo in mouse mode."""
+        if not self._is_mouse_mode:
+            return self._key_entry.get_text().strip()
+        idx = self._mouse_combo.get_selected()
+        if idx == _MOUSE_BUTTON_NONE_INDEX:
+            return ""
+        if (
+            _MOUSE_BUTTON_PRESET_OFFSET
+            <= idx
+            < _MOUSE_BUTTON_PRESET_OFFSET + len(_MOUSE_BUTTON_VALUES)
+        ):
+            return _MOUSE_BUTTON_VALUES[idx - _MOUSE_BUTTON_PRESET_OFFSET]
+        if idx == _MOUSE_BUTTON_CUSTOM_INDEX:
+            return self._mouse_custom_entry.get_text().strip()
+        return ""
+
     def _get_current_key_combo(self) -> BindData:
         mods = [name for name, row in self._mod_checks.items() if row.get_active()]
-        key = self._key_entry.get_text().strip()
+        key = self._current_key_value()
         return BindData(mods=mods, key=key)
 
     # -- Action section --
@@ -415,7 +657,10 @@ class BindEditDialog(Adw.Dialog):
         )
         self._sig_action = self._action_combo.connect("notify::selected", self._on_action_changed)
         group.add(self._action_combo)
-        self._update_action_model(effective_cat_id, select_dispatcher=current_dispatcher)
+        if self._is_mouse_mode:
+            self._update_action_model_mouse(select_dispatcher=current_dispatcher)
+        else:
+            self._update_action_model(effective_cat_id, select_dispatcher=current_dispatcher)
 
     @staticmethod
     def _make_action_factory(nat_chars: int, xalign: float = 0) -> Gtk.SignalListItemFactory:
@@ -457,6 +702,21 @@ class BindEditDialog(Adw.Dialog):
         self._action_combo.set_selected(sel_idx)
         self._action_combo.handler_unblock(self._sig_action)
 
+    def _update_action_model_mouse(self, select_dispatcher: str = ""):
+        """Populate the action combo with the curated bindm dispatcher list."""
+        self._action_combo.handler_block(self._sig_action)
+        self._current_dispatcher_keys = list(_BINDM_DISPATCHER_KEYS)
+        labels = list(_BINDM_DISPATCHER_LABELS)
+        max_chars = max((len(lbl) for lbl in labels), default=10)
+        self._action_combo.set_factory(self._make_action_factory(max_chars, xalign=1))
+        self._action_combo.set_list_factory(self._make_action_factory(max_chars, xalign=0))
+        self._action_combo.set_model(Gtk.StringList.new(labels))
+        sel_idx = 0
+        if select_dispatcher in self._current_dispatcher_keys:
+            sel_idx = self._current_dispatcher_keys.index(select_dispatcher)
+        self._action_combo.set_selected(sel_idx)
+        self._action_combo.handler_unblock(self._sig_action)
+
     def _on_category_changed(self, *_args):
         self._update_action_model(self._get_selected_category()["id"])
         self._refresh_arg_widget()
@@ -472,6 +732,13 @@ class BindEditDialog(Adw.Dialog):
 
     def _refresh_arg_widget(self):
         clear_children(self._arg_container)
+
+        # Mouse-drag dispatchers (movewindow / resizewindow) take no argument,
+        # so the parameters group is always hidden in mouse mode.
+        if self._is_mouse_mode:
+            self._arg_getter = lambda: ""
+            self._arg_container.set_visible(False)
+            return
 
         dispatcher = self._get_selected_dispatcher()
         info = DISPATCHER_INFO.get(dispatcher, {"arg_type": "text"})
@@ -498,11 +765,11 @@ class BindEditDialog(Adw.Dialog):
         self._type_combo = Adw.ComboRow(
             title="Bind type",
             subtitle="Normal for most keybinds",
-            model=Gtk.StringList.new(BIND_TYPE_LABELS),
+            model=Gtk.StringList.new(KEY_BIND_TYPE_LABELS),
         )
         current_type = self._bind.bind_type
-        if current_type in BIND_TYPE_KEYS:
-            self._type_combo.set_selected(BIND_TYPE_KEYS.index(current_type))
+        if current_type in KEY_BIND_TYPE_KEYS:
+            self._type_combo.set_selected(KEY_BIND_TYPE_KEYS.index(current_type))
         group.add(self._type_combo)
 
     # -- Apply --
@@ -547,8 +814,13 @@ class BindEditDialog(Adw.Dialog):
     def get_bind(self) -> BindData:
         combo = self._get_current_key_combo()
         dispatcher = self._get_selected_dispatcher()
-        type_idx = self._type_combo.get_selected()
-        bind_type = BIND_TYPE_KEYS[type_idx] if 0 <= type_idx < len(BIND_TYPE_KEYS) else "bind"
+        if self._is_mouse_mode:
+            bind_type = "bindm"
+        else:
+            type_idx = self._type_combo.get_selected()
+            bind_type = (
+                KEY_BIND_TYPE_KEYS[type_idx] if 0 <= type_idx < len(KEY_BIND_TYPE_KEYS) else "bind"
+            )
         return BindData(
             bind_type=bind_type,
             mods=combo.mods,
