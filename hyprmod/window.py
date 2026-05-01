@@ -16,6 +16,7 @@ from hyprmod.core.undo import (
     AutostartUndoEntry,
     BindsUndoEntry,
     CursorUndoEntry,
+    LayerRulesUndoEntry,
     MonitorsUndoEntry,
     OptionChange,
     UndoManager,
@@ -26,6 +27,7 @@ from hyprmod.pages.animations import AnimationsPage
 from hyprmod.pages.autostart import AutostartPage
 from hyprmod.pages.binds import BindsPage
 from hyprmod.pages.cursor import CursorPage
+from hyprmod.pages.layer_rules import LayerRulesPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.pending import PendingChangesPage
 from hyprmod.pages.profiles import ProfilesPage
@@ -88,6 +90,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._cursor_page: CursorPage | None = None
         self._autostart_page: AutostartPage | None = None
         self._window_rules_page: WindowRulesPage | None = None
+        self._layer_rules_page: LayerRulesPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
         self._pending_page: PendingChangesPage | None = None
@@ -270,6 +273,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._cursor_page,
                 self._autostart_page,
                 self._window_rules_page,
+                self._layer_rules_page,
             )
             if p is not None
         ]
@@ -369,6 +373,16 @@ class HyprModWindow(Adw.ApplicationWindow):
         )
         self._page_stack.add_named(window_rules_nav, "window_rules")
         self._page_titles["window_rules"] = "Window Rules"
+
+        self._layer_rules_page = LayerRulesPage(
+            self,
+            on_dirty_changed=self._on_section_dirty,
+            push_undo=self._undo.push,
+            saved_sections=self._saved_sections,
+        )
+        layer_rules_nav = self._layer_rules_page.build(header=self._make_page_header("Layer Rules"))
+        self._page_stack.add_named(layer_rules_nav, "layer_rules")
+        self._page_titles["layer_rules"] = "Layer Rules"
 
         self._profiles_page = ProfilesPage(self)
         profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
@@ -591,6 +605,8 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["autostart"] += self._autostart_page.pending_change_count()
         if self._window_rules_page and self._window_rules_page.is_dirty():
             counts["window_rules"] += self._window_rules_page.pending_change_count()
+        if self._layer_rules_page and self._layer_rules_page.is_dirty():
+            counts["layer_rules"] += self._layer_rules_page.pending_change_count()
 
         # The pending-changes row totals everything else
         counts["pending"] = sum(counts.values())
@@ -938,6 +954,11 @@ class HyprModWindow(Adw.ApplicationWindow):
             baselines = entry.old_baselines if undo else entry.new_baselines
             self._window_rules_page.restore_snapshot(items, baselines)
             confirm(entry)
+        elif isinstance(entry, LayerRulesUndoEntry) and self._layer_rules_page is not None:
+            items = entry.old_items if undo else entry.new_items
+            baselines = entry.old_baselines if undo else entry.new_baselines
+            self._layer_rules_page.restore_snapshot(items, baselines)
+            confirm(entry)
 
     # -- Save with animation --
 
@@ -990,6 +1011,12 @@ class HyprModWindow(Adw.ApplicationWindow):
             if has_managed_rules or self._window_rules_page.is_dirty():
                 window_rule_lines = self._window_rules_page.get_window_rule_lines()
 
+        layer_rule_lines = None
+        if self._layer_rules_page is not None:
+            has_managed_layers = LayerRulesPage.has_managed_section(saved_sections)
+            if has_managed_layers or self._layer_rules_page.is_dirty():
+                layer_rule_lines = self._layer_rules_page.get_layer_rule_lines()
+
         return (
             bind_lines,
             monitor_lines,
@@ -998,6 +1025,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             env_lines,
             exec_lines,
             window_rule_lines,
+            layer_rule_lines,
         )
 
     def _perform_save(self):
@@ -1010,6 +1038,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             env_lines,
             exec_lines,
             window_rule_lines,
+            layer_rule_lines,
         ) = self._collect_save_sections()
         config.write_all(
             values,
@@ -1020,6 +1049,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             env_lines=env_lines,
             exec_lines=exec_lines,
             window_rule_lines=window_rule_lines,
+            layer_rule_lines=layer_rule_lines,
         )
         self.app_state.mark_saved()
         self.hypr.clear_pending()
@@ -1076,6 +1106,9 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         if self._window_rules_page is not None:
             self._window_rules_page.reload_from_saved(self._saved_sections)
+
+        if self._layer_rules_page is not None:
+            self._layer_rules_page.reload_from_saved(self._saved_sections)
 
         self._undo.clear()
         self._update_dna()

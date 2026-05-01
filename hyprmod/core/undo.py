@@ -87,6 +87,21 @@ class WindowRulesUndoEntry:
     new_baselines: list
 
 
+@dataclass(slots=True)
+class LayerRulesUndoEntry:
+    """Undo entry for a layer-rules snapshot.
+
+    Same shape as ``WindowRulesUndoEntry``: the page mutates a
+    ``SavedList[LayerRule]`` and snapshots items + baselines so a
+    single add/edit/remove/reorder replays through one entry type.
+    """
+
+    old_items: list
+    new_items: list
+    old_baselines: list
+    new_baselines: list
+
+
 type UndoEntry = (
     OptionChange
     | AnimationUndoEntry
@@ -95,6 +110,7 @@ type UndoEntry = (
     | CursorUndoEntry
     | AutostartUndoEntry
     | WindowRulesUndoEntry
+    | LayerRulesUndoEntry
 )
 
 

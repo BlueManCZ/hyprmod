@@ -141,9 +141,13 @@ class WindowRulesPage(SectionPage):
         if saved_sections is None:
             _, saved_sections = config.read_all_sections()
         # Read both ``windowrule`` and ``windowrulev2`` so users with
-        # hand-rolled lines in either form see them in the UI. The
-        # write path emits ``windowrulev2`` for new rules but preserves
-        # the original keyword on edit (see WindowRuleEditDialog).
+        # hand-rolled lines in either form see them in the UI. Any v2
+        # lines have already been rewritten to v3 in memory by
+        # ``hyprland_config.migrate()`` upstream in ``read_all_sections``,
+        # so the ``windowrulev2`` bucket is normally empty — collecting
+        # it is just defence in depth for callers that pass us a
+        # pre-built ``saved_sections`` from an unmigrated source. The
+        # write path always emits v3 ``windowrule`` (see KEYWORD_WRITE).
         raw_lines = config.collect_section(saved_sections, *WINDOW_RULE_KEYWORDS)
         items = parse_window_rule_lines(raw_lines)
         self._owned = SavedList(items, key=lambda r: r.to_line())

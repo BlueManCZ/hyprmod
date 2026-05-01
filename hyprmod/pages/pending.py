@@ -21,6 +21,8 @@ from hyprland_state import ANIM_FLAT, ANIM_LOOKUP, AnimState
 from hyprmod.core import config, schema
 from hyprmod.core.autostart import KEYWORD_LABELS as AUTOSTART_LABELS
 from hyprmod.core.autostart import iter_item_changes as iter_autostart_changes
+from hyprmod.core.layer_rules import iter_item_changes as iter_layer_rule_changes
+from hyprmod.core.layer_rules import summarize_rule as summarize_layer_rule
 from hyprmod.core.window_rules import iter_item_changes as iter_window_rule_changes
 from hyprmod.core.window_rules import summarize_rule
 from hyprmod.pages.animations import ANIM_LABELS
@@ -40,6 +42,7 @@ _CATEGORY_ORDER = (
     "Cursor",
     "Autostart",
     "Window Rules",
+    "Layer Rules",
 )
 
 # Sidebar icons for fixed pages. Schema-group icons are looked up dynamically
@@ -48,6 +51,7 @@ _BINDS_ICON = "keyboard-shortcuts-symbolic"
 _MONITORS_ICON = "display-symbolic"
 _AUTOSTART_ICON = "media-playback-start-symbolic"
 _WINDOW_RULES_ICON = "window-rules-symbolic"
+_LAYER_RULES_ICON = "overlapping-windows-symbolic"
 _FALLBACK_ICON = "preferences-system-symbolic"
 
 # Visual label and CSS class for each kind of change.
@@ -99,6 +103,7 @@ class PendingChangesPage:
             "monitors": _MONITORS_ICON,
             "autostart": _AUTOSTART_ICON,
             "window_rules": _WINDOW_RULES_ICON,
+            "layer_rules": _LAYER_RULES_ICON,
         }
         for g in schema.get_groups(window._schema):
             icon = g.get("icon")
@@ -332,6 +337,7 @@ class PendingChangesPage:
             env_lines,
             exec_lines,
             window_rule_lines,
+            layer_rule_lines,
         ) = win._collect_save_sections()
         return config.build_content(
             values,
@@ -342,6 +348,7 @@ class PendingChangesPage:
             env_lines=env_lines,
             exec_lines=exec_lines,
             window_rule_lines=window_rule_lines,
+            layer_rule_lines=layer_rule_lines,
         )
 
     # ── Change collection ──
@@ -356,6 +363,7 @@ class PendingChangesPage:
         out.extend(self._collect_cursor_changes())
         out.extend(self._collect_autostart_changes())
         out.extend(self._collect_window_rule_changes())
+        out.extend(self._collect_layer_rule_changes())
         return out
 
     # -- Options --
@@ -822,6 +830,84 @@ class PendingChangesPage:
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="window_rules",
             icon=_WINDOW_RULES_ICON,
+        )
+
+    # -- Layer rules --
+
+    def _collect_layer_rule_changes(self) -> list[PendingChange]:
+        page = self._window._layer_rules_page
+        if page is None or not page.is_dirty():
+            return []
+        result: list[PendingChange] = []
+        owned = page._owned
+
+        # Same iterator pattern as window rules / autostart so the
+        # sidebar badge count and pending-list length stay in lockstep.
+        baselines = [owned.get_baseline(i) for i in range(len(owned))]
+        for kind, idx, item, baseline in iter_layer_rule_changes(
+            owned.saved, list(owned), baselines
+        ):
+            result.append(self._make_layer_rule_change(page, kind, idx, item, baseline))
+
+        if page.is_reordered():
+            common_count = len({r.to_line() for r in owned} & {b.to_line() for b in owned.saved})
+            result.append(
+                PendingChange(
+                    category="Layer Rules",
+                    title="Reordered",
+                    subtitle=f"{common_count} rules in a different order",
+                    kind="modified",
+                    revert=page.revert_reorder,
+                    navigate_to="layer_rules",
+                    icon=_LAYER_RULES_ICON,
+                )
+            )
+        return result
+
+    @staticmethod
+    def _make_layer_rule_change(
+        page: Any,
+        kind: str,
+        idx: int,
+        item: Any,
+        baseline: Any,
+    ) -> PendingChange:
+        """Build a ``PendingChange`` for one tuple from ``iter_layer_rule_changes``."""
+        title, subtitle = summarize_layer_rule(item)
+        if kind == "added":
+            return PendingChange(
+                category="Layer Rules",
+                title=title,
+                subtitle=f"new · {subtitle}",
+                kind="added",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="layer_rules",
+                icon=_LAYER_RULES_ICON,
+            )
+        if kind == "modified":
+            old_title, old_subtitle = summarize_layer_rule(baseline)
+            if old_title != title:
+                summary = f"{old_title} → {title}"
+            else:
+                summary = f"{old_subtitle} → {subtitle}"
+            return PendingChange(
+                category="Layer Rules",
+                title=title,
+                subtitle=summary,
+                kind="modified",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="layer_rules",
+                icon=_LAYER_RULES_ICON,
+            )
+        # removed — ``item`` is the saved (vanished) rule.
+        return PendingChange(
+            category="Layer Rules",
+            title=title,
+            subtitle=f"deleted · {subtitle}",
+            kind="removed",
+            revert=lambda e=item: page._on_restore_deleted(e),
+            navigate_to="layer_rules",
+            icon=_LAYER_RULES_ICON,
         )
 
     # Bezier curves are written automatically based on used animations,

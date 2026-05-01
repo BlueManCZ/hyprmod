@@ -47,14 +47,20 @@ KEYWORD_UNBIND = "unbind"
 KEYWORD_ENV = "env"
 KEYWORD_EXEC = "exec"
 KEYWORD_EXEC_ONCE = "exec-once"
-# ``windowrule`` is the Hyprland 0.53+ canonical name; ``windowrulev2`` is
-# the 0.48–0.52 spelling for the same syntax. We accept both on read; the
-# Window Rules page writes ``windowrulev2`` (the form well-supported across
-# the long tail of installed versions). When ``hyprland_config.migrate()``
-# learns the v2 → v3 rename, the auto-migration on save will rewrite our
-# output without UI changes.
+# ``windowrule`` is the Hyprland 0.53+ canonical name (v3 syntax:
+# ``windowrule = match:KEY VALUE, EFFECT VALUE``). ``windowrulev2`` is the
+# 0.48–0.52 spelling for the now-superseded v2 syntax. We accept both on
+# read — ``hyprland_config.migrate()`` (>=0.4.4) normalises any v2 lines
+# to v3 in memory before they reach our parser — but the Window Rules
+# page only ever *writes* v3 ``windowrule`` lines. The auto-migration in
+# :func:`_auto_migrate_content` on save is a belt-and-braces guarantee
+# that nothing v2-shaped escapes to disk.
 KEYWORD_WINDOWRULE = "windowrule"
 KEYWORD_WINDOWRULEV2 = "windowrulev2"
+# ``layerrule`` controls how layer-shell surfaces (waybar, notifications,
+# rofi, wallpapers) are decorated. Single keyword — there's no v1/v2
+# rename history the way windowrule has.
+KEYWORD_LAYERRULE = "layerrule"
 
 _NON_BIND_SPECIAL = frozenset(
     (
@@ -67,6 +73,7 @@ _NON_BIND_SPECIAL = frozenset(
         KEYWORD_EXEC_ONCE,
         KEYWORD_WINDOWRULE,
         KEYWORD_WINDOWRULEV2,
+        KEYWORD_LAYERRULE,
     )
 )
 
@@ -207,6 +214,7 @@ def build_content(
     env_lines: list[str] | None = None,
     exec_lines: list[str] | None = None,
     window_rule_lines: list[str] | None = None,
+    layer_rule_lines: list[str] | None = None,
 ) -> str:
     """Build the config file content without writing it.
 
@@ -235,6 +243,12 @@ def build_content(
     # exec'd processes spawn matching windows on reload.
     if window_rule_lines:
         _append_section(lines, "Window rules", window_rule_lines)
+    # Layer rules immediately follow window rules — both classes of rule
+    # are evaluated when their target surface is mapped, and grouping
+    # them keeps the "decoration overrides" stretch of the file in one
+    # readable block.
+    if layer_rule_lines:
+        _append_section(lines, "Layer rules", layer_rule_lines)
     # Autostart goes last: ``exec`` re-runs on every reload, so any
     # config later in the file that affects the exec'd process (env
     # vars, monitor layout, …) is already in effect by the time the
@@ -254,6 +268,7 @@ def write_all(
     env_lines: list[str] | None = None,
     exec_lines: list[str] | None = None,
     window_rule_lines: list[str] | None = None,
+    layer_rule_lines: list[str] | None = None,
 ) -> None:
     """Write all values and special lines to the config file."""
     content = build_content(
@@ -265,5 +280,6 @@ def write_all(
         env_lines=env_lines,
         exec_lines=exec_lines,
         window_rule_lines=window_rule_lines,
+        layer_rule_lines=layer_rule_lines,
     )
     atomic_write(gui_conf(), content)
