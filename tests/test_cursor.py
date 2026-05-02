@@ -201,7 +201,7 @@ class TestGetEnvLines:
     def test_theme_pulls_default_size_along(self, cursor_page):
         # When a theme is set, XCURSOR_SIZE is always emitted so apps that
         # don't share our default (e.g. JetBrains IDEs) render consistently.
-        cursor_page._current.theme = "Adwaita"
+        cursor_page._current = cursor_page._current._replace(theme="Adwaita")
         assert cursor_page.get_env_lines() == [
             "env = XCURSOR_THEME,Adwaita",
             "env = XCURSOR_SIZE,24",
@@ -209,20 +209,18 @@ class TestGetEnvLines:
 
     def test_only_size_when_theme_default(self, cursor_page):
         # size_set without theme_set still emits XCURSOR_SIZE (want_xcursor is True for None theme)
-        cursor_page._current.size = 32
+        cursor_page._current = cursor_page._current._replace(size=32)
         assert cursor_page.get_env_lines() == ["env = XCURSOR_SIZE,32"]
 
     def test_both_when_overridden(self, cursor_page):
-        cursor_page._current.theme = "Adwaita"
-        cursor_page._current.size = 32
+        cursor_page._current = cursor_page._current._replace(theme="Adwaita", size=32)
         assert cursor_page.get_env_lines() == [
             "env = XCURSOR_THEME,Adwaita",
             "env = XCURSOR_SIZE,32",
         ]
 
     def test_hyprcursor_dual_theme(self, cursor_page):
-        cursor_page._current.theme = "Bibata"
-        cursor_page._current.size = 32
+        cursor_page._current = cursor_page._current._replace(theme="Bibata", size=32)
         assert cursor_page.get_env_lines() == [
             "env = XCURSOR_THEME,Bibata",
             "env = XCURSOR_SIZE,32",

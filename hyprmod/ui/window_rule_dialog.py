@@ -22,7 +22,7 @@ not constructed directly.
 import re
 from collections.abc import Callable
 
-from gi.repository import Adw, Gtk, Pango
+from gi.repository import Adw, Gtk
 from hyprland_socket import Window
 
 from hyprmod.core.window_rules import (
@@ -40,6 +40,7 @@ from hyprmod.core.window_rules import (
     lookup_matcher_kind,
     lookup_preset,
 )
+from hyprmod.ui import build_preview_group
 from hyprmod.ui.dialog import SingletonDialogMixin
 from hyprmod.ui.window_picker import WindowPickerDialog
 
@@ -217,25 +218,7 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_preview_section(self) -> Gtk.Widget:
         """The bottom preview: shows the actual config line that will be written."""
-        group = Adw.PreferencesGroup(title="Preview")
-        group.set_description("This is the exact line that will be written to your HyprMod config.")
-
-        frame = Gtk.Frame()
-        frame.add_css_class("view")
-
-        self._preview_label = Gtk.Label()
-        self._preview_label.set_xalign(0)
-        self._preview_label.set_wrap(True)
-        self._preview_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
-        self._preview_label.set_selectable(True)
-        self._preview_label.set_margin_top(10)
-        self._preview_label.set_margin_bottom(10)
-        self._preview_label.set_margin_start(12)
-        self._preview_label.set_margin_end(12)
-        self._preview_label.add_css_class("monospace")
-        frame.set_child(self._preview_label)
-
-        group.add(frame)
+        group, self._preview_label = build_preview_group()
         return group
 
     # ── Hydration / loading from an existing rule ─────────────────────

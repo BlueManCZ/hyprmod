@@ -11,13 +11,13 @@ dependencies = [
     "hyprland-state>=0.2.0",
     "hyprland-monitors>=0.4.0",
     "hyprland-socket>=0.9.1",
-    "pygobject-stubs>=2.17.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0",
+    "pygobject-stubs>=2.17.0",
     "pyright>=1.1",
+    "pytest>=9.0",
     "ruff>=0.15.11",
 ]
 

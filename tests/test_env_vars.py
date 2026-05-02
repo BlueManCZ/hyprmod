@@ -5,15 +5,17 @@ from pathlib import Path
 import pytest
 
 from hyprmod.core import config
+from hyprmod.core.change_tracking import (
+    count_pending_changes,
+    detect_reorder,
+    drop_target_idx,
+    iter_item_changes,
+)
 from hyprmod.core.env_vars import (
     RESERVED_NAMES,
     EnvVar,
     ExternalEnvVar,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
     is_reserved,
-    iter_item_changes,
     load_external_env_vars,
     overridden_external_names,
     parse_env_line,
@@ -21,16 +23,6 @@ from hyprmod.core.env_vars import (
     serialize,
 )
 from hyprmod.core.ownership import SavedList
-
-
-@pytest.fixture
-def gui_conf_tmp(tmp_path):
-    """Redirect gui_conf() to a temporary file for the duration of a test."""
-    target = tmp_path / "hyprland-gui.conf"
-    config.set_gui_conf(target)
-    yield target
-    config.set_gui_conf(None)
-
 
 # ---------------------------------------------------------------------------
 # Parsing
@@ -546,10 +538,12 @@ class TestWriteIntegration:
     def test_env_lines_emitted_in_environment_section(self, gui_conf_tmp):
         config.write_all(
             {"general:gaps_in": "5"},
-            env_lines=[
-                "env = QT_QPA_PLATFORM,wayland",
-                "env = GDK_BACKEND,wayland,x11",
-            ],
+            config.ConfigSections(
+                env=[
+                    "env = QT_QPA_PLATFORM,wayland",
+                    "env = GDK_BACKEND,wayland,x11",
+                ],
+            ),
         )
         content = gui_conf_tmp.read_text()
         assert "# Environment" in content
@@ -560,17 +554,19 @@ class TestWriteIntegration:
         assert content.index("# Environment") < content.index("general:gaps_in")
 
     def test_no_section_when_empty(self, gui_conf_tmp):
-        config.write_all({"general:gaps_in": "5"})
+        config.write_all({"general:gaps_in": "5"}, config.ConfigSections())
         content = gui_conf_tmp.read_text()
         assert "# Environment" not in content
 
     def test_round_trip_through_read_all_sections(self, gui_conf_tmp):
         config.write_all(
             {},
-            env_lines=[
-                "env = FOO,bar",
-                "env = BAZ,qux",
-            ],
+            config.ConfigSections(
+                env=[
+                    "env = FOO,bar",
+                    "env = BAZ,qux",
+                ],
+            ),
         )
         _, sections = config.read_all_sections()
         assert sections.get(config.KEYWORD_ENV) == [

@@ -26,9 +26,10 @@ line that will be written.
 import re
 from collections.abc import Callable
 
-from gi.repository import Adw, Gtk, Pango
+from gi.repository import Adw, Gtk
 
 from hyprmod.core.env_vars import RESERVED_NAMES, EnvVar
+from hyprmod.ui import build_preview_group
 from hyprmod.ui.dialog import SingletonDialogMixin
 
 # POSIX environment variable name: leading letter or underscore, then any
@@ -136,28 +137,7 @@ class EnvVarEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._error_label.set_visible(False)
         content.append(self._error_label)
 
-        # Preview group (mirrors layer-rule dialog).
-        preview_group = Adw.PreferencesGroup(title="Preview")
-        preview_group.set_description(
-            "This is the exact line that will be written to your HyprMod config."
-        )
-
-        frame = Gtk.Frame()
-        frame.add_css_class("view")
-
-        self._preview_label = Gtk.Label()
-        self._preview_label.set_xalign(0)
-        self._preview_label.set_wrap(True)
-        self._preview_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
-        self._preview_label.set_selectable(True)
-        self._preview_label.set_margin_top(10)
-        self._preview_label.set_margin_bottom(10)
-        self._preview_label.set_margin_start(12)
-        self._preview_label.set_margin_end(12)
-        self._preview_label.add_css_class("monospace")
-        frame.set_child(self._preview_label)
-
-        preview_group.add(frame)
+        preview_group, self._preview_label = build_preview_group()
         content.append(preview_group)
 
         toolbar.set_content(content)

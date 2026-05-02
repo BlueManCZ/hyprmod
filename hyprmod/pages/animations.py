@@ -110,18 +110,11 @@ class AnimationsPage(SectionPage):
     def anims(self):
         return self._anims
 
-    def get_state(self, name: str) -> AnimState | None:
-        return self._anims.get_cached(name)
-
     def is_owned(self, name: str) -> bool:
         return self._ownership.is_owned(name)
 
     def is_saved(self, name: str) -> bool:
         return self._ownership.is_saved(name)
-
-    def get_effective(self, name: str):
-        """Return (enabled, speed, curve, style) for an animation, resolving inheritance."""
-        return self._anims.get_effective(name)
 
     def get_curve_usage(self, curve_name: str) -> int:
         """Count how many overridden animations use a given curve."""
@@ -374,6 +367,12 @@ class AnimationsPage(SectionPage):
         """Revert to saved state and re-apply via IPC."""
         self._ownership.discard_all()
         self._anims.discard()
+        # Match ``revert_anim``: refresh every row + tell the window the page is
+        # clean again. Without this the rows render with stale dirty indicators
+        # until the next change forces a paint.
+        for name in ANIM_LOOKUP:
+            self._refresh_row(name)
+        self._notify_dirty()
 
     # -- UI building --
 
@@ -518,11 +517,11 @@ class _AnimRow:
     def refresh(self):
         """Update the row subtitle and switch from the current state."""
         with self._signals:
-            state = self._page.get_state(self._name)
+            state = self._page.anims.get_cached(self._name)
             if not state:
                 return
 
-            eff_en, eff_sp, eff_cu, eff_st = self._page.get_effective(self._name)
+            eff_en, eff_sp, eff_cu, eff_st = self._page.anims.get_effective(self._name)
             is_override = state.overridden
             is_dirty = self._page.is_anim_dirty(self._name)
 
@@ -571,8 +570,8 @@ class _AnimDetailDialog:
         self._styles = styles
         self._signals = SignalBlocker()
 
-        state = page.get_state(name)
-        eff_en, eff_sp, eff_cu, eff_st = page.get_effective(name)
+        state = page.anims.get_cached(name)
+        eff_en, eff_sp, eff_cu, eff_st = page.anims.get_effective(name)
 
         self._dialog = Adw.Dialog()
         self._dialog.set_title(ANIM_LABELS.get(name, name))
@@ -695,6 +694,6 @@ class _AnimDetailDialog:
         model = Gtk.StringList.new(_curve_display_names(self._curve_names))
         with self._signals:
             self._curve_row.set_model(model)
-            target = curve_name or self._page.get_effective(self._name)[2]
+            target = curve_name or self._page.anims.get_effective(self._name)[2]
             if target in self._curve_names:
                 self._curve_row.set_selected(self._curve_names.index(target))

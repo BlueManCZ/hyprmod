@@ -76,11 +76,11 @@ dependencies = [
     { name = "hyprland-socket" },
     { name = "hyprland-state" },
     { name = "pygobject" },
-    { name = "pygobject-stubs" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pygobject-stubs" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
@@ -94,11 +94,11 @@ requires-dist = [
     { name = "hyprland-socket", specifier = ">=0.9.1" },
     { name = "hyprland-state", specifier = ">=0.2.0" },
     { name = "pygobject", specifier = ">=3.56.2" },
-    { name = "pygobject-stubs", specifier = ">=2.17.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pygobject-stubs", specifier = ">=2.17.0" },
     { name = "pyright", specifier = ">=1.1" },
     { name = "pytest", specifier = ">=9.0" },
     { name = "ruff", specifier = ">=0.15.11" },

@@ -25,10 +25,8 @@ places) and the save path concatenates env lines from both pages,
 with the Cursor page's lines first by convention.
 """
 
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 import hyprland_config
 
@@ -143,87 +141,6 @@ def serialize(items: list[EnvVar]) -> list[str]:
     return [item.to_line() for item in items]
 
 
-def drop_target_idx(src: int, hover: int, before: bool) -> int:
-    """Translate a drag-and-drop hover into a ``SavedList.move`` target.
-
-    See :func:`hyprmod.core.autostart.drop_target_idx` for the
-    derivation; same semantics apply here.
-    """
-    if before:
-        return hover - 1 if src < hover else hover
-    return hover if src < hover else hover + 1
-
-
-def detect_reorder(saved: list[EnvVar], current: list[EnvVar]) -> bool:
-    """True if entries common to both lists appear in different relative order.
-
-    Mirrors :func:`hyprmod.core.autostart.detect_reorder`: pure-reorder
-    detection ignores adds and removes, only looking at the relative
-    order of items present in *both* lists. Returns False if there are
-    fewer than two common items.
-    """
-    saved_lines = [e.to_line() for e in saved]
-    current_lines = [e.to_line() for e in current]
-    common = set(saved_lines) & set(current_lines)
-    if len(common) < 2:
-        return False
-    saved_positions = [line for line in saved_lines if line in common]
-    current_positions = [line for line in current_lines if line in common]
-    return saved_positions != current_positions
-
-
-ChangeKind = Literal["added", "modified", "removed"]
-
-
-def iter_item_changes(
-    saved: list[EnvVar],
-    current: list[EnvVar],
-    current_baselines: list[EnvVar | None],
-) -> Iterator[tuple[ChangeKind, int, EnvVar, EnvVar | None]]:
-    """Yield per-item add/modify/remove changes.
-
-    Same iterator shape as
-    :func:`hyprmod.core.autostart.iter_item_changes` so the sidebar
-    badge counter and pending-list collector share one source of truth.
-    """
-    if len(current) != len(current_baselines):
-        raise ValueError(
-            "current and current_baselines must be the same length "
-            f"(got {len(current)} vs. {len(current_baselines)})"
-        )
-
-    surviving_baselines: set[str] = set()
-    for idx, (item, baseline) in enumerate(zip(current, current_baselines, strict=True)):
-        if baseline is None:
-            yield "added", idx, item, None
-        else:
-            surviving_baselines.add(baseline.to_line())
-            if baseline.to_line() != item.to_line():
-                yield "modified", idx, item, baseline
-    for s in saved:
-        if s.to_line() not in surviving_baselines:
-            yield "removed", -1, s, None
-
-
-def count_pending_changes(
-    saved: list[EnvVar],
-    current: list[EnvVar],
-    current_baselines: list[EnvVar | None],
-) -> int:
-    """Total pending-change entries: per-item changes + reorder roll-up.
-
-    Mirrors :func:`hyprmod.core.autostart.count_pending_changes`. The
-    sidebar badge calls this; the pending-list collector iterates
-    :func:`iter_item_changes` directly to also build UI rows. Both
-    derive from the same per-item iterator so the sidebar count and
-    the pending-list length always agree.
-    """
-    count = sum(1 for _ in iter_item_changes(saved, current, current_baselines))
-    if detect_reorder(saved, current):
-        count += 1
-    return count
-
-
 # ---------------------------------------------------------------------------
 # External loader (env vars from outside our managed file)
 # ---------------------------------------------------------------------------
@@ -313,14 +230,9 @@ def overridden_external_names(
 
 __all__ = [
     "RESERVED_NAMES",
-    "ChangeKind",
     "EnvVar",
     "ExternalEnvVar",
-    "count_pending_changes",
-    "detect_reorder",
-    "drop_target_idx",
     "is_reserved",
-    "iter_item_changes",
     "load_external_env_vars",
     "overridden_external_names",
     "parse_env_line",

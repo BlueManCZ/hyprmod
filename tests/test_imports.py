@@ -2,52 +2,27 @@
 
 Catches broken imports, circular dependencies, missing gi.require_version
 calls, and typos in from-imports that only surface at runtime.
+
+The module list is discovered at collection time so newly-added modules
+are exercised automatically.
 """
 
 import importlib
+import pkgutil
 
 import pytest
 
-ALL_MODULES = [
-    "hyprmod",
-    "hyprmod.main",
-    "hyprmod.window",
-    # core
-    "hyprmod.core",
-    "hyprmod.core.config",
-    "hyprmod.core.schema",
-    "hyprmod.core.setup",
-    "hyprmod.core.state",
-    "hyprmod.core.undo",
-    "hyprmod.core.profiles",
-    # ui
-    "hyprmod.ui",
-    "hyprmod.ui.options",
-    "hyprmod.ui.about",
-    "hyprmod.ui.banner",
-    "hyprmod.ui.dna",
-    "hyprmod.ui.search",
-    "hyprmod.ui.timer",
-    "hyprmod.ui.sources",
-    "hyprmod.ui.bezier_canvas",
-    "hyprmod.ui.bezier_editor",
-    "hyprmod.ui.monitor_preview",
-    # pages
-    "hyprmod.pages",
-    "hyprmod.pages.animations",
-    "hyprmod.pages.binds",
-    "hyprmod.pages.monitors",
-    "hyprmod.pages.profiles",
-    # binds
-    "hyprmod.binds",
-    "hyprmod.binds.dialog",
-    "hyprmod.binds.dispatchers",
-    "hyprmod.binds.helpers",
-    "hyprmod.binds.override_state",
-    # data
-    "hyprmod.data",
-    "hyprmod.data.bezier_data",
-]
+import hyprmod
+
+
+def _walk_package(package) -> list[str]:
+    return [
+        name
+        for _, name, _ in pkgutil.walk_packages(package.__path__, prefix=package.__name__ + ".")
+    ]
+
+
+ALL_MODULES = [hyprmod.__name__, *_walk_package(hyprmod)]
 
 
 @pytest.mark.parametrize("module", ALL_MODULES)

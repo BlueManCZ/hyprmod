@@ -24,24 +24,21 @@ import shlex
 import subprocess
 from html import escape as html_escape
 
-from gi.repository import Adw, Gdk, GLib, GObject, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from hyprmod.core import config
 from hyprmod.core.autostart import (
     EXEC_KEYWORDS,
     KEYWORD_LABELS,
     ExecData,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
     parse_exec_lines,
     serialize,
 )
 from hyprmod.core.desktop_apps import DesktopApp, list_apps, match_command
 from hyprmod.core.ownership import SavedList
-from hyprmod.core.undo import AutostartUndoEntry
-from hyprmod.pages.section import SectionPage
-from hyprmod.ui import clear_children, make_page_layout
+from hyprmod.core.undo import SavedListSnapshot
+from hyprmod.pages.section import DragDropReorderMixin
+from hyprmod.ui import clear_children, make_inline_hint, make_page_layout
 from hyprmod.ui.app_picker import AppPickerDialog
 from hyprmod.ui.autostart_edit_dialog import AutostartEditDialog
 from hyprmod.ui.row_actions import RowActions
@@ -51,7 +48,7 @@ from hyprmod.ui.row_actions import RowActions
 # ---------------------------------------------------------------------------
 
 
-class AutostartPage(SectionPage):
+class AutostartPage(DragDropReorderMixin[ExecData]):
     """List editor for ``exec`` / ``exec-once`` config entries."""
 
     def __init__(
@@ -80,16 +77,7 @@ class AutostartPage(SectionPage):
         # the keyboard reorder path (Alt+Up/Down) to refocus the
         # moved row post-rebuild for chained shortcuts.
         self._rows_by_idx: list[Adw.ActionRow | None] = []
-        # Index of the row currently being dragged, ``None`` when
-        # no drag is in progress. Read by ``motion`` to refuse
-        # cross-keyword drops without waiting for the async drop
-        # value to resolve.
-        self._dragging_idx: int | None = None
-        # ``(x, y)`` of the press that started the current drag, in
-        # source-row-local coords. Stashed by ``drag-prepare`` for
-        # ``drag-begin`` to use as the icon's hot spot. ``None``
-        # when no drag is active.
-        self._drag_press: tuple[float, float] | None = None
+        self._init_drag_state()
         self._load(saved_sections)
 
     # ── Loading ──
@@ -112,7 +100,8 @@ class AutostartPage(SectionPage):
     def _build_undo_entry(self, old, new):
         old_items, old_baselines = old
         new_items, new_baselines = new
-        return AutostartUndoEntry(
+        return SavedListSnapshot(
+            page_attr="_autostart_page",
             old_items=old_items,
             new_items=new_items,
             old_baselines=old_baselines,
@@ -153,7 +142,12 @@ class AutostartPage(SectionPage):
         # — with one or zero rows there's nothing to reorder, so the
         # hint would just be noise.
         if len(self._owned) >= 2:
-            self._content_box.append(self._build_reorder_hint())
+            self._content_box.append(
+                make_inline_hint(
+                    "Reorder entries by dragging them within their group, "
+                    "or with Alt+↑ / Alt+↓ on a focused row."
+                )
+            )
 
         # Group by keyword so users can scan startup vs. reload separately.
         by_keyword: dict[str, list[tuple[int, ExecData]]] = {kw: [] for kw in EXEC_KEYWORDS}
@@ -181,17 +175,9 @@ class AutostartPage(SectionPage):
             target = self._rows_by_idx[focus_idx]
             if target is not None:
                 # Defer to idle so the row has actually been mapped
-                # before grab_focus runs. CRITICAL: the callback must
-                # return ``GLib.SOURCE_REMOVE`` — ``Widget.grab_focus``
-                # returns ``True`` on success, which an idle handler
-                # interprets as "fire me again," producing an infinite
-                # focus-grab loop that freezes Tab navigation.
+                # before grab_focus runs (see ``_grab_focus_once`` in
+                # the base class for the SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
-
-    @staticmethod
-    def _grab_focus_once(widget: Gtk.Widget) -> bool:
-        widget.grab_focus()
-        return GLib.SOURCE_REMOVE  # one-shot
 
     def _build_empty_state(self) -> Adw.StatusPage:
         """Empty-state page with action buttons.
@@ -226,36 +212,6 @@ class AutostartPage(SectionPage):
 
         empty.set_child(button_box)
         return empty
-
-    def _build_reorder_hint(self) -> Gtk.Widget:
-        """Inline note teaching the two reorder gestures.
-
-        Same shape as the keybinds page's "locked binds" info row:
-        dim icon + dim caption-styled label. The hint is the *only*
-        place either interaction is advertised, so the two gestures
-        (drag, Alt+arrows) are spelled out explicitly rather than
-        implied via tooltip.
-        """
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(4)
-
-        icon = Gtk.Image.new_from_icon_name("dialog-information-symbolic")
-        icon.set_opacity(0.5)
-        icon.set_valign(Gtk.Align.START)
-        box.append(icon)
-
-        label = Gtk.Label(
-            label=(
-                "Reorder entries by dragging them within their group, "
-                "or with Alt+↑ / Alt+↓ on a focused row."
-            ),
-        )
-        label.set_wrap(True)
-        label.set_xalign(0)
-        label.add_css_class("dim-label")
-        label.add_css_class("caption")
-        box.append(label)
-        return box
 
     def _build_group(
         self, keyword: str, entries: list[tuple[int, ExecData]]
@@ -389,271 +345,16 @@ class AutostartPage(SectionPage):
         row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
         return row
 
-    def _deleted_baselines(self) -> list[ExecData]:
-        """Return saved entries that are no longer in the owned list."""
-        current = {e.to_line() for e in self._owned}
-        return [b for b in self._owned.saved if b.to_line() not in current]
-
-    # ── Reorder (drag-and-drop + Alt+arrow keyboard shortcut) ──
-
-    def _attach_drag_source(self, row: Adw.ActionRow, idx: int) -> None:
-        """Make *row* the source of a same-group reorder drag.
-
-        ``Gtk.DragSource`` only claims the input sequence once motion
-        has crossed its threshold, so a plain click on the row still
-        routes to ``activated`` (the edit dialog). The whole row is
-        the grab area — no separate handle to discover.
-        """
-        source = Gtk.DragSource.new()
-        source.set_actions(Gdk.DragAction.MOVE)
-        source.connect("prepare", self._on_drag_prepare, idx)
-        source.connect("drag-begin", self._on_drag_begin, idx)
-        source.connect("drag-end", self._on_drag_end)
-        row.add_controller(source)
-
-    def _attach_drop_target(self, row: Adw.ActionRow, idx: int) -> None:
-        """Make *row* a drop target for same-group reorder.
-
-        Uses the cursor's vertical position within the row to choose
-        an above/below insertion point, so users can drop *between*
-        rows without needing pixel-perfect aim. Cross-keyword drops
-        (e.g. dragging an exec-once over an exec row) are silently
-        refused — no indicator shown.
-        """
-        target = Gtk.DropTarget.new(int, Gdk.DragAction.MOVE)
-        target.connect("motion", self._on_drop_motion, idx)
-        target.connect("leave", self._on_drop_leave)
-        target.connect("drop", self._on_drop, idx)
-        row.add_controller(target)
-
-    def _on_drag_prepare(
-        self, _source: Gtk.DragSource, x: float, y: float, idx: int
-    ) -> Gdk.ContentProvider | None:
-        # Stash the press coords so ``drag-begin`` can use them as the
-        # icon's hot spot. Setting the icon in ``prepare`` doesn't
-        # always stick — some compositors apply the icon only after
-        # the drag is fully initialised, which happens between the
-        # ``prepare`` and ``drag-begin`` signals.
-        self._drag_press = (x, y)
-        val = GObject.Value(GObject.TYPE_INT, idx)
-        return Gdk.ContentProvider.new_for_value(val)
-
-    def _on_drag_begin(self, source: Gtk.DragSource, drag: Gdk.Drag, idx: int) -> None:
-        self._dragging_idx = idx
-        press = self._drag_press or (0.0, 0.0)
-        hot_x, hot_y = int(press[0]), int(press[1])
-        # ``Adw.ActionRow`` has no intrinsic background — the visible
-        # "card" appearance comes from the parent ``PreferencesGroup``'s
-        # ``boxed-list`` styling. Painted in isolation the row would be
-        # transparent, so we add a short-lived CSS class that gives it
-        # a solid background + corner radius for the duration of the
-        # drag. ``Gtk.WidgetPaintable`` is a *live* view, so it picks
-        # up the new CSS class on the next paint.
-        widget = source.get_widget()
-        if widget is not None:
-            widget.add_css_class("autostart-drag-source")
-            paintable = Gtk.WidgetPaintable.new(widget)
-            source.set_icon(paintable, hot_x, hot_y)
-        # Belt-and-suspenders: also set the hot spot directly on the
-        # ``Gdk.Drag``. ``GtkDragSource.set_icon`` calls this internally
-        # but at least one Wayland compositor (Hyprland) appears to
-        # ignore the hot spot at that point — repeating the call
-        # against the live ``Gdk.Drag`` after it's been initialised is
-        # harmless if redundant and effective when the earlier call
-        # was lost.
-        drag.set_hotspot(hot_x, hot_y)
-
-    def _on_drag_end(
-        self,
-        source: Gtk.DragSource,
-        _drag: Gdk.Drag,
-        _delete: bool,
-    ) -> None:
-        self._dragging_idx = None
-        self._drag_press = None
-        widget = source.get_widget()
-        if widget is not None:
-            widget.remove_css_class("autostart-drag-source")
-        # Defensive: if the drop completed and rebuilt the list before
-        # ``leave`` fired, dangling indicator classes would carry over
-        # to other rows that happen to land at the same widget pointer.
-        self._clear_drop_indicators()
-
-    def _on_drop_motion(
-        self,
-        target: Gtk.DropTarget,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> Gdk.DragAction:
-        # ``motion`` doesn't have access to the dragged value — that's
-        # only resolved at drop time — so we read ``_dragging_idx``
-        # set in ``drag-begin`` to validate the move synchronously.
-        src = self._dragging_idx
-        if src is None or src == hover_idx:
-            return Gdk.DragAction(0)
-        if not self._is_valid_move(src, hover_idx):
-            return Gdk.DragAction(0)
-
-        widget = target.get_widget()
-        if widget is None:
-            return Gdk.DragAction(0)
-
-        before = self._is_above_half(widget, y)
-        # Top-edge or bottom-edge insertion line via inset box-shadow.
-        # Only one class at a time per row, so flicking across the
-        # midpoint cleanly swaps the indicator.
-        if before:
-            widget.add_css_class("autostart-drop-above")
-            widget.remove_css_class("autostart-drop-below")
-        else:
-            widget.add_css_class("autostart-drop-below")
-            widget.remove_css_class("autostart-drop-above")
-        return Gdk.DragAction.MOVE
-
-    def _on_drop_leave(self, target: Gtk.DropTarget) -> None:
-        widget = target.get_widget()
-        if widget is not None:
-            widget.remove_css_class("autostart-drop-above")
-            widget.remove_css_class("autostart-drop-below")
-
-    def _on_drop(
-        self,
-        target: Gtk.DropTarget,
-        value: object,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> bool:
-        # PyGObject normally unwraps ``GObject.TYPE_INT`` to a plain
-        # ``int``, but the signal contract is ``object`` so the type
-        # checker can't see that. Fall back to ``int(value)`` for the
-        # rare wrapper case; the ``type: ignore`` covers the int()
-        # call against an arbitrary object.
-        src_idx = value if isinstance(value, int) else int(value)  # type: ignore[arg-type]
-        if not self._is_valid_move(src_idx, hover_idx):
-            return False
-        widget = target.get_widget()
-        if widget is None:
-            return False
-        before = self._is_above_half(widget, y)
-
-        target_idx = drop_target_idx(src_idx, hover_idx, before)
-
-        # ``move()`` itself rejects out-of-range targets, but compute
-        # cleanly here so a same-position no-op doesn't push an empty
-        # undo entry.
-        if target_idx == src_idx:
-            return False
-        n = len(self._owned)
-        if not 0 <= target_idx < n:
-            return False
-
-        with self._undo_track():
-            self._owned.move(src_idx, target_idx)
-        self._notify_dirty()
-        self._rebuild_list()
-        return True
-
-    @staticmethod
-    def _is_above_half(widget: Gtk.Widget, y: float) -> bool:
-        """True if *y* falls in the upper half of *widget*.
-
-        Used to choose between ``insert-above`` and ``insert-below``
-        for a drop on this widget. Falls back to "above" for zero-
-        height widgets (shouldn't happen, but cheap to handle).
-        """
-        height = widget.get_height() or widget.get_allocated_height()
-        if height <= 0:
-            return True
-        return y < height / 2
-
-    def _clear_drop_indicators(self) -> None:
-        """Remove insertion-line classes from every tracked row.
-
-        Belt-and-suspenders: ``leave`` should clear them per row, but
-        if the drop completed and ``_rebuild_list`` ran before the
-        leave signal fired, the freshly-rebuilt rows shouldn't
-        inherit any stale state. Iterating the rows we already
-        track avoids a recursive widget-tree walk.
-        """
-        for row in self._rows_by_idx:
-            if row is not None:
-                row.remove_css_class("autostart-drop-above")
-                row.remove_css_class("autostart-drop-below")
-
-    def _attach_keyboard_reorder(self, row: Adw.ActionRow, idx: int) -> None:
-        """Bind Alt+Up / Alt+Down on *row* to move it within its keyword group.
-
-        Keyboard parallel to drag-and-drop — same ``_move_relative``
-        path, same validation, same undo entry, same focus-restore
-        for chained shortcuts.
-        """
-        controller = Gtk.EventControllerKey.new()
-        controller.connect("key-pressed", self._on_row_key_pressed, idx)
-        row.add_controller(controller)
-
-    def _on_row_key_pressed(
-        self,
-        _controller: Gtk.EventControllerKey,
-        keyval: int,
-        _keycode: int,
-        state: Gdk.ModifierType,
-        idx: int,
-    ) -> bool:
-        # Require Alt, reject if Shift/Ctrl/Super are also held. Those
-        # combos are reserved for future shortcuts (e.g. Alt+Shift+Up
-        # to move-to-top) that we may add later.
-        wanted = Gdk.ModifierType.ALT_MASK
-        relevant = (
-            Gdk.ModifierType.ALT_MASK
-            | Gdk.ModifierType.CONTROL_MASK
-            | Gdk.ModifierType.SHIFT_MASK
-            | Gdk.ModifierType.SUPER_MASK
-        )
-        if state & relevant != wanted:
-            return False
-
-        if keyval == Gdk.KEY_Up:
-            delta = -1
-        elif keyval == Gdk.KEY_Down:
-            delta = 1
-        else:
-            return False
-        return self._move_relative(idx, delta)
-
-    def _move_relative(self, idx: int, delta: int) -> bool:
-        """Move the entry at *idx* by *delta* slots (typically ±1).
-
-        Returns ``True`` when the move was performed, ``False`` when
-        the move would have been illegal (out of range, or crossing
-        a keyword-group boundary). The keyboard handler propagates
-        this return value as its "event consumed" flag so unhandled
-        Up/Down arrows fall through to default focus traversal.
-        """
-        target = idx + delta
-        if not self._is_valid_move(idx, target):
-            return False
-        with self._undo_track():
-            self._owned.move(idx, target)
-        self._notify_dirty()
-        self._rebuild_list(focus_idx=target)
-        return True
+    # ── Reorder (mixin provides drag-and-drop + Alt+arrow keyboard) ──
 
     def _is_valid_move(self, src_idx: int, dst_idx: int) -> bool:
-        """True if moving *src_idx* to *dst_idx* is a legal reorder.
+        """Restrict reorder to within a single keyword group.
 
-        Restricts moves to within the same keyword group: turning an
-        ``exec-once`` into an ``exec`` (or vice versa) by reordering
-        would silently change the entry's behaviour, so we don't
-        allow it. Users who need to flip the trigger edit the entry.
+        Turning an ``exec-once`` into an ``exec`` (or vice versa) by
+        reordering would silently change the entry's behaviour. Users
+        who need to flip the trigger edit the entry instead.
         """
-        n = len(self._owned)
-        if src_idx < 0 or dst_idx < 0:
-            return False
-        if src_idx == dst_idx:
-            return False
-        if src_idx >= n or dst_idx >= n:
+        if not super()._is_valid_move(src_idx, dst_idx):
             return False
         return self._owned[src_idx].keyword == self._owned[dst_idx].keyword
 
@@ -745,81 +446,6 @@ class AutostartPage(SectionPage):
         self._notify_dirty()
         self._rebuild_list()
 
-    # ── Reorder helpers (queried by pages/pending.py) ──
-
-    def is_reordered(self) -> bool:
-        """True if the *common* items between saved and current differ in order.
-
-        Pure pass-through to ``core.autostart.detect_reorder``; lives
-        on the page so callers (notably the pending-changes view)
-        don't need to know about ``_owned`` internals.
-        """
-        return detect_reorder(self._owned.saved, list(self._owned))
-
-    def pending_change_count(self) -> int:
-        """Number of distinct pending-change entries the page would surface.
-
-        Pure pass-through to ``core.autostart.count_pending_changes``
-        so the sidebar badge agrees with the pending-changes list by
-        construction — both ultimately call the same helper.
-        """
-        if not self.is_dirty():
-            return 0
-        baselines = [self._owned.get_baseline(i) for i in range(len(self._owned))]
-        return count_pending_changes(self._owned.saved, list(self._owned), baselines)
-
-    def revert_reorder(self) -> None:
-        """Restore the saved order while preserving other dirty changes.
-
-        - Items that exist in both saved and current are repositioned
-          to their saved-order slots (any in-flight edits to those
-          items are kept — only the position is reverted).
-        - Newly-added items (no baseline) keep their values and slot
-          in at the end.
-        - Items the user removed stay removed; this revert isn't a
-          general "undo all".
-
-        Pushes a single undo entry so Ctrl+Z restores the pre-revert
-        order in one step.
-        """
-        # Map saved-line -> (current_item, baseline) for items that
-        # originated from the saved snapshot (have a non-None baseline).
-        # ``baseline.to_line()`` is the stable identity even if the
-        # user has since edited the item — that's how we keep edits
-        # while reverting position.
-        by_saved_line: dict[str, tuple[ExecData, ExecData | None]] = {}
-        new_pairs: list[tuple[ExecData, ExecData | None]] = []
-
-        for idx in range(len(self._owned)):
-            item = self._owned[idx]
-            baseline = self._owned.get_baseline(idx)
-            if baseline is None:
-                new_pairs.append((item, baseline))
-            else:
-                by_saved_line[baseline.to_line()] = (item, baseline)
-
-        rebuilt_items: list[ExecData] = []
-        rebuilt_baselines: list[ExecData | None] = []
-        for saved in self._owned.saved:
-            pair = by_saved_line.get(saved.to_line())
-            if pair is None:
-                # User removed this entry; not coming back from a
-                # reorder revert.
-                continue
-            item, baseline = pair
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-        # Newly-added rows keep their existing positions at the end of
-        # the list — they have no saved-order to revert to.
-        for item, baseline in new_pairs:
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-
-        with self._undo_track():
-            self._owned.restore(rebuilt_items, rebuilt_baselines)
-        self._notify_dirty()
-        self._rebuild_list()
-
     # ── Run-now ──
 
     def _run_now(self, item: ExecData) -> None:
@@ -848,24 +474,6 @@ class AutostartPage(SectionPage):
             self._window.show_toast(f"Failed to run: {e}", timeout=5)
             return
         self._window.show_toast(f"Started: {cmd}")
-
-    # ── SectionPage protocol ──
-
-    def is_dirty(self) -> bool:
-        return self._owned.is_dirty()
-
-    def mark_saved(self) -> None:
-        self._owned.mark_saved()
-        self._rebuild_list()
-
-    def discard(self) -> None:
-        self._owned.discard_all()
-        self._rebuild_list()
-
-    def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:
-        """Re-load baseline from the given saved sections (after profile switch)."""
-        self._load(saved_sections)
-        self._rebuild_list()
 
     # ── Save plumbing ──
 

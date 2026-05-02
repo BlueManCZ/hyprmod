@@ -7,6 +7,7 @@ on-disk config and the next-save serialization, so users can verify
 what's actually about to land in hyprmod's managed config.
 """
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from html import escape as html_escape
@@ -20,15 +21,23 @@ from hyprland_state import ANIM_FLAT, ANIM_LOOKUP, AnimState
 
 from hyprmod.core import config, schema
 from hyprmod.core.autostart import KEYWORD_LABELS as AUTOSTART_LABELS
-from hyprmod.core.autostart import iter_item_changes as iter_autostart_changes
-from hyprmod.core.env_vars import iter_item_changes as iter_env_var_changes
-from hyprmod.core.layer_rules import iter_item_changes as iter_layer_rule_changes
+from hyprmod.core.change_tracking import iter_item_changes
 from hyprmod.core.layer_rules import summarize_rule as summarize_layer_rule
-from hyprmod.core.window_rules import iter_item_changes as iter_window_rule_changes
 from hyprmod.core.window_rules import summarize_rule
 from hyprmod.pages.animations import ANIM_LABELS
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.diff import ConfigDiffWidget
+from hyprmod.ui.icons import (
+    AUTOSTART_ICON,
+    BINDS_ICON,
+    ENV_VARS_ICON,
+    FALLBACK_ICON,
+    LAYER_RULES_ICON,
+    MONITORS_ICON,
+    WINDOW_RULES_ICON,
+)
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from hyprmod.window import HyprModWindow
@@ -47,16 +56,6 @@ _CATEGORY_ORDER = (
     "Layer Rules",
 )
 
-# Sidebar icons for fixed pages. Schema-group icons are looked up dynamically
-# from the schema (see ``_group_icon``).
-_BINDS_ICON = "keyboard-shortcuts-symbolic"
-_MONITORS_ICON = "display-symbolic"
-_AUTOSTART_ICON = "media-playback-start-symbolic"
-_ENV_VARS_ICON = "utilities-terminal-symbolic"
-_WINDOW_RULES_ICON = "window-rules-symbolic"
-_LAYER_RULES_ICON = "overlapping-windows-symbolic"
-_FALLBACK_ICON = "preferences-system-symbolic"
-
 # Visual label and CSS class for each kind of change.
 _KIND_BADGE = {
     "modified": ("Modified", "pending-badge-modified"),
@@ -74,7 +73,7 @@ class PendingChange:
     subtitle: str
     revert: Callable[[], object]
     navigate_to: str | None = None
-    icon: str = _FALLBACK_ICON
+    icon: str = FALLBACK_ICON
     kind: str = "modified"  # "modified" | "added" | "removed"
     # Schema option key to focus and flash on navigation, when applicable.
     target_key: str | None = None
@@ -102,12 +101,12 @@ class PendingChangesPage:
         # schema groups routed onto those pages (e.g. ``monitor_globals``
         # which has ``parent_page: "monitors"``) still resolve correctly.
         self._group_icons: dict[str, str] = {
-            "binds": _BINDS_ICON,
-            "monitors": _MONITORS_ICON,
-            "autostart": _AUTOSTART_ICON,
-            "env_vars": _ENV_VARS_ICON,
-            "window_rules": _WINDOW_RULES_ICON,
-            "layer_rules": _LAYER_RULES_ICON,
+            "binds": BINDS_ICON,
+            "monitors": MONITORS_ICON,
+            "autostart": AUTOSTART_ICON,
+            "env_vars": ENV_VARS_ICON,
+            "window_rules": WINDOW_RULES_ICON,
+            "layer_rules": LAYER_RULES_ICON,
         }
         for g in schema.get_groups(window._schema):
             icon = g.get("icon")
@@ -274,8 +273,7 @@ class PendingChangesPage:
     def _on_row_activated(self, _row: Adw.ActionRow, change: PendingChange) -> None:
         if not change.navigate_to:
             return
-        self._window.show_page(change.navigate_to)
-        self._window._sidebar.select_row(change.navigate_to)
+        self._window.navigate(change.navigate_to)
 
         # Highlight + focus the source option once the target page has had a
         # chance to render — same pattern the search-result navigation uses.
@@ -303,6 +301,9 @@ class PendingChangesPage:
         try:
             new_text = self._compose_resulting_config()
         except Exception:  # noqa: BLE001 — never block the UI on diff errors
+            # Log so dev builds surface bugs in build_content / collect; the
+            # diff falls through to "no changes" which is harmless visually.
+            log.exception("Failed to compose pending-changes diff preview")
             new_text = old_text
         # Hide the whole "Config diff preview" group when there's nothing to
         # show — the standalone empty placeholder inside the diff widget is
@@ -332,27 +333,9 @@ class PendingChangesPage:
         Mirrors the production save path (collect + serialize) but never writes.
         """
         win = self._window
-        values = win.app_state.get_all_live_values()
-        (
-            bind_lines,
-            monitor_lines,
-            animation_lines,
-            bezier_lines,
-            env_lines,
-            exec_lines,
-            window_rule_lines,
-            layer_rule_lines,
-        ) = win._collect_save_sections()
         return config.build_content(
-            values,
-            bind_lines=bind_lines,
-            monitor_lines=monitor_lines,
-            animation_lines=animation_lines,
-            bezier_lines=bezier_lines,
-            env_lines=env_lines,
-            exec_lines=exec_lines,
-            window_rule_lines=window_rule_lines,
-            layer_rule_lines=layer_rule_lines,
+            win.app_state.get_all_live_values(),
+            win._collect_save_sections(),
         )
 
     # ── Change collection ──
@@ -401,8 +384,8 @@ class PendingChangesPage:
     def _group_icon(self, group_id: str | None) -> str:
         """Resolve the sidebar icon for a schema group id."""
         if group_id is None:
-            return _FALLBACK_ICON
-        return self._group_icons.get(group_id, _FALLBACK_ICON)
+            return FALLBACK_ICON
+        return self._group_icons.get(group_id, FALLBACK_ICON)
 
     @staticmethod
     def _describe_option_change(state: Any) -> tuple[str, str]:
@@ -434,7 +417,7 @@ class PendingChangesPage:
                 continue
             if not page.is_anim_dirty(name):
                 continue
-            current = page.get_state(name)
+            current = page.anims.get_cached(name)
             baseline = page.anims.get_baseline(name)
             kind, subtitle = self._describe_animation_change(name, baseline, current, page)
             label = ANIM_LABELS.get(name, name)
@@ -508,7 +491,7 @@ class PendingChangesPage:
                         kind="added",
                         revert=lambda i=idx: page._discard_bind_at(i),
                         navigate_to="binds",
-                        icon=_BINDS_ICON,
+                        icon=BINDS_ICON,
                     )
                 )
                 continue
@@ -527,7 +510,7 @@ class PendingChangesPage:
                         kind="modified",
                         revert=lambda i=idx: page._discard_bind_at(i),
                         navigate_to="binds",
-                        icon=_BINDS_ICON,
+                        icon=BINDS_ICON,
                     )
                 )
 
@@ -548,7 +531,7 @@ class PendingChangesPage:
                         kind="removed",
                         revert=lambda b=saved_bind: self._restore_deleted_bind(page, b),
                         navigate_to="binds",
-                        icon=_BINDS_ICON,
+                        icon=BINDS_ICON,
                     )
                 )
         return result
@@ -609,7 +592,7 @@ class PendingChangesPage:
                     kind=kind,
                     revert=lambda m=mon: page._discard_monitor(m),
                     navigate_to="monitors",
-                    icon=_MONITORS_ICON,
+                    icon=MONITORS_ICON,
                 )
             )
         return result
@@ -694,9 +677,7 @@ class PendingChangesPage:
         # iterator (in ``core.autostart``) so the sidebar count and
         # the pending-list length can't drift apart.
         baselines = [owned.get_baseline(i) for i in range(len(owned))]
-        for kind, idx, item, baseline in iter_autostart_changes(
-            owned.saved, list(owned), baselines
-        ):
+        for kind, idx, item, baseline in iter_item_changes(owned.saved, list(owned), baselines):
             result.append(self._make_autostart_change(page, kind, idx, item, baseline))
 
         # Reorder is a single roll-up entry — separate from the per-item
@@ -714,7 +695,7 @@ class PendingChangesPage:
                     kind="modified",
                     revert=page.revert_reorder,
                     navigate_to="autostart",
-                    icon=_AUTOSTART_ICON,
+                    icon=AUTOSTART_ICON,
                 )
             )
         return result
@@ -737,7 +718,7 @@ class PendingChangesPage:
                 kind="added",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="autostart",
-                icon=_AUTOSTART_ICON,
+                icon=AUTOSTART_ICON,
             )
         if kind == "modified":
             if baseline.command != item.command:
@@ -752,7 +733,7 @@ class PendingChangesPage:
                 kind="modified",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="autostart",
-                icon=_AUTOSTART_ICON,
+                icon=AUTOSTART_ICON,
             )
         # removed — ``item`` is the saved value (the entry that disappeared);
         # revert re-adds it as a new row, keeping other in-flight edits intact.
@@ -763,7 +744,7 @@ class PendingChangesPage:
             kind="removed",
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="autostart",
-            icon=_AUTOSTART_ICON,
+            icon=AUTOSTART_ICON,
         )
 
     # -- Env vars --
@@ -778,7 +759,7 @@ class PendingChangesPage:
         # Same iterator pattern as autostart so the sidebar badge count
         # and pending-list length stay in lockstep.
         baselines = [owned.get_baseline(i) for i in range(len(owned))]
-        for kind, idx, item, baseline in iter_env_var_changes(owned.saved, list(owned), baselines):
+        for kind, idx, item, baseline in iter_item_changes(owned.saved, list(owned), baselines):
             result.append(self._make_env_var_change(page, kind, idx, item, baseline))
 
         if page.is_reordered():
@@ -791,7 +772,7 @@ class PendingChangesPage:
                     kind="modified",
                     revert=page.revert_reorder,
                     navigate_to="env_vars",
-                    icon=_ENV_VARS_ICON,
+                    icon=ENV_VARS_ICON,
                 )
             )
         return result
@@ -804,7 +785,7 @@ class PendingChangesPage:
         item: Any,
         baseline: Any,
     ) -> PendingChange:
-        """Build a ``PendingChange`` for one tuple from ``iter_env_var_changes``."""
+        """Build a ``PendingChange`` for one tuple from ``iter_item_changes``."""
         if kind == "added":
             return PendingChange(
                 category="Env Variables",
@@ -813,7 +794,7 @@ class PendingChangesPage:
                 kind="added",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="env_vars",
-                icon=_ENV_VARS_ICON,
+                icon=ENV_VARS_ICON,
             )
         if kind == "modified":
             if baseline.name != item.name:
@@ -833,7 +814,7 @@ class PendingChangesPage:
                 kind="modified",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="env_vars",
-                icon=_ENV_VARS_ICON,
+                icon=ENV_VARS_ICON,
             )
         # removed — ``item`` is the saved (vanished) entry; revert re-adds.
         return PendingChange(
@@ -843,7 +824,7 @@ class PendingChangesPage:
             kind="removed",
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="env_vars",
-            icon=_ENV_VARS_ICON,
+            icon=ENV_VARS_ICON,
         )
 
     # -- Window rules --
@@ -858,9 +839,7 @@ class PendingChangesPage:
         # Same iterator pattern as autostart so the sidebar badge count
         # and pending-list length stay in lockstep.
         baselines = [owned.get_baseline(i) for i in range(len(owned))]
-        for kind, idx, item, baseline in iter_window_rule_changes(
-            owned.saved, list(owned), baselines
-        ):
+        for kind, idx, item, baseline in iter_item_changes(owned.saved, list(owned), baselines):
             result.append(self._make_window_rule_change(page, kind, idx, item, baseline))
 
         if page.is_reordered():
@@ -873,7 +852,7 @@ class PendingChangesPage:
                     kind="modified",
                     revert=page.revert_reorder,
                     navigate_to="window_rules",
-                    icon=_WINDOW_RULES_ICON,
+                    icon=WINDOW_RULES_ICON,
                 )
             )
         return result
@@ -886,7 +865,7 @@ class PendingChangesPage:
         item: Any,
         baseline: Any,
     ) -> PendingChange:
-        """Build a ``PendingChange`` for one tuple from ``iter_window_rule_changes``."""
+        """Build a ``PendingChange`` for one tuple from ``iter_item_changes``."""
         title, subtitle = summarize_rule(item)
         if kind == "added":
             return PendingChange(
@@ -896,7 +875,7 @@ class PendingChangesPage:
                 kind="added",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="window_rules",
-                icon=_WINDOW_RULES_ICON,
+                icon=WINDOW_RULES_ICON,
             )
         if kind == "modified":
             old_title, old_subtitle = summarize_rule(baseline)
@@ -911,7 +890,7 @@ class PendingChangesPage:
                 kind="modified",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="window_rules",
-                icon=_WINDOW_RULES_ICON,
+                icon=WINDOW_RULES_ICON,
             )
         # removed — ``item`` is the saved (vanished) rule.
         return PendingChange(
@@ -921,7 +900,7 @@ class PendingChangesPage:
             kind="removed",
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="window_rules",
-            icon=_WINDOW_RULES_ICON,
+            icon=WINDOW_RULES_ICON,
         )
 
     # -- Layer rules --
@@ -936,9 +915,7 @@ class PendingChangesPage:
         # Same iterator pattern as window rules / autostart so the
         # sidebar badge count and pending-list length stay in lockstep.
         baselines = [owned.get_baseline(i) for i in range(len(owned))]
-        for kind, idx, item, baseline in iter_layer_rule_changes(
-            owned.saved, list(owned), baselines
-        ):
+        for kind, idx, item, baseline in iter_item_changes(owned.saved, list(owned), baselines):
             result.append(self._make_layer_rule_change(page, kind, idx, item, baseline))
 
         if page.is_reordered():
@@ -951,7 +928,7 @@ class PendingChangesPage:
                     kind="modified",
                     revert=page.revert_reorder,
                     navigate_to="layer_rules",
-                    icon=_LAYER_RULES_ICON,
+                    icon=LAYER_RULES_ICON,
                 )
             )
         return result
@@ -964,7 +941,7 @@ class PendingChangesPage:
         item: Any,
         baseline: Any,
     ) -> PendingChange:
-        """Build a ``PendingChange`` for one tuple from ``iter_layer_rule_changes``."""
+        """Build a ``PendingChange`` for one tuple from ``iter_item_changes``."""
         title, subtitle = summarize_layer_rule(item)
         if kind == "added":
             return PendingChange(
@@ -974,7 +951,7 @@ class PendingChangesPage:
                 kind="added",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="layer_rules",
-                icon=_LAYER_RULES_ICON,
+                icon=LAYER_RULES_ICON,
             )
         if kind == "modified":
             old_title, old_subtitle = summarize_layer_rule(baseline)
@@ -989,7 +966,7 @@ class PendingChangesPage:
                 kind="modified",
                 revert=lambda i=idx: page._discard_at(i),
                 navigate_to="layer_rules",
-                icon=_LAYER_RULES_ICON,
+                icon=LAYER_RULES_ICON,
             )
         # removed — ``item`` is the saved (vanished) rule.
         return PendingChange(
@@ -999,7 +976,7 @@ class PendingChangesPage:
             kind="removed",
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="layer_rules",
-            icon=_LAYER_RULES_ICON,
+            icon=LAYER_RULES_ICON,
         )
 
     # Bezier curves are written automatically based on used animations,

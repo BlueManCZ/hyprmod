@@ -26,15 +26,13 @@ class AnimationUndoEntry:
 
 
 @dataclass(slots=True)
-class BindsUndoEntry:
-    """Undo entry for a keybinds snapshot."""
+class CursorUndoEntry:
+    """Undo entry for a cursor theme/size change."""
 
-    old_items: list
-    new_items: list
-    old_baselines: list
-    new_baselines: list
-    old_session_overrides: dict
-    new_session_overrides: dict
+    old_theme: str
+    old_size: int
+    new_theme: str
+    new_size: int
 
 
 @dataclass(slots=True)
@@ -48,24 +46,20 @@ class MonitorsUndoEntry:
 
 
 @dataclass(slots=True)
-class CursorUndoEntry:
-    """Undo entry for a cursor theme/size change."""
+class SavedListSnapshot:
+    """Undo entry for any ``SavedList[T]``-backed page.
 
-    old_theme: str
-    old_size: int
-    new_theme: str
-    new_size: int
+    Used by autostart, env-vars, window-rules, and layer-rules. Each
+    entry carries the page identifier (``page_attr`` is the attribute
+    name on ``HyprModWindow``) plus the full owned-list and per-item
+    baselines on either side of the change, so add/edit/remove/reorder
+    all undo through one entry type per page.
 
-
-@dataclass(slots=True)
-class AutostartUndoEntry:
-    """Undo entry for an autostart (``exec``/``exec-once``) snapshot.
-
-    Mirrors ``BindsUndoEntry``: each entry captures the full owned-list
-    plus its per-item baselines so a single add/edit/remove can be
-    replayed without recomputing baselines.
+    Binds use a separate :class:`BindsUndoEntry` because they also need
+    to snapshot the session-overrides dict.
     """
 
+    page_attr: str
     old_items: list
     new_items: list
     old_baselines: list
@@ -73,60 +67,28 @@ class AutostartUndoEntry:
 
 
 @dataclass(slots=True)
-class WindowRulesUndoEntry:
-    """Undo entry for a window-rules snapshot.
+class BindsUndoEntry:
+    """Undo entry for a keybinds snapshot.
 
-    Same shape as ``AutostartUndoEntry`` — the page mutates a
-    ``SavedList[WindowRule]`` and snapshots both items and baselines so
-    add/edit/remove/reorder all undo through the same single entry type.
+    Distinct from :class:`SavedListSnapshot` because binds also track a
+    session-overrides dict alongside the owned list.
     """
 
     old_items: list
     new_items: list
     old_baselines: list
     new_baselines: list
-
-
-@dataclass(slots=True)
-class LayerRulesUndoEntry:
-    """Undo entry for a layer-rules snapshot.
-
-    Same shape as ``WindowRulesUndoEntry``: the page mutates a
-    ``SavedList[LayerRule]`` and snapshots items + baselines so a
-    single add/edit/remove/reorder replays through one entry type.
-    """
-
-    old_items: list
-    new_items: list
-    old_baselines: list
-    new_baselines: list
-
-
-@dataclass(slots=True)
-class EnvVarsUndoEntry:
-    """Undo entry for an env-vars (``env = NAME,value``) snapshot.
-
-    Same shape as :class:`AutostartUndoEntry`: the page owns a
-    ``SavedList[EnvVar]`` and snapshots items + baselines so add/
-    edit/remove/reorder all undo through one entry type.
-    """
-
-    old_items: list
-    new_items: list
-    old_baselines: list
-    new_baselines: list
+    old_session_overrides: dict
+    new_session_overrides: dict
 
 
 type UndoEntry = (
     OptionChange
     | AnimationUndoEntry
-    | BindsUndoEntry
-    | MonitorsUndoEntry
     | CursorUndoEntry
-    | AutostartUndoEntry
-    | WindowRulesUndoEntry
-    | LayerRulesUndoEntry
-    | EnvVarsUndoEntry
+    | MonitorsUndoEntry
+    | BindsUndoEntry
+    | SavedListSnapshot
 )
 
 

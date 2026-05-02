@@ -22,6 +22,12 @@ from pathlib import Path
 import pytest
 from hyprland_socket import Window
 
+from hyprmod.core.change_tracking import (
+    count_pending_changes,
+    detect_reorder,
+    drop_target_idx,
+    iter_item_changes,
+)
 from hyprmod.core.window_rules import (
     ACTION_PRESETS_BY_ID,
     CUSTOM_PRESET,
@@ -33,12 +39,8 @@ from hyprmod.core.window_rules import (
     ExternalWindowRule,
     Matcher,
     WindowRule,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
     existing_window_dispatchers,
     existing_window_revert_dispatchers,
-    iter_item_changes,
     load_external_window_rules,
     lookup_matcher_kind,
     lookup_preset,

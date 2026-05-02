@@ -16,17 +16,13 @@ group cohesive concerns:
   retroactive dispatch); apply / revert dispatcher mappings.
 - :mod:`._external` — read-only loader for windowrule lines from
   outside the managed config (``hyprland.conf`` and its sources).
-- :mod:`._changes` — drag-and-drop and pending-change helpers used by
-  the page's reorder path and the Pending Changes overview.
+
+Generic change-tracking primitives (``iter_item_changes``,
+``detect_reorder``, ``drop_target_idx``, ``count_pending_changes``)
+live in :mod:`hyprmod.core.change_tracking`. Import them from there
+directly.
 """
 
-from hyprmod.core.window_rules._changes import (
-    ChangeKind,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
-    iter_item_changes,
-)
 from hyprmod.core.window_rules._external import (
     ExternalWindowRule,
     load_external_window_rules,
@@ -87,7 +83,6 @@ __all__ = [
     "WINDOW_RULE_KEYWORDS",
     "ActionField",
     "ActionPreset",
-    "ChangeKind",
     "ExternalWindowRule",
     "Matcher",
     "MatcherKind",
@@ -109,9 +104,4 @@ __all__ = [
     "matches_window",
     # External loader.
     "load_external_window_rules",
-    # Change tracking.
-    "count_pending_changes",
-    "detect_reorder",
-    "drop_target_idx",
-    "iter_item_changes",
 ]

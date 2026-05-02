@@ -53,7 +53,6 @@ serialize back out as N separate lines (which Hyprland evaluates
 identically).
 """
 
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -659,84 +658,6 @@ def load_external_layer_rules(
     return external
 
 
-# ---------------------------------------------------------------------------
-# Drag-and-drop helper (mirrors core.autostart / core.window_rules._changes)
-# ---------------------------------------------------------------------------
-
-
-def drop_target_idx(src: int, hover: int, before: bool) -> int:
-    """Translate a drag-and-drop hover into a ``SavedList.move`` target.
-
-    See :func:`hyprmod.core.autostart.drop_target_idx` for the
-    derivation; same semantics apply here.
-    """
-    if before:
-        return hover - 1 if src < hover else hover
-    return hover if src < hover else hover + 1
-
-
-# ---------------------------------------------------------------------------
-# Change tracking (mirrors core.autostart)
-# ---------------------------------------------------------------------------
-
-
-ChangeKind = Literal["added", "modified", "removed"]
-
-
-def detect_reorder(saved: list[LayerRule], current: list[LayerRule]) -> bool:
-    """True if entries common to both lists appear in different relative order."""
-    saved_lines = [e.to_line() for e in saved]
-    current_lines = [e.to_line() for e in current]
-    common = set(saved_lines) & set(current_lines)
-    if len(common) < 2:
-        return False
-    saved_positions = [line for line in saved_lines if line in common]
-    current_positions = [line for line in current_lines if line in common]
-    return saved_positions != current_positions
-
-
-def iter_item_changes(
-    saved: list[LayerRule],
-    current: list[LayerRule],
-    current_baselines: list[LayerRule | None],
-) -> Iterator[tuple[ChangeKind, int, LayerRule, LayerRule | None]]:
-    """Yield per-item add/modify/remove changes.
-
-    Same iterator shape as :func:`hyprmod.core.autostart.iter_item_changes`
-    so the sidebar badge counter and pending-list collector share one
-    source of truth.
-    """
-    if len(current) != len(current_baselines):
-        raise ValueError(
-            "current and current_baselines must be the same length "
-            f"(got {len(current)} vs. {len(current_baselines)})"
-        )
-
-    surviving_baselines: set[str] = set()
-    for idx, (item, baseline) in enumerate(zip(current, current_baselines, strict=True)):
-        if baseline is None:
-            yield "added", idx, item, None
-        else:
-            surviving_baselines.add(baseline.to_line())
-            if baseline.to_line() != item.to_line():
-                yield "modified", idx, item, baseline
-    for s in saved:
-        if s.to_line() not in surviving_baselines:
-            yield "removed", -1, s, None
-
-
-def count_pending_changes(
-    saved: list[LayerRule],
-    current: list[LayerRule],
-    current_baselines: list[LayerRule | None],
-) -> int:
-    """Total pending-change entries: per-item changes + reorder roll-up."""
-    count = sum(1 for _ in iter_item_changes(saved, current, current_baselines))
-    if detect_reorder(saved, current):
-        count += 1
-    return count
-
-
 __all__ = [
     "CUSTOM_PRESET",
     "KEYWORD_WRITE",
@@ -744,15 +665,10 @@ __all__ = [
     "LAYER_ACTION_PRESETS_BY_ID",
     "LAYER_BOOL_EFFECTS",
     "LAYER_RULE_KEYWORDS",
-    "ChangeKind",
     "ExternalLayerRule",
     "LayerActionField",
     "LayerActionPreset",
     "LayerRule",
-    "count_pending_changes",
-    "detect_reorder",
-    "drop_target_idx",
-    "iter_item_changes",
     "load_external_layer_rules",
     "lookup_preset",
     "parse_layer_rule_line",

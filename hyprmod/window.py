@@ -13,15 +13,12 @@ from hyprmod.core import config, profiles, schema
 from hyprmod.core.state import AppState
 from hyprmod.core.undo import (
     AnimationUndoEntry,
-    AutostartUndoEntry,
     BindsUndoEntry,
     CursorUndoEntry,
-    EnvVarsUndoEntry,
-    LayerRulesUndoEntry,
     MonitorsUndoEntry,
     OptionChange,
+    SavedListSnapshot,
     UndoManager,
-    WindowRulesUndoEntry,
 )
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
@@ -334,84 +331,44 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._page_stack.add_named(page, group["id"])
             self._page_titles[group["id"]] = group["label"]
 
-        self._binds_page = BindsPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        binds_nav = self._binds_page.build(header=self._make_page_header("Keybinds"))
-        self._page_stack.add_named(binds_nav, "binds")
-        self._page_titles["binds"] = "Keybinds"
+        # SectionPage subclasses that follow the standard
+        # ``(window, on_dirty_changed, push_undo, saved_sections)``
+        # constructor. ``slug`` is the page-stack key, ``title`` shows in
+        # the header.
+        section_page_specs: list[tuple[type, str, str, str]] = [
+            (BindsPage, "_binds_page", "binds", "Keybinds"),
+            (MonitorsPage, "_monitors_page", "monitors", "Monitors"),
+            (AutostartPage, "_autostart_page", "autostart", "Autostart"),
+            (EnvVarsPage, "_env_vars_page", "env_vars", "Env Variables"),
+            (WindowRulesPage, "_window_rules_page", "window_rules", "Window Rules"),
+            (LayerRulesPage, "_layer_rules_page", "layer_rules", "Layer Rules"),
+        ]
+        for cls, attr, slug, title in section_page_specs:
+            page = cls(
+                self,
+                on_dirty_changed=self._on_section_dirty,
+                push_undo=self._undo.push,
+                saved_sections=self._saved_sections,
+            )
+            setattr(self, attr, page)
+            self._page_stack.add_named(page.build(header=self._make_page_header(title)), slug)
+            self._page_titles[slug] = title
+            if cls is MonitorsPage:
+                self._search_page_builder.add_entries(page.get_search_entries())
 
-        self._monitors_page = MonitorsPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        monitors_nav = self._monitors_page.build(header=self._make_page_header("Monitors"))
-        self._page_stack.add_named(monitors_nav, "monitors")
-        self._page_titles["monitors"] = "Monitors"
-        self._search_page_builder.add_entries(self._monitors_page.get_search_entries())
         self._search_page_builder.add_entries(CursorPage.get_search_entries())
 
-        self._autostart_page = AutostartPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        autostart_nav = self._autostart_page.build(header=self._make_page_header("Autostart"))
-        self._page_stack.add_named(autostart_nav, "autostart")
-        self._page_titles["autostart"] = "Autostart"
-
-        self._env_vars_page = EnvVarsPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        env_vars_nav = self._env_vars_page.build(header=self._make_page_header("Env Variables"))
-        self._page_stack.add_named(env_vars_nav, "env_vars")
-        self._page_titles["env_vars"] = "Env Variables"
-
-        self._window_rules_page = WindowRulesPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        window_rules_nav = self._window_rules_page.build(
-            header=self._make_page_header("Window Rules")
-        )
-        self._page_stack.add_named(window_rules_nav, "window_rules")
-        self._page_titles["window_rules"] = "Window Rules"
-
-        self._layer_rules_page = LayerRulesPage(
-            self,
-            on_dirty_changed=self._on_section_dirty,
-            push_undo=self._undo.push,
-            saved_sections=self._saved_sections,
-        )
-        layer_rules_nav = self._layer_rules_page.build(header=self._make_page_header("Layer Rules"))
-        self._page_stack.add_named(layer_rules_nav, "layer_rules")
-        self._page_titles["layer_rules"] = "Layer Rules"
-
-        self._profiles_page = ProfilesPage(self)
-        profiles_nav = self._profiles_page.build(header=self._make_page_header("Profiles"))
-        self._page_stack.add_named(profiles_nav, "profiles")
-        self._page_titles["profiles"] = "Profiles"
-
-        self._pending_page = PendingChangesPage(self)
-        pending_nav = self._pending_page.build(header=self._make_page_header("Pending Changes"))
-        self._page_stack.add_named(pending_nav, "pending")
-        self._page_titles["pending"] = "Pending Changes"
-
-        self._settings_page = SettingsPage(self)
-        settings_nav = self._settings_page.build(header=self._make_page_header("Settings"))
-        self._page_stack.add_named(settings_nav, "settings")
-        self._page_titles["settings"] = "Settings"
+        # Standalone pages (no dirty/undo wiring; built from ``self`` only).
+        standalone_page_specs: list[tuple[type, str, str, str]] = [
+            (ProfilesPage, "_profiles_page", "profiles", "Profiles"),
+            (PendingChangesPage, "_pending_page", "pending", "Pending Changes"),
+            (SettingsPage, "_settings_page", "settings", "Settings"),
+        ]
+        for cls, attr, slug, title in standalone_page_specs:
+            page = cls(self)
+            setattr(self, attr, page)
+            self._page_stack.add_named(page.build(header=self._make_page_header(title)), slug)
+            self._page_titles[slug] = title
 
         return groups, groups_by_id
 
@@ -775,8 +732,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             group_id = "monitors"
         self._pre_search_page_id = None
         self._sidebar.search_button.set_active(False)
-        self.show_page(group_id)
-        self._sidebar.select_row(group_id)
+        self.navigate(group_id)
 
         opt_row = self._option_rows.get(option_key)
         if opt_row:
@@ -800,6 +756,17 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._pending_page.refresh()
             self._page_stack.set_visible_child_name(gid)
             self._content_nav.set_title(self._page_titles[gid])
+
+    def navigate(self, group_id: str) -> None:
+        """Switch to *group_id* and reflect it in the sidebar selection.
+
+        ``show_page`` only swaps the visible content; the sidebar's selected
+        row stays where it was (which looks broken when the navigation came
+        from a non-sidebar source like search results or pending changes).
+        Routing through one method keeps the two in sync.
+        """
+        self.show_page(group_id)
+        self._sidebar.select_row(group_id)
 
     def _on_sidebar_selected(self, group_id: str):
         self.show_page(group_id)
@@ -922,11 +889,53 @@ class HyprModWindow(Adw.ApplicationWindow):
     def _on_redo(self, *_args):
         self._apply_undo_redo(undo=False)
 
+    # -- Undo/redo dispatch table --
+    #
+    # Maps an undo-entry class to ``(page_attr, apply)``: ``page_attr``
+    # is the ``HyprModWindow`` attribute holding the page that owns the
+    # entry's state, and ``apply(page, entry, undo)`` replays the entry
+    # on the page in the requested direction. ``OptionChange`` and
+    # ``SavedListSnapshot`` both have their own branches in
+    # :meth:`_apply_undo_redo`: ``OptionChange`` because it can fail
+    # mid-flight (HyprlandError) and ``SavedListSnapshot`` because the
+    # page lookup comes from the entry itself.
+    _UNDO_DISPATCH = {
+        AnimationUndoEntry: (
+            "_animations_page",
+            lambda page, e, undo: page.restore_state(
+                e.anim_name, e.anim_old if undo else e.anim_new
+            ),
+        ),
+        BindsUndoEntry: (
+            "_binds_page",
+            lambda page, e, undo: page.restore_snapshot(
+                e.old_items if undo else e.new_items,
+                e.old_baselines if undo else e.new_baselines,
+                e.old_session_overrides if undo else e.new_session_overrides,
+            ),
+        ),
+        MonitorsUndoEntry: (
+            "_monitors_page",
+            lambda page, e, undo: page.restore_snapshot(
+                e.old_monitors if undo else e.new_monitors,
+                e.old_owned if undo else e.new_owned,
+            ),
+        ),
+        CursorUndoEntry: (
+            "_cursor_page",
+            lambda page, e, undo: page.restore_snapshot(
+                e.old_theme if undo else e.new_theme,
+                e.old_size if undo else e.new_size,
+            ),
+        ),
+    }
+
     def _apply_undo_redo(self, undo: bool):
         entry = self._undo.pop_undo() if undo else self._undo.pop_redo()
         if entry is None:
             return
         confirm = self._undo.confirm_undo if undo else self._undo.confirm_redo
+
         if isinstance(entry, OptionChange):
             value = entry.old_value if undo else entry.new_value
             managed = entry.old_managed if undo else entry.new_managed
@@ -940,50 +949,32 @@ class HyprModWindow(Adw.ApplicationWindow):
                 opt_row = self._option_rows.get(entry.key)
                 if opt_row:
                     opt_row.set_value_silent(value)
-        elif isinstance(entry, AnimationUndoEntry) and self._animations_page is not None:
-            anim_state = entry.anim_old if undo else entry.anim_new
-            self._animations_page.restore_state(entry.anim_name, anim_state)
+            return
+
+        if isinstance(entry, SavedListSnapshot):
+            page = getattr(self, entry.page_attr, None)
+            if page is None:
+                return
+            page.restore_snapshot(
+                entry.old_items if undo else entry.new_items,
+                entry.old_baselines if undo else entry.new_baselines,
+            )
             confirm(entry)
-        elif isinstance(entry, BindsUndoEntry) and self._binds_page is not None:
-            items = entry.old_items if undo else entry.new_items
-            baselines = entry.old_baselines if undo else entry.new_baselines
-            overrides = entry.old_session_overrides if undo else entry.new_session_overrides
-            self._binds_page.restore_snapshot(items, baselines, overrides)
-            confirm(entry)
-        elif isinstance(entry, MonitorsUndoEntry) and self._monitors_page is not None:
-            monitors = entry.old_monitors if undo else entry.new_monitors
-            owned = entry.old_owned if undo else entry.new_owned
-            self._monitors_page.restore_snapshot(monitors, owned)
-            confirm(entry)
-        elif isinstance(entry, CursorUndoEntry) and self._cursor_page is not None:
-            theme = entry.old_theme if undo else entry.new_theme
-            size = entry.old_size if undo else entry.new_size
-            self._cursor_page.restore_snapshot(theme, size)
-            confirm(entry)
-        elif isinstance(entry, AutostartUndoEntry) and self._autostart_page is not None:
-            items = entry.old_items if undo else entry.new_items
-            baselines = entry.old_baselines if undo else entry.new_baselines
-            self._autostart_page.restore_snapshot(items, baselines)
-            confirm(entry)
-        elif isinstance(entry, EnvVarsUndoEntry) and self._env_vars_page is not None:
-            items = entry.old_items if undo else entry.new_items
-            baselines = entry.old_baselines if undo else entry.new_baselines
-            self._env_vars_page.restore_snapshot(items, baselines)
-            confirm(entry)
-        elif isinstance(entry, WindowRulesUndoEntry) and self._window_rules_page is not None:
-            items = entry.old_items if undo else entry.new_items
-            baselines = entry.old_baselines if undo else entry.new_baselines
-            self._window_rules_page.restore_snapshot(items, baselines)
-            confirm(entry)
-        elif isinstance(entry, LayerRulesUndoEntry) and self._layer_rules_page is not None:
-            items = entry.old_items if undo else entry.new_items
-            baselines = entry.old_baselines if undo else entry.new_baselines
-            self._layer_rules_page.restore_snapshot(items, baselines)
-            confirm(entry)
+            return
+
+        dispatch = self._UNDO_DISPATCH.get(type(entry))
+        if dispatch is None:
+            return
+        page_attr, apply = dispatch
+        page = getattr(self, page_attr)
+        if page is None:
+            return
+        apply(page, entry, undo)
+        confirm(entry)
 
     # -- Save with animation --
 
-    def _collect_save_sections(self):
+    def _collect_save_sections(self) -> config.ConfigSections:
         """Collect sections to save: dirty sections + previously saved sections.
 
         A section is only included if it was already in hyprmod's managed
@@ -991,35 +982,32 @@ class HyprModWindow(Adw.ApplicationWindow):
         Parses the config file once to check all sections.
         """
         _, saved_sections = config.read_all_sections()
+        sections = config.ConfigSections()
 
-        bind_lines = None
         if self._binds_page is not None:
             has_saved = config.collect_bind_section(saved_sections)
             if has_saved or self._binds_page.is_dirty():
-                bind_lines = self._binds_page.get_bind_lines()
+                sections.binds = self._binds_page.get_bind_lines()
 
-        monitor_lines = None
         if self._monitors_page is not None:
             saved_monitors = config.collect_section(saved_sections, config.KEYWORD_MONITOR)
             if saved_monitors or self._monitors_page.is_dirty():
-                monitor_lines = self._monitors_page.get_monitor_lines()
+                sections.monitors = self._monitors_page.get_monitor_lines()
 
-        animation_lines = None
-        bezier_lines = None
         if self._animations_page is not None:
             anim_dirty = self._animations_page.is_dirty()
             existing_anims = config.collect_section(saved_sections, config.KEYWORD_ANIMATION)
             if anim_dirty or existing_anims:
-                animation_lines, used_curves = self._animations_page.get_animation_lines()
+                sections.animations, used_curves = self._animations_page.get_animation_lines()
                 if used_curves:
-                    bezier_lines = get_curve_store().get_curve_definitions(used_curves)
+                    sections.beziers = get_curve_store().get_curve_definitions(used_curves)
 
-        # Cursor and env-vars pages both contribute to the ``env_lines`` slot.
-        # Cursor owns the four ``XCURSOR_*`` / ``HYPRCURSOR_*`` names; env-vars
-        # owns everything else. Either page being dirty or having pre-existing
-        # managed lines triggers emission, and the cursor lines come first by
-        # convention (theme + size are session-defining; later vars may
-        # reference them indirectly).
+        # Cursor and env-vars pages both contribute to ``sections.env``.
+        # Cursor owns the four ``XCURSOR_*`` / ``HYPRCURSOR_*`` names;
+        # env-vars owns everything else. Either page being dirty or having
+        # pre-existing managed lines triggers emission, and the cursor lines
+        # come first by convention (theme + size are session-defining; later
+        # vars may reference them indirectly).
         cursor_env: list[str] = []
         if self._cursor_page is not None:
             has_managed_cursor = self._cursor_page.has_managed_env(saved_sections)
@@ -1032,62 +1020,28 @@ class HyprModWindow(Adw.ApplicationWindow):
             if has_managed_env or self._env_vars_page.is_dirty():
                 general_env = self._env_vars_page.get_env_lines()
 
-        env_lines: list[str] | None = None
         if cursor_env or general_env:
-            env_lines = [*cursor_env, *general_env]
+            sections.env = [*cursor_env, *general_env]
 
-        exec_lines = None
         if self._autostart_page is not None:
             has_managed_autostart = AutostartPage.has_managed_section(saved_sections)
             if has_managed_autostart or self._autostart_page.is_dirty():
-                exec_lines = self._autostart_page.get_exec_lines()
+                sections.exec_ = self._autostart_page.get_exec_lines()
 
-        window_rule_lines = None
         if self._window_rules_page is not None:
             has_managed_rules = WindowRulesPage.has_managed_section(saved_sections)
             if has_managed_rules or self._window_rules_page.is_dirty():
-                window_rule_lines = self._window_rules_page.get_window_rule_lines()
+                sections.window_rules = self._window_rules_page.get_window_rule_lines()
 
-        layer_rule_lines = None
         if self._layer_rules_page is not None:
             has_managed_layers = LayerRulesPage.has_managed_section(saved_sections)
             if has_managed_layers or self._layer_rules_page.is_dirty():
-                layer_rule_lines = self._layer_rules_page.get_layer_rule_lines()
+                sections.layer_rules = self._layer_rules_page.get_layer_rule_lines()
 
-        return (
-            bind_lines,
-            monitor_lines,
-            animation_lines,
-            bezier_lines,
-            env_lines,
-            exec_lines,
-            window_rule_lines,
-            layer_rule_lines,
-        )
+        return sections
 
     def _perform_save(self):
-        values = self.app_state.get_all_live_values()
-        (
-            bind_lines,
-            monitor_lines,
-            animation_lines,
-            bezier_lines,
-            env_lines,
-            exec_lines,
-            window_rule_lines,
-            layer_rule_lines,
-        ) = self._collect_save_sections()
-        config.write_all(
-            values,
-            bind_lines=bind_lines,
-            monitor_lines=monitor_lines,
-            animation_lines=animation_lines,
-            bezier_lines=bezier_lines,
-            env_lines=env_lines,
-            exec_lines=exec_lines,
-            window_rule_lines=window_rule_lines,
-            layer_rule_lines=layer_rule_lines,
-        )
+        config.write_all(self.app_state.get_all_live_values(), self._collect_save_sections())
         self.app_state.mark_saved()
         self.hypr.clear_pending()
         for section in self._section_pages:

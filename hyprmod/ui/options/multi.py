@@ -25,7 +25,7 @@ class MultiSourceOptionRow(OptionRow):
             self._all_items = {}
             row = Adw.ExpanderRow(
                 title=option.get("label", option["key"]),
-                subtitle=exc.message,
+                subtitle=str(exc),
             )
             row.set_sensitive(False)
             super().__init__(row, option, on_change, on_reset, on_discard)

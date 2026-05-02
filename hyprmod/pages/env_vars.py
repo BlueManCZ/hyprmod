@@ -36,16 +36,13 @@ Reusable dialog lives in ``hyprmod.ui``:
 from html import escape as html_escape
 from pathlib import Path
 
-from gi.repository import Adw, Gdk, GLib, GObject, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from hyprmod.core import config
 from hyprmod.core.env_vars import (
     RESERVED_NAMES,
     EnvVar,
     ExternalEnvVar,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
     load_external_env_vars,
     overridden_external_names,
     parse_env_lines,
@@ -53,9 +50,9 @@ from hyprmod.core.env_vars import (
 )
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.setup import HYPRLAND_CONF
-from hyprmod.core.undo import EnvVarsUndoEntry
-from hyprmod.pages.section import SectionPage
-from hyprmod.ui import clear_children, display_path, make_page_layout
+from hyprmod.core.undo import SavedListSnapshot
+from hyprmod.pages.section import DragDropReorderMixin
+from hyprmod.ui import clear_children, display_path, make_inline_hint, make_page_layout
 from hyprmod.ui.env_var_edit_dialog import EnvVarEditDialog
 from hyprmod.ui.row_actions import RowActions
 
@@ -64,7 +61,7 @@ from hyprmod.ui.row_actions import RowActions
 # ---------------------------------------------------------------------------
 
 
-class EnvVarsPage(SectionPage):
+class EnvVarsPage(DragDropReorderMixin[EnvVar]):
     """List editor for ``env = NAME,value`` config entries."""
 
     def __init__(
@@ -84,11 +81,7 @@ class EnvVarsPage(SectionPage):
         # change without our involvement.
         self._external: list[ExternalEnvVar] = []
         self._rows_by_idx: list[Adw.ActionRow | None] = []
-        # Index of the row currently being dragged, ``None`` when no
-        # drag is in progress. Read by ``motion`` to validate drops
-        # synchronously.
-        self._dragging_idx: int | None = None
-        self._drag_press: tuple[float, float] | None = None
+        self._init_drag_state()
         self._load(saved_sections)
 
     # ── Loading ──
@@ -122,7 +115,8 @@ class EnvVarsPage(SectionPage):
     def _build_undo_entry(self, old, new):
         old_items, old_baselines = old
         new_items, new_baselines = new
-        return EnvVarsUndoEntry(
+        return SavedListSnapshot(
+            page_attr="_env_vars_page",
             old_items=old_items,
             new_items=new_items,
             old_baselines=old_baselines,
@@ -159,7 +153,13 @@ class EnvVarsPage(SectionPage):
         # Reorder hint shown only when there are at least two entries
         # — with one or zero rows there's nothing to reorder.
         if len(self._owned) >= 2:
-            self._content_box.append(self._build_reorder_hint())
+            self._content_box.append(
+                make_inline_hint(
+                    "Reorder entries by dragging them, "
+                    "or with Alt+↑ / Alt+↓ on a focused row. "
+                    "Order matters when one variable references another (e.g. ‘PATH’)."
+                )
+            )
 
         if len(self._owned) > 0:
             self._content_box.append(self._build_group())
@@ -184,15 +184,9 @@ class EnvVarsPage(SectionPage):
             target = self._rows_by_idx[focus_idx]
             if target is not None:
                 # Defer to idle so the row has actually been mapped
-                # before grab_focus runs. Returns SOURCE_REMOVE since
-                # ``grab_focus`` returns True (which an idle handler
-                # would interpret as "keep firing").
+                # before grab_focus runs (see ``_grab_focus_once`` in
+                # the base class for the SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
-
-    @staticmethod
-    def _grab_focus_once(widget: Gtk.Widget) -> bool:
-        widget.grab_focus()
-        return GLib.SOURCE_REMOVE  # one-shot
 
     def _build_empty_state(self) -> Adw.StatusPage:
         empty = Adw.StatusPage(
@@ -219,33 +213,6 @@ class EnvVarsPage(SectionPage):
 
         empty.set_child(button_box)
         return empty
-
-    def _build_reorder_hint(self) -> Gtk.Widget:
-        """Inline note teaching the two reorder gestures."""
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(4)
-
-        icon = Gtk.Image.new_from_icon_name("dialog-information-symbolic")
-        icon.set_opacity(0.5)
-        icon.set_valign(Gtk.Align.START)
-        box.append(icon)
-
-        label = Gtk.Label(
-            label=(
-                "Reorder entries by dragging them, "
-                "or with Alt+↑ / Alt+↓ on a focused row. "
-                "Order matters when one variable references another (e.g. ‘PATH’)."
-            ),
-        )
-        label.set_wrap(True)
-        label.set_xalign(0)
-        # Without ``hexpand=True`` the label settles at its preferred
-        # narrow width so the copy wraps prematurely.
-        label.set_hexpand(True)
-        label.add_css_class("dim-label")
-        label.add_css_class("caption")
-        box.append(label)
-        return box
 
     def _build_group(self) -> Adw.PreferencesGroup:
         n = len(self._owned)
@@ -330,11 +297,6 @@ class EnvVarsPage(SectionPage):
         row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
         return row
 
-    def _deleted_baselines(self) -> list[EnvVar]:
-        """Return saved entries that are no longer in the owned list."""
-        current = {e.to_line() for e in self._owned}
-        return [b for b in self._owned.saved if b.to_line() not in current]
-
     # ── External (read-only display + override flow) ──
 
     def _build_external_section(self) -> list[Gtk.Widget]:
@@ -364,31 +326,12 @@ class EnvVarsPage(SectionPage):
 
     def _build_external_hint(self) -> Gtk.Widget:
         """Inline note: explains override semantics + read-only nature."""
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(4)
-
-        icon = Gtk.Image.new_from_icon_name("dialog-information-symbolic")
-        icon.set_opacity(0.5)
-        icon.set_valign(Gtk.Align.START)
-        box.append(icon)
-
-        label = Gtk.Label(
-            label=(
-                "Variables below come from your hyprland.conf or its "
-                "sourced files. Click the edit button to override them — "
-                "your managed entry will take precedence on the next "
-                "Hyprland session."
-            ),
+        return make_inline_hint(
+            "Variables below come from your hyprland.conf or its "
+            "sourced files. Click the edit button to override them — "
+            "your managed entry will take precedence on the next "
+            "Hyprland session."
         )
-        label.set_wrap(True)
-        label.set_xalign(0)
-        # Without ``hexpand=True`` the label settles at its preferred
-        # narrow width so the copy wraps prematurely.
-        label.set_hexpand(True)
-        label.add_css_class("dim-label")
-        label.add_css_class("caption")
-        box.append(label)
-        return box
 
     def _build_external_file_group(
         self,
@@ -483,194 +426,6 @@ class EnvVarsPage(SectionPage):
             on_apply=on_apply,
         )
 
-    # ── Reorder (drag-and-drop + Alt+arrow keyboard shortcut) ──
-
-    def _attach_drag_source(self, row: Adw.ActionRow, idx: int) -> None:
-        source = Gtk.DragSource.new()
-        source.set_actions(Gdk.DragAction.MOVE)
-        source.connect("prepare", self._on_drag_prepare, idx)
-        source.connect("drag-begin", self._on_drag_begin, idx)
-        source.connect("drag-end", self._on_drag_end)
-        row.add_controller(source)
-
-    def _attach_drop_target(self, row: Adw.ActionRow, idx: int) -> None:
-        target = Gtk.DropTarget.new(int, Gdk.DragAction.MOVE)
-        target.connect("motion", self._on_drop_motion, idx)
-        target.connect("leave", self._on_drop_leave)
-        target.connect("drop", self._on_drop, idx)
-        row.add_controller(target)
-
-    def _on_drag_prepare(
-        self, _source: Gtk.DragSource, x: float, y: float, idx: int
-    ) -> Gdk.ContentProvider | None:
-        # Stash the press coords for ``drag-begin`` to use as the
-        # icon's hot spot. Setting the icon in ``prepare`` doesn't
-        # always stick — some compositors apply it only once the drag
-        # is fully initialised, between ``prepare`` and ``drag-begin``.
-        self._drag_press = (x, y)
-        val = GObject.Value(GObject.TYPE_INT, idx)
-        return Gdk.ContentProvider.new_for_value(val)
-
-    def _on_drag_begin(self, source: Gtk.DragSource, drag: Gdk.Drag, idx: int) -> None:
-        self._dragging_idx = idx
-        press = self._drag_press or (0.0, 0.0)
-        hot_x, hot_y = int(press[0]), int(press[1])
-        # Same painter trick the autostart page uses — without the CSS
-        # class the row paints transparently as a drag icon (the visible
-        # "card" look comes from the parent ``PreferencesGroup``).
-        widget = source.get_widget()
-        if widget is not None:
-            widget.add_css_class("autostart-drag-source")
-            paintable = Gtk.WidgetPaintable.new(widget)
-            source.set_icon(paintable, hot_x, hot_y)
-        # Belt-and-suspenders: also set the hot spot on the live ``Gdk.Drag``.
-        # Hyprland's drag implementation appears to drop the hot spot set
-        # via ``GtkDragSource.set_icon`` in some cases.
-        drag.set_hotspot(hot_x, hot_y)
-
-    def _on_drag_end(
-        self,
-        source: Gtk.DragSource,
-        _drag: Gdk.Drag,
-        _delete: bool,
-    ) -> None:
-        self._dragging_idx = None
-        self._drag_press = None
-        widget = source.get_widget()
-        if widget is not None:
-            widget.remove_css_class("autostart-drag-source")
-        # If the drop completed and rebuilt the list before ``leave``
-        # fired, dangling indicator classes would carry over.
-        self._clear_drop_indicators()
-
-    def _on_drop_motion(
-        self,
-        target: Gtk.DropTarget,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> Gdk.DragAction:
-        # ``motion`` doesn't have access to the dragged value — that's
-        # only resolved at drop time — so we read ``_dragging_idx`` set
-        # in ``drag-begin`` to validate the move synchronously.
-        src = self._dragging_idx
-        if src is None or src == hover_idx:
-            return Gdk.DragAction(0)
-
-        widget = target.get_widget()
-        if widget is None:
-            return Gdk.DragAction(0)
-
-        before = self._is_above_half(widget, y)
-        if before:
-            widget.add_css_class("autostart-drop-above")
-            widget.remove_css_class("autostart-drop-below")
-        else:
-            widget.add_css_class("autostart-drop-below")
-            widget.remove_css_class("autostart-drop-above")
-        return Gdk.DragAction.MOVE
-
-    def _on_drop_leave(self, target: Gtk.DropTarget) -> None:
-        widget = target.get_widget()
-        if widget is not None:
-            widget.remove_css_class("autostart-drop-above")
-            widget.remove_css_class("autostart-drop-below")
-
-    def _on_drop(
-        self,
-        target: Gtk.DropTarget,
-        value: object,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> bool:
-        # PyGObject normally unwraps ``GObject.TYPE_INT`` to a plain
-        # ``int``, but the signal contract is ``object`` so the type
-        # checker can't see that. Fall back to ``int(value)`` for the
-        # rare wrapper case.
-        src_idx = value if isinstance(value, int) else int(value)  # type: ignore[arg-type]
-        widget = target.get_widget()
-        if widget is None:
-            return False
-        before = self._is_above_half(widget, y)
-
-        target_idx = drop_target_idx(src_idx, hover_idx, before)
-
-        if target_idx == src_idx:
-            return False
-        n = len(self._owned)
-        if not 0 <= target_idx < n:
-            return False
-        if not 0 <= src_idx < n:
-            return False
-
-        with self._undo_track():
-            self._owned.move(src_idx, target_idx)
-        self._notify_dirty()
-        self._rebuild_list()
-        return True
-
-    @staticmethod
-    def _is_above_half(widget: Gtk.Widget, y: float) -> bool:
-        """True if *y* falls in the upper half of *widget*."""
-        height = widget.get_height() or widget.get_allocated_height()
-        if height <= 0:
-            return True
-        return y < height / 2
-
-    def _clear_drop_indicators(self) -> None:
-        """Remove insertion-line classes from every tracked row."""
-        for row in self._rows_by_idx:
-            if row is not None:
-                row.remove_css_class("autostart-drop-above")
-                row.remove_css_class("autostart-drop-below")
-
-    def _attach_keyboard_reorder(self, row: Adw.ActionRow, idx: int) -> None:
-        """Bind Alt+Up / Alt+Down on *row* to move it within the list."""
-        controller = Gtk.EventControllerKey.new()
-        controller.connect("key-pressed", self._on_row_key_pressed, idx)
-        row.add_controller(controller)
-
-    def _on_row_key_pressed(
-        self,
-        _controller: Gtk.EventControllerKey,
-        keyval: int,
-        _keycode: int,
-        state: Gdk.ModifierType,
-        idx: int,
-    ) -> bool:
-        # Require Alt only — Shift/Ctrl/Super combos are reserved for
-        # future shortcuts (e.g. Alt+Shift+Up = move-to-top).
-        wanted = Gdk.ModifierType.ALT_MASK
-        relevant = (
-            Gdk.ModifierType.ALT_MASK
-            | Gdk.ModifierType.CONTROL_MASK
-            | Gdk.ModifierType.SHIFT_MASK
-            | Gdk.ModifierType.SUPER_MASK
-        )
-        if state & relevant != wanted:
-            return False
-
-        if keyval == Gdk.KEY_Up:
-            delta = -1
-        elif keyval == Gdk.KEY_Down:
-            delta = 1
-        else:
-            return False
-        return self._move_relative(idx, delta)
-
-    def _move_relative(self, idx: int, delta: int) -> bool:
-        """Move the entry at *idx* by *delta* slots."""
-        target = idx + delta
-        n = len(self._owned)
-        if target < 0 or target >= n or idx == target:
-            return False
-        with self._undo_track():
-            self._owned.move(idx, target)
-        self._notify_dirty()
-        self._rebuild_list(focus_idx=target)
-        return True
-
     # ── Add / Edit / Remove ──
 
     def _on_add(self) -> None:
@@ -734,81 +489,6 @@ class EnvVarsPage(SectionPage):
         with self._undo_track():
             self._owned.restore_deleted(item)
         self._notify_dirty()
-        self._rebuild_list()
-
-    # ── Reorder helpers (queried by pages/pending.py) ──
-
-    def is_reordered(self) -> bool:
-        """True if the *common* items between saved and current differ in order."""
-        return detect_reorder(self._owned.saved, list(self._owned))
-
-    def pending_change_count(self) -> int:
-        """Number of distinct pending-change entries the page would surface."""
-        if not self.is_dirty():
-            return 0
-        baselines = [self._owned.get_baseline(i) for i in range(len(self._owned))]
-        return count_pending_changes(self._owned.saved, list(self._owned), baselines)
-
-    def revert_reorder(self) -> None:
-        """Restore the saved order while preserving other dirty changes.
-
-        Same algorithm as :meth:`AutostartPage.revert_reorder`:
-
-        - Items that exist in both saved and current are repositioned
-          to their saved-order slots (any in-flight edits to those
-          items are kept — only the position is reverted).
-        - Newly-added items (no baseline) keep their values and slot
-          in at the end.
-        - Items the user removed stay removed.
-
-        Pushes a single undo entry so Ctrl+Z restores the pre-revert
-        order in one step.
-        """
-        by_saved_line: dict[str, tuple[EnvVar, EnvVar | None]] = {}
-        new_pairs: list[tuple[EnvVar, EnvVar | None]] = []
-
-        for idx in range(len(self._owned)):
-            item = self._owned[idx]
-            baseline = self._owned.get_baseline(idx)
-            if baseline is None:
-                new_pairs.append((item, baseline))
-            else:
-                by_saved_line[baseline.to_line()] = (item, baseline)
-
-        rebuilt_items: list[EnvVar] = []
-        rebuilt_baselines: list[EnvVar | None] = []
-        for saved in self._owned.saved:
-            pair = by_saved_line.get(saved.to_line())
-            if pair is None:
-                continue
-            item, baseline = pair
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-        for item, baseline in new_pairs:
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-
-        with self._undo_track():
-            self._owned.restore(rebuilt_items, rebuilt_baselines)
-        self._notify_dirty()
-        self._rebuild_list()
-
-    # ── SectionPage protocol ──
-
-    def is_dirty(self) -> bool:
-        return self._owned.is_dirty()
-
-    def mark_saved(self) -> None:
-        self._owned.mark_saved()
-        self._rebuild_list()
-
-    def discard(self) -> None:
-        self._owned.discard_all()
-        self._rebuild_list()
-
-    def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:
-        """Re-load baseline from the given saved sections (after profile switch)."""
-        self._load(saved_sections)
         self._rebuild_list()
 
     # ── Save plumbing ──

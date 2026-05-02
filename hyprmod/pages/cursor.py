@@ -1,18 +1,19 @@
 """Cursor theme selection page — thumbnails, size, live apply."""
 
 import subprocess
-from dataclasses import dataclass
-from typing import cast
+from typing import NamedTuple, cast
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from hyprmod.core import config
 from hyprmod.core.cursor_themes import CursorTheme, discover
 from hyprmod.core.env_vars import RESERVED_NAMES as _MANAGED_VARS
+from hyprmod.core.env_vars import parse_env_lines
 from hyprmod.core.undo import CursorUndoEntry
 from hyprmod.core.xcursor import crop_to_content, load_pointer, pad_to_square, scale_nearest
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui.managed_row import ManagedRow, make_combo_row
+from hyprmod.ui.timer import Timer
 
 # Theme- vs. size-flavoured cursor env vars. Membership in either tuple
 # determines how a parsed value is interpreted (string vs. integer);
@@ -27,8 +28,7 @@ _THUMB_SIZE = 24
 _DEFAULT_SIZE = 24
 
 
-@dataclass
-class _State:
+class _State(NamedTuple):
     theme: str  # theme name, or _SYSTEM_DEFAULT
     size: int
 
@@ -55,14 +55,6 @@ def _theme_label(item: "_ThemeItem") -> str:
         (False, True): "  (Hyprcursor)",
     }.get((theme.has_xcursor, theme.has_hyprcursor), "")
     return theme.display_name + suffix
-
-
-def _iter_env(sections: dict[str, list[str]]):
-    """Yield (name, value) for each ``env = NAME,VALUE`` entry."""
-    for raw in sections.get(config.KEYWORD_ENV, []):
-        body = raw.split("=", 1)[1].strip() if "=" in raw else ""
-        name, _, val = body.partition(",")
-        yield name.strip(), val.strip()
 
 
 def _run(*args: str) -> None:
@@ -97,16 +89,16 @@ class CursorPage(SectionPage):
         self._size_spin: Gtk.SpinButton | None = None
         self._theme_row: Adw.ComboRow | None = None
         self._field: ManagedRow | None = None
-        self._apply_timer_id: int = 0
+        self._apply_timer = Timer()
 
     @staticmethod
     def _parse_env(sections: dict[str, list[str]]) -> _State:
         theme, size = _SYSTEM_DEFAULT, _DEFAULT_SIZE
-        for name, val in _iter_env(sections):
-            if name in _THEME_VARS and val:
-                theme = val
-            elif name in _SIZE_VARS and val.isdigit():
-                size = int(val)
+        for ev in parse_env_lines(sections.get(config.KEYWORD_ENV, [])):
+            if ev.name in _THEME_VARS and ev.value:
+                theme = ev.value
+            elif ev.name in _SIZE_VARS and ev.value.isdigit():
+                size = int(ev.value)
         return _State(theme, size)
 
     # ── Widget ──
@@ -257,7 +249,7 @@ class CursorPage(SectionPage):
             new_theme = _SYSTEM_DEFAULT
         if new_theme == self._current.theme:
             return
-        self._current.theme = new_theme
+        self._current = self._current._replace(theme=new_theme)
         if self._size_spin is not None:
             self._size_spin.set_sensitive(new_theme != _SYSTEM_DEFAULT)
         self._changed()
@@ -266,7 +258,7 @@ class CursorPage(SectionPage):
         new_size = int(spin.get_value())
         if new_size == self._current.size:
             return
-        self._current.size = new_size
+        self._current = self._current._replace(size=new_size)
         self._changed()
 
     def _changed(self) -> None:
@@ -288,14 +280,11 @@ class CursorPage(SectionPage):
     # ── Live apply (debounced) ──
 
     def _schedule_apply(self):
-        if self._apply_timer_id:
-            GLib.source_remove(self._apply_timer_id)
-        self._apply_timer_id = GLib.timeout_add(150, self._apply_now)
+        self._apply_timer.schedule(150, self._apply_now)
 
     def _apply_now(self) -> bool:
-        self._apply_timer_id = 0
         if self._current.theme == _SYSTEM_DEFAULT:
-            return False
+            return GLib.SOURCE_REMOVE
         theme, size = self._current.theme, str(self._current.size)
         _run("hyprctl", "setcursor", theme, size)
         _run("gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", theme)
@@ -304,7 +293,7 @@ class CursorPage(SectionPage):
         # change and repaints with the just-applied theme.
         self._window.set_cursor(Gdk.Cursor.new_from_name("none", None))
         GLib.timeout_add(30, lambda: self._window.set_cursor(None) or False)
-        return False
+        return GLib.SOURCE_REMOVE
 
     # ── SectionPage protocol ──
 
@@ -369,7 +358,9 @@ class CursorPage(SectionPage):
     @staticmethod
     def has_managed_env(sections: dict[str, list[str]]) -> bool:
         """True if config has any of our managed env vars."""
-        return any(name in _MANAGED_VARS for name, _ in _iter_env(sections))
+        return any(
+            ev.name in _MANAGED_VARS for ev in parse_env_lines(sections.get(config.KEYWORD_ENV, []))
+        )
 
     @staticmethod
     def get_search_entries() -> list[dict]:

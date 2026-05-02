@@ -1,6 +1,10 @@
 """Managed GLib timeout helper."""
 
+import logging
+
 from gi.repository import GLib
+
+log = logging.getLogger(__name__)
 
 
 class Timer:
@@ -37,6 +41,9 @@ class Timer:
         try:
             result = callback(*args)
         except Exception:
+            # GLib's C glue can't surface Python exceptions sensibly, so log
+            # before re-raising or the failure would be invisible.
+            log.exception("Timer callback raised")
             self._id = None
             raise
         if result != GLib.SOURCE_CONTINUE:

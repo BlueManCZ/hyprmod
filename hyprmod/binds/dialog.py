@@ -1,5 +1,7 @@
 """Keybind edit dialog — add/edit a keybind with category/action cascade."""
 
+import logging
+
 from gi.repository import Adw, Gdk, Gtk
 from hyprland_config import BindData
 from hyprland_socket import MOD_BITS, HyprlandError
@@ -17,8 +19,10 @@ from hyprmod.binds.dispatchers import (
     categorize_dispatcher,
     format_action,
 )
-from hyprmod.binds.helpers import MODIFIER_KEYVALS, gdk_state_to_mods
+from hyprmod.binds.gdk_modifiers import MODIFIER_KEYVALS, gdk_state_to_mods
 from hyprmod.ui import clear_children, confirm
+
+log = logging.getLogger(__name__)
 
 # Bind types selectable in "Key combination" trigger mode (everything except
 # ``bindm``, which is reached via the dedicated "Mouse button" trigger mode).
@@ -37,15 +41,9 @@ DIALOG_CATEGORY_LABELS = [c["label"] for c in DIALOG_CATEGORIES]
 _BINDM_DISPATCHER_KEYS = list(BINDM_DISPATCHERS.keys())
 _BINDM_DISPATCHER_LABELS = list(BINDM_DISPATCHERS.values())
 
-# Mouse-button picker model layout:
-#   index 0:                          placeholder for "no selection"
-#   indices 1..len(MOUSE_BUTTON_PRESETS):  the preset entries
-#   final index:                      "Custom…" → swaps in a free-text row
-#
-# The placeholder is the default for new bindm binds so the dialog opens
-# with no pre-selected button (mirroring the empty key entry in keyboard
-# mode), avoiding the false-prefill UX where the capture label reads back
-# whatever happened to sit at index 0.
+# Mouse-button picker model: [placeholder, ...presets, "Custom…"].
+# The leading placeholder keeps new bindm binds from auto-selecting the
+# first preset on open.
 _MOUSE_BUTTON_VALUES = [v for v, _ in MOUSE_BUTTON_PRESETS]
 _MOUSE_BUTTON_NONE_INDEX = 0
 _MOUSE_BUTTON_PRESET_OFFSET = 1
@@ -457,6 +455,10 @@ class BindEditDialog(Adw.Dialog):
         if self._capturing:
             self._stop_capture()
             return
+        # Set ``_capturing`` first so the dialog-close safety net
+        # (:meth:`_on_dialog_closed`) will always try to reset the submap
+        # if anything in the rest of this method blows up after we've
+        # entered the capture submap.
         self._capturing = True
         prompt = (
             "Click any mouse button\u2026"
@@ -471,8 +473,13 @@ class BindEditDialog(Adw.Dialog):
         self._register_capture_submap()
         try:
             self._window.hypr.dispatch("submap", "hyprmod_capture")
-        except HyprlandError:
-            pass
+        except HyprlandError as e:
+            log.warning("entering capture submap failed; aborting capture: %s", e)
+            self._capturing = False
+            self._capture_btn.set_label("Record")
+            self._capture_btn.remove_css_class("destructive-action")
+            self._capture_btn.add_css_class("suggested-action")
+            return
 
         toplevel = self._window.get_root()
         if toplevel:
@@ -490,7 +497,6 @@ class BindEditDialog(Adw.Dialog):
         self._capture_btn.grab_focus()
 
     def _stop_capture(self):
-        self._capturing = False
         self._capture_btn.set_label("Record")
         self._capture_btn.remove_css_class("destructive-action")
         self._capture_btn.add_css_class("suggested-action")
@@ -503,10 +509,23 @@ class BindEditDialog(Adw.Dialog):
             if toplevel:
                 toplevel.disconnect(self._focus_handler)
             self._focus_handler = None
+        # Only clear ``_capturing`` once the submap reset has actually
+        # landed; if it raises we leave the flag set so the dialog-close
+        # handler retries the reset rather than leaving Hyprland stuck.
         try:
             self._window.hypr.dispatch("submap", "reset")
-        except HyprlandError:
-            pass
+        except HyprlandError as e:
+            log.warning("submap reset failed; will retry on dialog close: %s", e)
+            # Surface visibly: without a toast the user sees the capture
+            # button revert but doesn't realise their compositor is still
+            # in the capture submap (every keypress would no-op until the
+            # dialog closes and the retry fires).
+            self._window.show_toast(
+                f"Couldn't leave capture mode — {e}. Close this dialog to retry.",
+                timeout=5,
+            )
+            return
+        self._capturing = False
 
     def _on_window_focus_changed(self, window, _pspec):
         if self._capturing and not window.is_active():
@@ -524,8 +543,8 @@ class BindEditDialog(Adw.Dialog):
         if self._capturing:
             try:
                 self._window.hypr.dispatch("submap", "reset")
-            except HyprlandError:
-                pass
+            except HyprlandError as e:
+                log.error("could not reset Hyprland submap after capture; user may be stuck: %s", e)
 
     def _on_key_captured(self, controller, keyval, keycode, state):
         key_name = Gdk.keyval_name(keyval)

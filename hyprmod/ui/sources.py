@@ -13,10 +13,6 @@ import gi
 class MissingDependencyError(Exception):
     """A system dependency required by a source provider is not available."""
 
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
-
 
 @functools.cache
 def _get_xkb_info():

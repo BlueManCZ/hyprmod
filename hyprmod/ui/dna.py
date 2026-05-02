@@ -80,11 +80,9 @@ class DnaWidget(Gtk.DrawingArea):
         actual_bar_w = bar_w - gap
 
         for i, h in enumerate(bars):
-            # Per-bar hue variation
             hue = p.hue_base + p.hue_shift * (i / n)
             r, g, b = colorsys.hls_to_rgb(hue / 360.0, p.lightness, p.saturation)
 
-            # Wave modulation on height
             wave = math.sin(i / n * math.pi * 2 * p.wave_freq) * p.wave_amplitude
             bar_h = max(2, (h + wave) * bar_area_h)
             bar_h = min(bar_h, bar_area_h)
@@ -92,7 +90,6 @@ class DnaWidget(Gtk.DrawingArea):
             x = pad_x + i * bar_w
             y = pad_y + (bar_area_h - bar_h)
 
-            # Rounded rect
             radius = min(2, actual_bar_w / 2)
             cr.set_source_rgba(r, g, b, 0.85)
             self._rounded_rect(cr, x, y, actual_bar_w, bar_h, radius)

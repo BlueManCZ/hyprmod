@@ -579,7 +579,7 @@ class BezierEditorDialog:
         # Now enable live preview support
         if animation_name and animation_page:
             self._animation_name = animation_name
-            self._original_eff = animation_page.get_effective(animation_name)
+            self._original_eff = animation_page.anims.get_effective(animation_name)
 
         self._dialog.connect("closed", self._on_closed)
         self._dialog.present(parent)
@@ -610,7 +610,7 @@ class BezierEditorDialog:
             if pts:
                 self._anims.define_bezier(curve_name, pts)
             # Re-apply hyprmodCurve for continued live preview
-            eff = self._animation_page.get_effective(self._animation_name)
+            eff = self._animation_page.anims.get_effective(self._animation_name)
             self._anims.define_bezier("hyprmodCurve", self._editor.get_points())
             self._anims.preview(self._animation_name, eff[0], eff[1], "hyprmodCurve", eff[3])
         if self._on_curve_saved:
@@ -650,7 +650,7 @@ class BezierEditorDialog:
             return
         if self._user_saved:
             # User explicitly saved/applied — restore Hyprland to the model state
-            state = self._animation_page.get_state(self._animation_name)
+            state = self._animation_page.anims.get_cached(self._animation_name)
             if state and state.overridden:
                 self._anims.apply(
                     self._animation_name,

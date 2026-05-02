@@ -163,7 +163,15 @@ class BindsPage(SectionPage):
         )
 
     def restore_snapshot(self, items, baselines, session_overrides):
-        """Restore binds state from an undo/redo snapshot."""
+        """Restore binds state from an undo/redo snapshot.
+
+        Each ``_apply_bind_live`` / ``_revert_bind_live`` call already
+        toasts on failure via ``try_with_toast``, so we deliberately
+        ignore their boolean returns: a single undo can touch dozens of
+        binds and a per-bind toast cascade would drown the user. The
+        first failure is signal enough — subsequent ones almost always
+        share a root cause.
+        """
         # Undo live: unbind all current owned, restore overridden originals
         for b in self._owned_binds:
             self._revert_bind_live(b)

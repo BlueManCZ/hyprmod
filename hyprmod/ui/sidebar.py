@@ -5,6 +5,17 @@ from collections.abc import Callable
 from gi.repository import Adw, Gtk
 
 from hyprmod.ui.dna import DnaWidget
+from hyprmod.ui.icons import (
+    AUTOSTART_ICON,
+    BINDS_ICON,
+    ENV_VARS_ICON,
+    LAYER_RULES_ICON,
+    MONITORS_ICON,
+    PENDING_ICON,
+    PROFILES_ICON,
+    SETTINGS_ICON,
+    WINDOW_RULES_ICON,
+)
 
 
 class SidebarRow(Adw.ActionRow):
@@ -105,19 +116,19 @@ class Sidebar:
 
         pending_row = SidebarRow(group_id="pending", title="Pending Changes")
         pending_row.set_activatable(True)
-        pending_row.add_prefix(Gtk.Image.new_from_icon_name("view-list-symbolic"))
+        pending_row.add_prefix(Gtk.Image.new_from_icon_name(PENDING_ICON))
         self._pinned_list.append(pending_row)
         self._rows_by_id["pending"] = pending_row
 
         profiles_row = SidebarRow(group_id="profiles", title="Profiles")
         profiles_row.set_activatable(True)
-        profiles_row.add_prefix(Gtk.Image.new_from_icon_name("user-bookmarks-symbolic"))
+        profiles_row.add_prefix(Gtk.Image.new_from_icon_name(PROFILES_ICON))
         self._pinned_list.append(profiles_row)
         self._rows_by_id["profiles"] = profiles_row
 
         settings_row = SidebarRow(group_id="settings", title="Settings")
         settings_row.set_activatable(True)
-        settings_row.add_prefix(Gtk.Image.new_from_icon_name("emblem-system-symbolic"))
+        settings_row.add_prefix(Gtk.Image.new_from_icon_name(SETTINGS_ICON))
         self._pinned_list.append(settings_row)
         self._rows_by_id["settings"] = settings_row
 
@@ -176,9 +187,9 @@ class Sidebar:
         input_display = new_category("Input & Display")
         add_schema_row(input_display, "input")
         add_schema_row(input_display, "cursor")
-        add_row(input_display, "binds", "Keybinds", "keyboard-shortcuts-symbolic")
+        add_row(input_display, "binds", "Keybinds", BINDS_ICON)
         add_schema_row(input_display, "gestures")
-        add_row(input_display, "monitors", "Monitors", "display-symbolic")
+        add_row(input_display, "monitors", "Monitors", MONITORS_ICON)
 
         layouts = new_category("Layouts")
         add_schema_row(layouts, "dwindle")
@@ -186,10 +197,10 @@ class Sidebar:
         add_schema_row(layouts, "scrolling")
 
         other = new_category("Other")
-        add_row(other, "autostart", "Autostart", "media-playback-start-symbolic")
-        add_row(other, "env_vars", "Env Variables", "utilities-terminal-symbolic")
-        add_row(other, "window_rules", "Window Rules", "window-rules-symbolic")
-        add_row(other, "layer_rules", "Layer Rules", "overlapping-windows-symbolic")
+        add_row(other, "autostart", "Autostart", AUTOSTART_ICON)
+        add_row(other, "env_vars", "Env Variables", ENV_VARS_ICON)
+        add_row(other, "window_rules", "Window Rules", WINDOW_RULES_ICON)
+        add_row(other, "layer_rules", "Layer Rules", LAYER_RULES_ICON)
         add_schema_row(other, "xwayland")
         add_schema_row(other, "ecosystem")
         add_schema_row(other, "misc")

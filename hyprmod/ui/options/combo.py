@@ -104,7 +104,7 @@ class SourceComboOptionRow(OptionRow):
         try:
             values = get_source_values(self._source_name, **self._source_args)
         except MissingDependencyError as exc:
-            self.row.set_subtitle(exc.message)  # type: ignore[union-attr]
+            self.row.set_subtitle(str(exc))  # type: ignore[union-attr]
             self.row.set_sensitive(False)
             return
         self._labels = [v["label"] for v in values]

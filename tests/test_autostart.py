@@ -7,24 +7,16 @@ from hyprmod.core.autostart import (
     EXEC_KEYWORDS,
     KEYWORD_LABELS,
     ExecData,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
     parse_exec_line,
     parse_exec_lines,
     serialize,
 )
+from hyprmod.core.change_tracking import (
+    count_pending_changes,
+    detect_reorder,
+    drop_target_idx,
+)
 from hyprmod.core.ownership import SavedList
-
-
-@pytest.fixture
-def gui_conf_tmp(tmp_path):
-    """Redirect gui_conf() to a temporary file for the duration of a test."""
-    target = tmp_path / "hyprland-gui.conf"
-    config.set_gui_conf(target)
-    yield target
-    config.set_gui_conf(None)
-
 
 # ---------------------------------------------------------------------------
 # Parsing
@@ -661,11 +653,13 @@ class TestWriteIntegration:
     def test_exec_lines_emitted_in_autostart_section(self, gui_conf_tmp):
         config.write_all(
             {"general:gaps_in": "5"},
-            exec_lines=[
-                "exec-once = waybar",
-                "exec-once = swaybg -i wallpaper.jpg",
-                "exec = pkill -SIGUSR1 waybar",
-            ],
+            config.ConfigSections(
+                exec_=[
+                    "exec-once = waybar",
+                    "exec-once = swaybg -i wallpaper.jpg",
+                    "exec = pkill -SIGUSR1 waybar",
+                ],
+            ),
         )
         content = gui_conf_tmp.read_text()
         assert "# Autostart" in content
@@ -677,17 +671,19 @@ class TestWriteIntegration:
         assert content.index("general:gaps_in") < content.index("# Autostart")
 
     def test_no_section_when_empty(self, gui_conf_tmp):
-        config.write_all({"general:gaps_in": "5"})
+        config.write_all({"general:gaps_in": "5"}, config.ConfigSections())
         content = gui_conf_tmp.read_text()
         assert "# Autostart" not in content
 
     def test_round_trip_through_read_all_sections(self, gui_conf_tmp):
         config.write_all(
             {},
-            exec_lines=[
-                "exec-once = waybar",
-                "exec = something",
-            ],
+            config.ConfigSections(
+                exec_=[
+                    "exec-once = waybar",
+                    "exec = something",
+                ],
+            ),
         )
         _, sections = config.read_all_sections()
         assert sections.get(config.KEYWORD_EXEC_ONCE) == ["exec-once = waybar"]
@@ -696,11 +692,13 @@ class TestWriteIntegration:
     def test_collect_section_picks_up_exec(self, gui_conf_tmp):
         config.write_all(
             {},
-            exec_lines=[
-                "exec-once = waybar",
-                "exec-once = swaybg",
-                "exec = pkill",
-            ],
+            config.ConfigSections(
+                exec_=[
+                    "exec-once = waybar",
+                    "exec-once = swaybg",
+                    "exec = pkill",
+                ],
+            ),
         )
         _, sections = config.read_all_sections()
         # Same call shape the AutostartPage uses on init.

@@ -212,14 +212,14 @@ row.wide-dropdown popover > contents {
 }
 
 
-/* Autostart drag-to-reorder insertion-line indicators.
+/* Drag-to-reorder insertion-line indicators (DragDropReorderMixin).
    Inset box-shadow (rather than border) so the line doesn't shift
    the row's content by its thickness. Accent colour matches the
    profile-active and dirty styles for visual consistency. */
-row.autostart-drop-above {
+row.drop-above {
     box-shadow: inset 0 2px 0 0 @accent_bg_color;
 }
-row.autostart-drop-below {
+row.drop-below {
     box-shadow: inset 0 -2px 0 0 @accent_bg_color;
 }
 
@@ -228,7 +228,7 @@ row.autostart-drop-below {
    inherits its visible card styling from the parent ``PreferencesGroup``,
    so when GTK paints the row in isolation as the drag icon there's no
    background. The light shadow gives the ghost a "lifted" feel. */
-row.autostart-drag-source {
+row.dragging-row {
     background-color: @card_bg_color;
     border-radius: 6px;
     box-shadow: 0 4px 12px alpha(black, 0.35);

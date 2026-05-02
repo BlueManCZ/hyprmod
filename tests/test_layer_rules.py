@@ -21,6 +21,12 @@ emits the v3 form.
 import pytest
 
 from hyprmod.core import config
+from hyprmod.core.change_tracking import (
+    count_pending_changes,
+    detect_reorder,
+    drop_target_idx,
+    iter_item_changes,
+)
 from hyprmod.core.layer_rules import (
     CUSTOM_PRESET,
     KEYWORD_WRITE,
@@ -28,10 +34,6 @@ from hyprmod.core.layer_rules import (
     LAYER_BOOL_EFFECTS,
     LAYER_RULE_KEYWORDS,
     LayerRule,
-    count_pending_changes,
-    detect_reorder,
-    drop_target_idx,
-    iter_item_changes,
     load_external_layer_rules,
     lookup_preset,
     parse_layer_rule_line,
@@ -625,26 +627,26 @@ class TestExternalLoader:
 
 class TestConfigIntegration:
     def test_build_content_emits_layer_rules_section(self):
-        from hyprmod.core.config import build_content
-
-        content = build_content(
-            values={},
-            layer_rule_lines=[
-                "layerrule = match:namespace waybar, blur on",
-                "layerrule = match:namespace waybar, ignore_alpha 0.30",
-            ],
+        content = config.build_content(
+            {},
+            config.ConfigSections(
+                layer_rules=[
+                    "layerrule = match:namespace waybar, blur on",
+                    "layerrule = match:namespace waybar, ignore_alpha 0.30",
+                ],
+            ),
         )
         assert "# Layer rules" in content
         assert "layerrule = match:namespace waybar, blur on" in content
         assert "layerrule = match:namespace waybar, ignore_alpha 0.30" in content
 
     def test_build_content_layer_rules_after_window_rules(self):
-        from hyprmod.core.config import build_content
-
-        content = build_content(
-            values={},
-            window_rule_lines=["windowrule = match:class ^(kitty)$, float on"],
-            layer_rule_lines=["layerrule = match:namespace waybar, blur on"],
+        content = config.build_content(
+            {},
+            config.ConfigSections(
+                window_rules=["windowrule = match:class ^(kitty)$, float on"],
+                layer_rules=["layerrule = match:namespace waybar, blur on"],
+            ),
         )
         wr_idx = content.index("# Window rules")
         lr_idx = content.index("# Layer rules")

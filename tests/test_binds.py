@@ -1,7 +1,7 @@
 """Tests for keybind override tracking and dispatcher presentation data."""
 
 from hyprland_config import BindData
-from hyprland_socket import Bind
+from hyprland_socket import MOD_BITS, Bind
 
 from hyprmod.binds import (
     BIND_TYPES,
@@ -473,7 +473,7 @@ class TestDispatchers:
 # ---------------------------------------------------------------------------
 
 
-SUPER_MASK = 64  # Hyprland modmask bit for SUPER
+SUPER_MASK = MOD_BITS["SUPER"]
 
 
 class TestLiveBindToData:

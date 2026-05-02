@@ -242,18 +242,13 @@ DISPATCHER_CATEGORIES: list[DispatcherCategory] = [
 ]
 
 
-def _build_lookups() -> tuple[dict[str, DispatcherInfoWithCategory], dict[str, DispatcherCategory]]:
-    """Build flat lookup dicts from DISPATCHER_CATEGORIES."""
-    dispatcher_info: dict[str, DispatcherInfoWithCategory] = {}
-    category_by_id: dict[str, DispatcherCategory] = {}
-    for cat in DISPATCHER_CATEGORIES:
-        category_by_id[cat["id"]] = cat
-        for dname, dinfo in cat["dispatchers"].items():
-            dispatcher_info[dname] = {**dinfo, "category_id": cat["id"]}
-    return dispatcher_info, category_by_id
-
-
-DISPATCHER_INFO, CATEGORY_BY_ID = _build_lookups()
+# Flat lookups derived from DISPATCHER_CATEGORIES at import time.
+CATEGORY_BY_ID: dict[str, DispatcherCategory] = {cat["id"]: cat for cat in DISPATCHER_CATEGORIES}
+DISPATCHER_INFO: dict[str, DispatcherInfoWithCategory] = {
+    dname: {**dinfo, "category_id": cat["id"]}
+    for cat in DISPATCHER_CATEGORIES
+    for dname, dinfo in cat["dispatchers"].items()
+}
 
 
 def categorize_dispatcher(dispatcher: str) -> str:

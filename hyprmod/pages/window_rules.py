@@ -72,13 +72,13 @@ import re
 from html import escape as html_escape
 from pathlib import Path
 
-from gi.repository import Adw, Gdk, GLib, Gtk
+from gi.repository import Adw, GLib, Gtk
 from hyprland_socket import HyprlandError, get_windows
 
 from hyprmod.core import config
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.setup import HYPRLAND_CONF
-from hyprmod.core.undo import WindowRulesUndoEntry
+from hyprmod.core.undo import SavedListSnapshot
 from hyprmod.core.window_rules import (
     ACTION_PRESETS,
     HYPRMOD_APP_ID,
@@ -88,8 +88,6 @@ from hyprmod.core.window_rules import (
     ExternalWindowRule,
     Matcher,
     WindowRule,
-    count_pending_changes,
-    detect_reorder,
     existing_window_dispatchers,
     existing_window_revert_dispatchers,
     load_external_window_rules,
@@ -99,14 +97,21 @@ from hyprmod.core.window_rules import (
     serialize,
     summarize_rule,
 )
-from hyprmod.pages.section import SectionPage
-from hyprmod.ui import clear_children, confirm, display_path, make_page_layout, try_with_toast
+from hyprmod.pages.section import SavedListSectionPage
+from hyprmod.ui import (
+    clear_children,
+    confirm,
+    display_path,
+    make_inline_hint,
+    make_page_layout,
+    try_with_toast,
+)
 from hyprmod.ui.row_actions import RowActions
 from hyprmod.ui.window_picker import WindowPickerDialog
 from hyprmod.ui.window_rule_dialog import WindowRuleEditDialog
 
 
-class WindowRulesPage(SectionPage):
+class WindowRulesPage(SavedListSectionPage[WindowRule]):
     """List editor for ``windowrule`` / ``windowrulev2`` entries."""
 
     def __init__(
@@ -170,7 +175,8 @@ class WindowRulesPage(SectionPage):
     def _build_undo_entry(self, old, new):
         old_items, old_baselines = old
         new_items, new_baselines = new
-        return WindowRulesUndoEntry(
+        return SavedListSnapshot(
+            page_attr="_window_rules_page",
             old_items=old_items,
             new_items=new_items,
             old_baselines=old_baselines,
@@ -244,16 +250,10 @@ class WindowRulesPage(SectionPage):
         if 0 <= focus_idx < len(self._rows_by_idx):
             target = self._rows_by_idx[focus_idx]
             if target is not None:
-                # Defer to idle so the row is mapped before grab_focus.
-                # CRITICAL: the callback must return GLib.SOURCE_REMOVE —
-                # ``grab_focus`` returns True, which an idle handler reads
-                # as "fire me again" → infinite focus-grab loop.
+                # Defer to idle so the row is mapped before grab_focus
+                # (see ``_grab_focus_once`` in the base class for the
+                # SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
-
-    @staticmethod
-    def _grab_focus_once(widget: Gtk.Widget) -> bool:
-        widget.grab_focus()
-        return GLib.SOURCE_REMOVE  # one-shot
 
     def _build_empty_state(self) -> Adw.StatusPage:
         """Empty-state page with two prominent action buttons.
@@ -294,31 +294,11 @@ class WindowRulesPage(SectionPage):
 
     def _build_order_hint(self) -> Gtk.Widget:
         """Inline note: explains that rule order matters and how to reorder."""
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(4)
-
-        icon = Gtk.Image.new_from_icon_name("dialog-information-symbolic")
-        icon.set_opacity(0.5)
-        icon.set_valign(Gtk.Align.START)
-        box.append(icon)
-
-        label = Gtk.Label(
-            label=(
-                "Rules are evaluated top to bottom. When two rules match the "
-                "same window, the lower one wins. Reorder with Alt+↑ / Alt+↓ "
-                "on a focused row."
-            ),
+        return make_inline_hint(
+            "Rules are evaluated top to bottom. When two rules match the "
+            "same window, the lower one wins. Reorder with Alt+↑ / Alt+↓ "
+            "on a focused row."
         )
-        label.set_wrap(True)
-        label.set_xalign(0)
-        # Without ``hexpand=True`` the label settles at its preferred
-        # (narrow) width, so longer copy wraps early and looks like a
-        # column instead of a paragraph.
-        label.set_hexpand(True)
-        label.add_css_class("dim-label")
-        label.add_css_class("caption")
-        box.append(label)
-        return box
 
     def _build_group(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(title="Window Rules")
@@ -389,32 +369,12 @@ class WindowRulesPage(SectionPage):
 
     def _build_external_hint(self) -> Gtk.Widget:
         """Inline note explaining that the rules below are read-only."""
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(4)
-
-        icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
-        icon.set_opacity(0.5)
-        icon.set_valign(Gtk.Align.START)
-        box.append(icon)
-
-        label = Gtk.Label(
-            label=(
-                "Rules below come from your hyprland.conf or its sourced files. "
-                "Edit those files directly to change them — hyprmod doesn't "
-                "manage rules outside its own file."
-            ),
+        return make_inline_hint(
+            "Rules below come from your hyprland.conf or its sourced files. "
+            "Edit those files directly to change them — hyprmod doesn't "
+            "manage rules outside its own file.",
+            icon_name="changes-prevent-symbolic",
         )
-        label.set_wrap(True)
-        label.set_xalign(0)
-        # ``hexpand=True`` so the label claims the rest of the box's
-        # horizontal space; without it GTK gives it just its preferred
-        # (narrow) width and the paragraph wraps far short of the
-        # group's width below it.
-        label.set_hexpand(True)
-        label.add_css_class("dim-label")
-        label.add_css_class("caption")
-        box.append(label)
-        return box
 
     def _build_external_file_group(
         self, source_path: Path, rules: list[ExternalWindowRule]
@@ -513,59 +473,6 @@ class WindowRulesPage(SectionPage):
         row.connect("activated", lambda _r, i=idx: self._on_edit_at(i))
         row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
         return row
-
-    def _deleted_baselines(self) -> list[WindowRule]:
-        """Return saved rules that are no longer in the owned list."""
-        current = {r.to_line() for r in self._owned}
-        return [b for b in self._owned.saved if b.to_line() not in current]
-
-    # ── Reorder (Alt+arrow keyboard shortcut) ──
-
-    def _attach_keyboard_reorder(self, row: Adw.ActionRow, idx: int) -> None:
-        """Bind Alt+Up / Alt+Down on *row* to move it within the list."""
-        controller = Gtk.EventControllerKey.new()
-        controller.connect("key-pressed", self._on_row_key_pressed, idx)
-        row.add_controller(controller)
-
-    def _on_row_key_pressed(
-        self,
-        _controller: Gtk.EventControllerKey,
-        keyval: int,
-        _keycode: int,
-        state: Gdk.ModifierType,
-        idx: int,
-    ) -> bool:
-        # Require Alt only — Shift/Ctrl/Super combos are reserved for
-        # future shortcuts (e.g. Alt+Shift+Up = move-to-top).
-        wanted = Gdk.ModifierType.ALT_MASK
-        relevant = (
-            Gdk.ModifierType.ALT_MASK
-            | Gdk.ModifierType.CONTROL_MASK
-            | Gdk.ModifierType.SHIFT_MASK
-            | Gdk.ModifierType.SUPER_MASK
-        )
-        if state & relevant != wanted:
-            return False
-
-        if keyval == Gdk.KEY_Up:
-            delta = -1
-        elif keyval == Gdk.KEY_Down:
-            delta = 1
-        else:
-            return False
-        return self._move_relative(idx, delta)
-
-    def _move_relative(self, idx: int, delta: int) -> bool:
-        """Move the rule at *idx* by *delta* slots."""
-        target = idx + delta
-        n = len(self._owned)
-        if target < 0 or target >= n or idx == target:
-            return False
-        with self._undo_track():
-            self._owned.move(idx, target)
-        self._notify_dirty()
-        self._rebuild_list(focus_idx=target)
-        return True
 
     # ── Live apply (push to running compositor) ──
 
@@ -859,71 +766,7 @@ class WindowRulesPage(SectionPage):
         self._rebuild_list()
         self._maybe_apply_rule_live(item)
 
-    # ── Reorder helpers (queried by pages/pending.py) ──
-
-    def is_reordered(self) -> bool:
-        """True if the *common* items between saved and current differ in order."""
-        return detect_reorder(self._owned.saved, list(self._owned))
-
-    def pending_change_count(self) -> int:
-        """Number of distinct pending-change entries the page would surface."""
-        if not self.is_dirty():
-            return 0
-        baselines = [self._owned.get_baseline(i) for i in range(len(self._owned))]
-        return count_pending_changes(self._owned.saved, list(self._owned), baselines)
-
-    def revert_reorder(self) -> None:
-        """Restore the saved order while preserving other dirty changes.
-
-        Same algorithm as :meth:`AutostartPage.revert_reorder`:
-
-        - Items present in both saved and current are repositioned to
-          their saved-order slots; any in-flight value edits to those
-          items are kept.
-        - Newly-added items (no baseline) keep their values and slot
-          in at the end.
-        - Items the user removed stay removed.
-
-        Pushes a single undo entry so Ctrl+Z restores the pre-revert
-        order in one step.
-        """
-        by_saved_line: dict[str, tuple[WindowRule, WindowRule | None]] = {}
-        new_pairs: list[tuple[WindowRule, WindowRule | None]] = []
-
-        for idx in range(len(self._owned)):
-            item = self._owned[idx]
-            baseline = self._owned.get_baseline(idx)
-            if baseline is None:
-                new_pairs.append((item, baseline))
-            else:
-                by_saved_line[baseline.to_line()] = (item, baseline)
-
-        rebuilt_items: list[WindowRule] = []
-        rebuilt_baselines: list[WindowRule | None] = []
-        for saved in self._owned.saved:
-            pair = by_saved_line.get(saved.to_line())
-            if pair is None:
-                continue
-            item, baseline = pair
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-        for item, baseline in new_pairs:
-            rebuilt_items.append(item)
-            rebuilt_baselines.append(baseline)
-
-        with self._undo_track():
-            self._owned.restore(rebuilt_items, rebuilt_baselines)
-        self._notify_dirty()
-        self._rebuild_list()
-
-    # ── SectionPage protocol ──
-
-    def is_dirty(self) -> bool:
-        return self._owned.is_dirty()
-
-    def mark_saved(self) -> None:
-        self._owned.mark_saved()
-        self._rebuild_list()
+    # ── SectionPage protocol (overrides) ──
 
     def discard(self) -> None:
         # Capture both the dirty list and the saved baselines BEFORE
@@ -933,11 +776,6 @@ class WindowRulesPage(SectionPage):
         new_items = list(self._owned.saved)
         self._owned.discard_all()
         self._sync_runtime_diff(old_items, new_items)
-        self._rebuild_list()
-
-    def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:
-        """Re-load baseline from the given saved sections (after profile switch)."""
-        self._load(saved_sections)
         self._rebuild_list()
 
     # ── Save plumbing ──

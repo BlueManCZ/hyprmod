@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from gi.repository import Adw, Gdk, Gtk
+from gi.repository import Adw, Gdk, Gtk, Pango
 
 from hyprmod.ui.options import OptionRow, create_option_row  # noqa: F401
 from hyprmod.ui.row_actions import RowActions  # noqa: F401
@@ -135,6 +135,68 @@ def try_with_toast(
         show_toast(f"{error_prefix} — {e}", timeout=timeout)
         return False
     return True
+
+
+def build_preview_group(
+    description: str = "This is the exact line that will be written to your HyprMod config.",
+) -> tuple[Adw.PreferencesGroup, Gtk.Label]:
+    """Build a labelled "Preview" group containing a monospace label.
+
+    Returns ``(group, label)`` so the caller can keep a reference to the
+    label for ``set_text(...)`` calls. The same shape is used by every
+    edit dialog that previews the config line it will write.
+    """
+    group = Adw.PreferencesGroup(title="Preview")
+    group.set_description(description)
+
+    frame = Gtk.Frame()
+    frame.add_css_class("view")
+
+    label = Gtk.Label()
+    label.set_xalign(0)
+    label.set_wrap(True)
+    label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+    label.set_selectable(True)
+    label.set_margin_top(10)
+    label.set_margin_bottom(10)
+    label.set_margin_start(12)
+    label.set_margin_end(12)
+    label.add_css_class("monospace")
+    frame.set_child(label)
+
+    group.add(frame)
+    return group, label
+
+
+def make_inline_hint(
+    text: str,
+    *,
+    icon_name: str = "dialog-information-symbolic",
+) -> Gtk.Widget:
+    """Build the dim-icon + dim-caption hint row used at the top of list pages.
+
+    Same shape used by the autostart, env-vars, window-rules, layer-rules,
+    and binds pages: a horizontal box with a faint icon on the left and a
+    wrapped, caption-styled label that claims the rest of the row's width
+    (so a paragraph wraps at the right boundary instead of its preferred
+    narrow width).
+    """
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    box.set_margin_start(4)
+
+    icon = Gtk.Image.new_from_icon_name(icon_name)
+    icon.set_opacity(0.5)
+    icon.set_valign(Gtk.Align.START)
+    box.append(icon)
+
+    label = Gtk.Label(label=text)
+    label.set_wrap(True)
+    label.set_xalign(0)
+    label.set_hexpand(True)
+    label.add_css_class("dim-label")
+    label.add_css_class("caption")
+    box.append(label)
+    return box
 
 
 def display_path(path: Path) -> str:

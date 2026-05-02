@@ -18,6 +18,11 @@ _PROFILES_DIR = HYPRMOD_DIR / "profiles"
 _META_FILE = "meta.json"
 _ACTIVE_FILE = HYPRMOD_DIR / "active_profile"
 
+# Profile IDs are 12 hex chars (48 bits) — long enough that collisions are
+# astronomically unlikely with the dozens of profiles a single user creates,
+# short enough that the directory name stays readable.
+_PROFILE_ID_LEN = 12
+
 
 def _profile_dir(profile_id: str) -> Path:
     return _PROFILES_DIR / profile_id
@@ -95,7 +100,7 @@ def read_profile_values(profile_id: str) -> dict[str, str]:
 
 def save_current_as(name: str, description: str = "") -> str:
     """Snapshot the current managed config as a new profile. Returns the profile ID."""
-    profile_id = uuid.uuid4().hex[:12]
+    profile_id = uuid.uuid4().hex[:_PROFILE_ID_LEN]
     pdir = _profile_dir(profile_id)
     pdir.mkdir(parents=True, exist_ok=True)
     conf_dest = pdir / "hyprland-gui.conf"
@@ -178,7 +183,7 @@ def update_description(profile_id: str, description: str) -> None:
 def duplicate(profile_id: str) -> str:
     """Duplicate a profile. Returns the new profile ID."""
     meta = _read_meta(profile_id)
-    new_id = uuid.uuid4().hex[:12]
+    new_id = uuid.uuid4().hex[:_PROFILE_ID_LEN]
     src = _profile_dir(profile_id)
     dst = _profile_dir(new_id)
     if src.exists():

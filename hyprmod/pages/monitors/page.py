@@ -22,7 +22,7 @@ from hyprmod.core import config
 from hyprmod.core.ownership import OwnershipSet
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
-from hyprmod.pages.monitors.confirm import ConfirmController
+from hyprmod.pages.monitors.confirm_controller import ConfirmController
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.monitor_preview import MonitorLayoutPreview
