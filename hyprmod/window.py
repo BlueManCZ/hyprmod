@@ -16,6 +16,7 @@ from hyprmod.core.undo import (
     AutostartUndoEntry,
     BindsUndoEntry,
     CursorUndoEntry,
+    EnvVarsUndoEntry,
     LayerRulesUndoEntry,
     MonitorsUndoEntry,
     OptionChange,
@@ -27,6 +28,7 @@ from hyprmod.pages.animations import AnimationsPage
 from hyprmod.pages.autostart import AutostartPage
 from hyprmod.pages.binds import BindsPage
 from hyprmod.pages.cursor import CursorPage
+from hyprmod.pages.env_vars import EnvVarsPage
 from hyprmod.pages.layer_rules import LayerRulesPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.pending import PendingChangesPage
@@ -89,6 +91,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._binds_page: BindsPage | None = None
         self._cursor_page: CursorPage | None = None
         self._autostart_page: AutostartPage | None = None
+        self._env_vars_page: EnvVarsPage | None = None
         self._window_rules_page: WindowRulesPage | None = None
         self._layer_rules_page: LayerRulesPage | None = None
         self._profiles_page: ProfilesPage | None = None
@@ -272,6 +275,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._binds_page,
                 self._cursor_page,
                 self._autostart_page,
+                self._env_vars_page,
                 self._window_rules_page,
                 self._layer_rules_page,
             )
@@ -361,6 +365,16 @@ class HyprModWindow(Adw.ApplicationWindow):
         autostart_nav = self._autostart_page.build(header=self._make_page_header("Autostart"))
         self._page_stack.add_named(autostart_nav, "autostart")
         self._page_titles["autostart"] = "Autostart"
+
+        self._env_vars_page = EnvVarsPage(
+            self,
+            on_dirty_changed=self._on_section_dirty,
+            push_undo=self._undo.push,
+            saved_sections=self._saved_sections,
+        )
+        env_vars_nav = self._env_vars_page.build(header=self._make_page_header("Env Variables"))
+        self._page_stack.add_named(env_vars_nav, "env_vars")
+        self._page_titles["env_vars"] = "Env Variables"
 
         self._window_rules_page = WindowRulesPage(
             self,
@@ -603,6 +617,8 @@ class HyprModWindow(Adw.ApplicationWindow):
             counts["cursor"] += 1
         if self._autostart_page and self._autostart_page.is_dirty():
             counts["autostart"] += self._autostart_page.pending_change_count()
+        if self._env_vars_page and self._env_vars_page.is_dirty():
+            counts["env_vars"] += self._env_vars_page.pending_change_count()
         if self._window_rules_page and self._window_rules_page.is_dirty():
             counts["window_rules"] += self._window_rules_page.pending_change_count()
         if self._layer_rules_page and self._layer_rules_page.is_dirty():
@@ -949,6 +965,11 @@ class HyprModWindow(Adw.ApplicationWindow):
             baselines = entry.old_baselines if undo else entry.new_baselines
             self._autostart_page.restore_snapshot(items, baselines)
             confirm(entry)
+        elif isinstance(entry, EnvVarsUndoEntry) and self._env_vars_page is not None:
+            items = entry.old_items if undo else entry.new_items
+            baselines = entry.old_baselines if undo else entry.new_baselines
+            self._env_vars_page.restore_snapshot(items, baselines)
+            confirm(entry)
         elif isinstance(entry, WindowRulesUndoEntry) and self._window_rules_page is not None:
             items = entry.old_items if undo else entry.new_items
             baselines = entry.old_baselines if undo else entry.new_baselines
@@ -993,11 +1014,27 @@ class HyprModWindow(Adw.ApplicationWindow):
                 if used_curves:
                     bezier_lines = get_curve_store().get_curve_definitions(used_curves)
 
-        env_lines = None
+        # Cursor and env-vars pages both contribute to the ``env_lines`` slot.
+        # Cursor owns the four ``XCURSOR_*`` / ``HYPRCURSOR_*`` names; env-vars
+        # owns everything else. Either page being dirty or having pre-existing
+        # managed lines triggers emission, and the cursor lines come first by
+        # convention (theme + size are session-defining; later vars may
+        # reference them indirectly).
+        cursor_env: list[str] = []
         if self._cursor_page is not None:
-            has_managed = self._cursor_page.has_managed_env(saved_sections)
-            if has_managed or self._cursor_page.is_dirty():
-                env_lines = self._cursor_page.get_env_lines()
+            has_managed_cursor = self._cursor_page.has_managed_env(saved_sections)
+            if has_managed_cursor or self._cursor_page.is_dirty():
+                cursor_env = self._cursor_page.get_env_lines()
+
+        general_env: list[str] = []
+        if self._env_vars_page is not None:
+            has_managed_env = EnvVarsPage.has_managed_section(saved_sections)
+            if has_managed_env or self._env_vars_page.is_dirty():
+                general_env = self._env_vars_page.get_env_lines()
+
+        env_lines: list[str] | None = None
+        if cursor_env or general_env:
+            env_lines = [*cursor_env, *general_env]
 
         exec_lines = None
         if self._autostart_page is not None:
@@ -1103,6 +1140,9 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         if self._autostart_page is not None:
             self._autostart_page.reload_from_saved(self._saved_sections)
+
+        if self._env_vars_page is not None:
+            self._env_vars_page.reload_from_saved(self._saved_sections)
 
         if self._window_rules_page is not None:
             self._window_rules_page.reload_from_saved(self._saved_sections)

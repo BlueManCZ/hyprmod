@@ -21,6 +21,7 @@ from hyprland_state import ANIM_FLAT, ANIM_LOOKUP, AnimState
 from hyprmod.core import config, schema
 from hyprmod.core.autostart import KEYWORD_LABELS as AUTOSTART_LABELS
 from hyprmod.core.autostart import iter_item_changes as iter_autostart_changes
+from hyprmod.core.env_vars import iter_item_changes as iter_env_var_changes
 from hyprmod.core.layer_rules import iter_item_changes as iter_layer_rule_changes
 from hyprmod.core.layer_rules import summarize_rule as summarize_layer_rule
 from hyprmod.core.window_rules import iter_item_changes as iter_window_rule_changes
@@ -41,6 +42,7 @@ _CATEGORY_ORDER = (
     "Monitors",
     "Cursor",
     "Autostart",
+    "Env Variables",
     "Window Rules",
     "Layer Rules",
 )
@@ -50,6 +52,7 @@ _CATEGORY_ORDER = (
 _BINDS_ICON = "keyboard-shortcuts-symbolic"
 _MONITORS_ICON = "display-symbolic"
 _AUTOSTART_ICON = "media-playback-start-symbolic"
+_ENV_VARS_ICON = "utilities-terminal-symbolic"
 _WINDOW_RULES_ICON = "window-rules-symbolic"
 _LAYER_RULES_ICON = "overlapping-windows-symbolic"
 _FALLBACK_ICON = "preferences-system-symbolic"
@@ -102,6 +105,7 @@ class PendingChangesPage:
             "binds": _BINDS_ICON,
             "monitors": _MONITORS_ICON,
             "autostart": _AUTOSTART_ICON,
+            "env_vars": _ENV_VARS_ICON,
             "window_rules": _WINDOW_RULES_ICON,
             "layer_rules": _LAYER_RULES_ICON,
         }
@@ -362,6 +366,7 @@ class PendingChangesPage:
         out.extend(self._collect_monitor_changes())
         out.extend(self._collect_cursor_changes())
         out.extend(self._collect_autostart_changes())
+        out.extend(self._collect_env_var_changes())
         out.extend(self._collect_window_rule_changes())
         out.extend(self._collect_layer_rule_changes())
         return out
@@ -550,10 +555,17 @@ class PendingChangesPage:
 
     @staticmethod
     def _restore_deleted_bind(page: Any, bind: Any) -> None:
-        """Re-add a previously-deleted bind by appending it back as a new item."""
+        """Restore a previously-deleted bind to its saved position.
+
+        Routes through :meth:`SavedList.restore_deleted` so the bind
+        comes back with its saved baseline at the slot consistent with
+        the saved order — a pure delete-then-restore round trip leaves
+        the page non-dirty. The bind is also re-pushed to the running
+        compositor.
+        """
         with page._undo_track():
             page._apply_bind_live(bind)
-            page._owned_binds.append_new(bind)
+            page._owned_binds.restore_deleted(bind)
         page._notify_dirty()
         page._rebuild_list()
 
@@ -752,6 +764,86 @@ class PendingChangesPage:
             revert=lambda e=item: page._on_restore_deleted(e),
             navigate_to="autostart",
             icon=_AUTOSTART_ICON,
+        )
+
+    # -- Env vars --
+
+    def _collect_env_var_changes(self) -> list[PendingChange]:
+        page = self._window._env_vars_page
+        if page is None or not page.is_dirty():
+            return []
+        result: list[PendingChange] = []
+        owned = page._owned
+
+        # Same iterator pattern as autostart so the sidebar badge count
+        # and pending-list length stay in lockstep.
+        baselines = [owned.get_baseline(i) for i in range(len(owned))]
+        for kind, idx, item, baseline in iter_env_var_changes(owned.saved, list(owned), baselines):
+            result.append(self._make_env_var_change(page, kind, idx, item, baseline))
+
+        if page.is_reordered():
+            common_count = len({e.to_line() for e in owned} & {b.to_line() for b in owned.saved})
+            result.append(
+                PendingChange(
+                    category="Env Variables",
+                    title="Reordered",
+                    subtitle=f"{common_count} variables in a different order",
+                    kind="modified",
+                    revert=page.revert_reorder,
+                    navigate_to="env_vars",
+                    icon=_ENV_VARS_ICON,
+                )
+            )
+        return result
+
+    @staticmethod
+    def _make_env_var_change(
+        page: Any,
+        kind: str,
+        idx: int,
+        item: Any,
+        baseline: Any,
+    ) -> PendingChange:
+        """Build a ``PendingChange`` for one tuple from ``iter_env_var_changes``."""
+        if kind == "added":
+            return PendingChange(
+                category="Env Variables",
+                title=item.name,
+                subtitle=f"new · {item.value or '(empty)'}",
+                kind="added",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="env_vars",
+                icon=_ENV_VARS_ICON,
+            )
+        if kind == "modified":
+            if baseline.name != item.name:
+                # Renames (delete-old + add-new) shouldn't reach here —
+                # they appear as one ``added`` and one ``removed`` —
+                # but if the page ever supports in-place rename, surface
+                # both halves of the diff.
+                subtitle = f"{baseline.name} → {item.name}"
+            else:
+                old_val = baseline.value or "(empty)"
+                new_val = item.value or "(empty)"
+                subtitle = f"{old_val} → {new_val}"
+            return PendingChange(
+                category="Env Variables",
+                title=item.name,
+                subtitle=subtitle,
+                kind="modified",
+                revert=lambda i=idx: page._discard_at(i),
+                navigate_to="env_vars",
+                icon=_ENV_VARS_ICON,
+            )
+        # removed — ``item`` is the saved (vanished) entry; revert re-adds.
+        return PendingChange(
+            category="Env Variables",
+            title=item.name,
+            subtitle=f"deleted · {item.value or '(empty)'}",
+            kind="removed",
+            revert=lambda e=item: page._on_restore_deleted(e),
+            navigate_to="env_vars",
+            icon=_ENV_VARS_ICON,
         )
 
     # -- Window rules --

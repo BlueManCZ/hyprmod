@@ -157,6 +157,62 @@ class SavedList[T]:
             self._items[idx] = self._copy_item(baseline)
         return baseline
 
+    def restore_deleted(self, saved_item: T) -> int:
+        """Re-insert a previously-deleted saved item at its saved position.
+
+        Finds *saved_item* in the saved baseline by key, computes the
+        insertion index in ``_items`` that preserves the saved relative
+        order among surviving entries, and inserts it there with its
+        saved value as the per-row baseline.
+
+        The point of routing through this method (rather than
+        :meth:`append_new`) is *dirty preservation*: a freshly restored
+        row carries its baseline, so its individual ``is_item_dirty``
+        is ``False``. If the surviving items are still in saved order
+        and the user only deleted-then-restored this one entry, the
+        list-level ``is_dirty()`` also flips back to ``False`` —
+        matching the user's intuition that "delete + restore = no
+        net change."
+
+        Returns the insertion index in the current list.
+
+        Raises ``ValueError`` if *saved_item* is not in the saved
+        baseline (no row to restore) or is already present in the
+        current list (the caller should never have offered a restore
+        button for it).
+        """
+        target_key = self._key(saved_item)
+
+        saved_idx: int | None = None
+        for i, s in enumerate(self._saved):
+            if self._key(s) == target_key:
+                saved_idx = i
+                break
+        if saved_idx is None:
+            raise ValueError(f"item with key {target_key!r} is not in the saved baseline")
+
+        current_keys = [self._key(c) for c in self._items]
+        if target_key in current_keys:
+            raise ValueError(f"item with key {target_key!r} is already in the list")
+
+        # Insertion point: the current index of the first saved item
+        # whose saved-index is strictly greater than *saved_idx*. If
+        # no such item survives in the current list, append at the end.
+        insertion_idx = len(self._items)
+        for j in range(saved_idx + 1, len(self._saved)):
+            s_key = self._key(self._saved[j])
+            if s_key in current_keys:
+                insertion_idx = current_keys.index(s_key)
+                break
+
+        # Copy out of _saved so subsequent edits to the restored row
+        # don't mutate the saved snapshot.
+        restored = self._copy_item(self._saved[saved_idx])
+        baseline = self._copy_item(self._saved[saved_idx])
+        self._items.insert(insertion_idx, restored)
+        self._baselines.insert(insertion_idx, baseline)
+        return insertion_idx
+
     def move(self, from_idx: int, to_idx: int) -> None:
         """Move an item — and its baseline — from one position to another.
 

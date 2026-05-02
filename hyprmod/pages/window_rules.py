@@ -845,12 +845,18 @@ class WindowRulesPage(SectionPage):
         self._rebuild_list()
 
     def _on_restore_deleted(self, item: WindowRule) -> None:
-        """Re-add a previously-deleted rule as a new owned row.
+        """Restore a previously-deleted rule to its saved position.
 
-        Restore is conceptually identical to Add, so it goes through
-        the same live-apply gate (with the self-targeting check).
+        Routes through :meth:`SavedList.restore_deleted` so the row
+        comes back with its saved baseline at the slot consistent with
+        the saved order — a pure delete-then-restore round trip leaves
+        the page non-dirty. The rule is also re-pushed to the running
+        compositor through the same self-targeting gate as Add.
         """
-        self._commit_appended(item)
+        with self._undo_track():
+            self._owned.restore_deleted(item)
+        self._notify_dirty()
+        self._rebuild_list()
         self._maybe_apply_rule_live(item)
 
     # ── Reorder helpers (queried by pages/pending.py) ──

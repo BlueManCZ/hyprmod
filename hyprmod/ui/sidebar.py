@@ -187,6 +187,7 @@ class Sidebar:
 
         other = new_category("Other")
         add_row(other, "autostart", "Autostart", "media-playback-start-symbolic")
+        add_row(other, "env_vars", "Env Variables", "utilities-terminal-symbolic")
         add_row(other, "window_rules", "Window Rules", "window-rules-symbolic")
         add_row(other, "layer_rules", "Layer Rules", "overlapping-windows-symbolic")
         add_schema_row(other, "xwayland")

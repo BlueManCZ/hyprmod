@@ -574,8 +574,19 @@ class LayerRulesPage(SectionPage):
         self._rebuild_list()
 
     def _on_restore_deleted(self, item: LayerRule) -> None:
-        """Re-add a previously-deleted rule as a new owned row."""
-        self._commit_appended(item)
+        """Restore a previously-deleted rule to its saved position.
+
+        Routes through :meth:`SavedList.restore_deleted` so the row
+        comes back with its saved baseline at the slot consistent with
+        the saved order — a pure delete-then-restore round trip leaves
+        the page non-dirty. The rule is also re-pushed to the running
+        compositor so dynamic effects (blur, dim, ignorealpha) take
+        effect again on the next frame.
+        """
+        with self._undo_track():
+            self._owned.restore_deleted(item)
+        self._notify_dirty()
+        self._rebuild_list()
         self._apply_rule_live(item)
 
     # ── Reorder helpers (queried by pages/pending.py) ──

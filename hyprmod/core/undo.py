@@ -102,6 +102,21 @@ class LayerRulesUndoEntry:
     new_baselines: list
 
 
+@dataclass(slots=True)
+class EnvVarsUndoEntry:
+    """Undo entry for an env-vars (``env = NAME,value``) snapshot.
+
+    Same shape as :class:`AutostartUndoEntry`: the page owns a
+    ``SavedList[EnvVar]`` and snapshots items + baselines so add/
+    edit/remove/reorder all undo through one entry type.
+    """
+
+    old_items: list
+    new_items: list
+    old_baselines: list
+    new_baselines: list
+
+
 type UndoEntry = (
     OptionChange
     | AnimationUndoEntry
@@ -111,6 +126,7 @@ type UndoEntry = (
     | AutostartUndoEntry
     | WindowRulesUndoEntry
     | LayerRulesUndoEntry
+    | EnvVarsUndoEntry
 )
 
 

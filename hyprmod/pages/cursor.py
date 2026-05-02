@@ -8,14 +8,20 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from hyprmod.core import config
 from hyprmod.core.cursor_themes import CursorTheme, discover
+from hyprmod.core.env_vars import RESERVED_NAMES as _MANAGED_VARS
 from hyprmod.core.undo import CursorUndoEntry
 from hyprmod.core.xcursor import crop_to_content, load_pointer, pad_to_square, scale_nearest
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui.managed_row import ManagedRow, make_combo_row
 
+# Theme- vs. size-flavoured cursor env vars. Membership in either tuple
+# determines how a parsed value is interpreted (string vs. integer);
+# the *union* is the broader contract this page exposes to the env-vars
+# page via :data:`hyprmod.core.env_vars.RESERVED_NAMES` (re-exported
+# above as ``_MANAGED_VARS``). Keep the per-flavour tuples a strict
+# subset of ``_MANAGED_VARS`` if either side ever grows.
 _THEME_VARS = ("XCURSOR_THEME", "HYPRCURSOR_THEME")
 _SIZE_VARS = ("XCURSOR_SIZE", "HYPRCURSOR_SIZE")
-_MANAGED_VARS = (*_THEME_VARS, *_SIZE_VARS)
 _SYSTEM_DEFAULT = "__system_default__"
 _THUMB_SIZE = 24
 _DEFAULT_SIZE = 24

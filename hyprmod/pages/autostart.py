@@ -733,9 +733,15 @@ class AutostartPage(SectionPage):
         self._rebuild_list()
 
     def _on_restore_deleted(self, item: ExecData) -> None:
-        """Re-add a previously-deleted entry as a new owned row."""
+        """Restore a previously-deleted entry to its saved position.
+
+        Routes through :meth:`SavedList.restore_deleted` so the row
+        comes back with its saved baseline at the slot consistent with
+        the saved order — a pure delete-then-restore round trip leaves
+        the page non-dirty.
+        """
         with self._undo_track():
-            self._owned.append_new(item)
+            self._owned.restore_deleted(item)
         self._notify_dirty()
         self._rebuild_list()
 
