@@ -7,6 +7,7 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 from hyprmod.core import profiles
 from hyprmod.ui import clear_children, confirm, make_page_layout
 from hyprmod.ui.dna import DnaWidget
+from hyprmod.ui.empty_state import EmptyState
 
 
 def _option_summary(n: int) -> str:
@@ -129,6 +130,11 @@ class ProfilesPage:
         self._last_toast: Adw.Toast | None = None
         self._cached_profiles: list[dict] = []
         self._cached_active_id: str | None = None
+        # DNA widget for the "Current configuration" card. Built lazily in
+        # ``build()`` and kept across rebuilds so we can update its values
+        # without recreating the row.
+        self._current_dna: DnaWidget | None = None
+        self._profiles_box: Gtk.Box | None = None
 
     def build(self, header: Adw.HeaderBar | None = None) -> Adw.ToolbarView:
         page_header = header or Adw.HeaderBar()
@@ -140,10 +146,63 @@ class ProfilesPage:
 
         toolbar_view, _, self._content_box, _ = make_page_layout(header=page_header, spacing=6)
 
+        # "Current configuration" card — moved here from the sidebar so the
+        # DNA fingerprint sits next to the profile list it's meant to be
+        # compared against. Built once and kept across rebuilds; only the
+        # DNA values change when the user saves.
+        self._content_box.append(self._build_current_config_card())
+
+        # Profiles get rebuilt on every change; isolate them in their own
+        # box so ``rebuild()`` can clear just this sub-container without
+        # nuking the current-config card above.
+        self._profiles_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self._content_box.append(self._profiles_box)
+
         self._install_actions()
         self.rebuild()
 
         return toolbar_view
+
+    def _build_current_config_card(self) -> Gtk.Widget:
+        """Build the always-present "Current configuration" header card."""
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        card.add_css_class("card")
+        card.set_margin_top(0)
+        card.set_margin_bottom(2)
+
+        text_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        text_col.set_hexpand(True)
+        text_col.set_valign(Gtk.Align.CENTER)
+        text_col.set_margin_top(14)
+        text_col.set_margin_bottom(14)
+        text_col.set_margin_start(16)
+
+        title = Gtk.Label(label="Current configuration", xalign=0)
+        title.add_css_class("heading")
+        text_col.append(title)
+
+        subtitle = Gtk.Label(
+            label="Fingerprint of the values currently saved on disk",
+            xalign=0,
+        )
+        subtitle.add_css_class("dim-label")
+        subtitle.add_css_class("caption")
+        text_col.append(subtitle)
+
+        card.append(text_col)
+
+        self._current_dna = DnaWidget(width=180, height=28)
+        self._current_dna.set_halign(Gtk.Align.END)
+        self._current_dna.set_valign(Gtk.Align.CENTER)
+        self._current_dna.set_margin_end(26)
+        card.append(self._current_dna)
+
+        return card
+
+    def update_dna(self, values: dict) -> None:
+        """Refresh the current-config DNA fingerprint."""
+        if self._current_dna is not None:
+            self._current_dna.set_values(values)
 
     def _install_actions(self):
         group = Gio.SimpleActionGroup()
@@ -230,31 +289,36 @@ class ProfilesPage:
     # ── Build ──
 
     def rebuild(self):
-        clear_children(self._content_box)
+        # Only clear the profiles sub-container — the current-config card
+        # at the top of ``_content_box`` is built once in ``build()`` and
+        # updated in place via ``update_dna()``.
+        if self._profiles_box is None:
+            return
+        clear_children(self._profiles_box)
 
         profile_list, active_id = profiles.list_profiles_and_active()
         self._cached_profiles = profile_list
         self._cached_active_id = active_id
 
         if not profile_list:
-            status = Adw.StatusPage(
-                title="No Profiles Yet",
-                description=(
-                    "Profiles let you save and switch between different "
-                    "configurations instantly.\n"
-                    "Save your current setup to create your first profile."
-                ),
-                icon_name="user-bookmarks-symbolic",
+            self._profiles_box.append(
+                EmptyState(
+                    title="No Profiles",
+                    description=(
+                        "Profiles let you save and switch between configurations "
+                        "instantly. Save your current setup to create your first one."
+                    ),
+                    icon_name="user-bookmarks-symbolic",
+                    primary_action=("Save Current as Profile", self._on_save_current),
+                )
             )
-            status.set_vexpand(True)
-            self._content_box.append(status)
             return
 
         # Natural order — don't re-sort
         for prof in profile_list:
             is_active = prof["id"] == active_id
             card = ProfileCard(prof, is_active=is_active, on_action=self._on_card_action)
-            self._content_box.append(card)
+            self._profiles_box.append(card)
 
     def _on_card_action(self, action: str, profile_id: str):
         if action == "activate":
@@ -301,7 +365,7 @@ class ProfilesPage:
             do_delete,
         )
 
-    def _on_save_current(self, _button):
+    def _on_save_current(self, _button=None):
         self._show_save_dialog(navigate_to_profiles=False)
 
     def save_as_new_and_navigate(self):

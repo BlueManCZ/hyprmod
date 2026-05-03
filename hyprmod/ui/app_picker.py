@@ -14,6 +14,7 @@ from gi.repository import Adw, Gtk
 from hyprmod.core.desktop_apps import DesktopApp, list_apps
 from hyprmod.ui import clear_children
 from hyprmod.ui.dialog import SingletonDialogMixin
+from hyprmod.ui.empty_state import EmptyState
 
 
 class AppPickerDialog(SingletonDialogMixin, Adw.Dialog):
@@ -70,13 +71,12 @@ class AppPickerDialog(SingletonDialogMixin, Adw.Dialog):
         body.append(scrolled)
 
         # Empty-state placeholder shown when filter matches nothing.
-        self._empty = Adw.StatusPage(
-            title="No matches",
+        self._empty = EmptyState(
+            title="No Matches",
             description="Try a different search term.",
             icon_name="system-search-symbolic",
         )
         self._empty.set_visible(False)
-        self._empty.set_vexpand(True)
         body.append(self._empty)
 
         toolbar.set_content(body)

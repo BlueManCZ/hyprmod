@@ -25,6 +25,7 @@ from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.monitor_preview import MonitorLayoutPreview
 from hyprmod.ui.timer import Timer
 
@@ -212,7 +213,7 @@ class MonitorsPage(SectionPage):
 
         if not self._monitors:
             self._content_box.append(
-                Adw.StatusPage(
+                EmptyState(
                     title="No Monitors Detected",
                     description="Could not read monitor information from Hyprland.",
                     icon_name="computer-symbolic",

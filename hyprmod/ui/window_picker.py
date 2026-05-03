@@ -23,6 +23,7 @@ from hyprland_socket import HyprlandError, Window, get_windows
 from hyprmod.core.desktop_apps import DesktopApp, list_apps
 from hyprmod.ui import clear_children
 from hyprmod.ui.dialog import SingletonDialogMixin
+from hyprmod.ui.empty_state import EmptyState
 
 
 class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
@@ -91,13 +92,12 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         # Empty-state for "no windows open" and "filter matches nothing".
         # Two states reuse one widget — the title/description swaps based
         # on which condition triggered visibility.
-        self._empty = Adw.StatusPage(
+        self._empty = EmptyState(
             title="No Open Windows",
             description="Open a window in Hyprland and try again.",
             icon_name="window-symbolic",
         )
         self._empty.set_visible(False)
-        self._empty.set_vexpand(True)
         body.append(self._empty)
 
         toolbar.set_content(body)
@@ -230,7 +230,7 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
                 "Open a window in Hyprland (or click refresh) to pick from it."
             )
         else:
-            self._empty.set_title("No matches")
+            self._empty.set_title("No Matches")
             self._empty.set_description("Try a different search term.")
         self._empty.set_visible(True)
 

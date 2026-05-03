@@ -106,6 +106,7 @@ from hyprmod.ui import (
     make_page_layout,
     try_with_toast,
 )
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.row_actions import RowActions
 from hyprmod.ui.window_picker import WindowPickerDialog
 from hyprmod.ui.window_rule_dialog import WindowRuleEditDialog
@@ -255,42 +256,24 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
                 # SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
 
-    def _build_empty_state(self) -> Adw.StatusPage:
+    def _build_empty_state(self) -> EmptyState:
         """Empty-state page with two prominent action buttons.
 
-        Two paths surfaced upfront: "Pick from open window" (zero-friction
-        for the common case "make a rule for THIS app") and "Add rule"
+        Two paths surfaced upfront: "Pick from Open Window" (zero-friction
+        for the common case "make a rule for THIS app") and "Add Rule"
         (the manual path for rules that target windows that aren't
         currently running).
         """
-        empty = Adw.StatusPage(
+        return EmptyState(
             title="No Window Rules",
             description=(
                 "Make Hyprland treat specific windows differently — pin them, "
                 "set opacity, open on a workspace, and more."
             ),
             icon_name="window-rules-symbolic",
+            primary_action=("Pick from Open Window", self._on_pick_window),
+            secondary_action=("Add Rule…", self._on_add),
         )
-
-        button_box = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=12,
-            halign=Gtk.Align.CENTER,
-        )
-
-        pick_btn = Gtk.Button(label="Pick from Open Window")
-        pick_btn.add_css_class("suggested-action")
-        pick_btn.add_css_class("pill")
-        pick_btn.connect("clicked", lambda _b: self._on_pick_window())
-        button_box.append(pick_btn)
-
-        add_btn = Gtk.Button(label="Add Rule…")
-        add_btn.add_css_class("pill")
-        add_btn.connect("clicked", lambda _b: self._on_add())
-        button_box.append(add_btn)
-
-        empty.set_child(button_box)
-        return empty
 
     def _build_order_hint(self) -> Gtk.Widget:
         """Inline note: explains that rule order matters and how to reorder."""

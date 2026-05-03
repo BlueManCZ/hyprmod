@@ -5,6 +5,7 @@ from html import escape as html_escape
 from gi.repository import Adw, Gtk
 
 from hyprmod.core import schema as schema_mod
+from hyprmod.ui.empty_state import EmptyState
 
 MIN_QUERY_LENGTH = 2
 
@@ -85,12 +86,11 @@ class SearchPage:
     def build_results_widget(self, results: list[dict], on_activate) -> Gtk.Widget:
         """Build a widget showing search results."""
         if not results:
-            status = Adw.StatusPage(
+            return EmptyState(
                 title="No Results",
                 description="Try a different search term.",
                 icon_name="edit-find-symbolic",
             )
-            return status
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.set_margin_top(12)

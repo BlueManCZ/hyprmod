@@ -347,7 +347,7 @@
     },
     {
       "id": "input",
-      "label": "Input",
+      "label": "Devices",
       "icon": "input-keyboard-symbolic",
       "sections": [
         {
@@ -662,6 +662,8 @@
       "id": "dwindle",
       "label": "Dwindle",
       "icon": "grid-filled-symbolic",
+      "hidden": true,
+      "parent_page": "layouts",
       "sections": [
         {
           "id": "dwindle",
@@ -733,6 +735,8 @@
       "id": "master",
       "label": "Master",
       "icon": "menu-large-symbolic",
+      "hidden": true,
+      "parent_page": "layouts",
       "sections": [
         {
           "id": "master",
@@ -807,6 +811,8 @@
       "id": "scrolling",
       "label": "Scrolling",
       "icon": "view-more-symbolic",
+      "hidden": true,
+      "parent_page": "layouts",
       "sections": [
         {
           "id": "scrolling",

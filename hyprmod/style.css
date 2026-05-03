@@ -98,6 +98,27 @@ row.spin spinbutton > text {
     min-width: 18px;
 }
 
+/* Pending-changes chip in page headers — replaces the sidebar pending row.
+   Flat button with the warning palette so the count reads as "needs attention"
+   without competing with the page title. */
+.pending-chip {
+    background-color: alpha(@warning_bg_color, 0.18);
+    color: @warning_color;
+    border-radius: 9999px;
+    padding: 0 10px;
+    min-height: 26px;
+    font-weight: 700;
+    font-feature-settings: "tnum";
+}
+
+.pending-chip:hover {
+    background-color: alpha(@warning_bg_color, 0.28);
+}
+
+.pending-chip:active {
+    background-color: alpha(@warning_bg_color, 0.36);
+}
+
 /* Sidebar category header */
 .sidebar-category-header {
     font-size: 0.75em;

@@ -71,6 +71,7 @@ from hyprmod.ui import (
     make_page_layout,
     try_with_toast,
 )
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.layer_rule_dialog import LayerRuleEditDialog
 from hyprmod.ui.row_actions import RowActions
 
@@ -200,38 +201,24 @@ class LayerRulesPage(SavedListSectionPage[LayerRule]):
                 # SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
 
-    def _build_empty_state(self) -> Adw.StatusPage:
+    def _build_empty_state(self) -> EmptyState:
         """Empty-state page with a single "Add Rule" button.
 
-        Unlike the window-rules empty state, there's no "Pick from open
-        window" path — ``hyprland-socket`` doesn't expose a layers
-        query, and even if it did, the user-recognisable identity for a
-        layer surface is its namespace (``waybar``, ``rofi``), not a
-        running window the user can point at.
+        Unlike the window-rules empty state, there's no "Pick from Open
+        Window" path — ``hyprland-socket`` doesn't expose a layers query,
+        and even if it did, the user-recognisable identity for a layer
+        surface is its namespace (``waybar``, ``rofi``), not a running
+        window the user can point at.
         """
-        empty = Adw.StatusPage(
+        return EmptyState(
             title="No Layer Rules",
             description=(
                 "Tweak how shell surfaces (waybar, notifications, rofi, wallpapers) "
                 "are decorated — backdrop blur, dim-around, animations, render order."
             ),
             icon_name="overlapping-windows-symbolic",
+            primary_action=("Add Rule…", self._on_add),
         )
-
-        button_box = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=12,
-            halign=Gtk.Align.CENTER,
-        )
-
-        add_btn = Gtk.Button(label="Add Rule…")
-        add_btn.add_css_class("suggested-action")
-        add_btn.add_css_class("pill")
-        add_btn.connect("clicked", lambda _b: self._on_add())
-        button_box.append(add_btn)
-
-        empty.set_child(button_box)
-        return empty
 
     def _build_order_hint(self) -> Gtk.Widget:
         """Inline note: explains how rule order interacts with ``unset``."""

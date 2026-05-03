@@ -20,6 +20,7 @@ from hyprmod.core.ownership import SavedList
 from hyprmod.core.undo import BindsUndoEntry
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.row_actions import RowActions
 
 # ---------------------------------------------------------------------------
@@ -301,12 +302,17 @@ class BindsPage(SectionPage):
             self._content_box.append(group)
 
         if not self._row_widgets:
-            empty = Adw.StatusPage(
-                title="No Keybinds",
-                description="Click the + button to add your first keybind.",
-                icon_name="keyboard-shortcuts-symbolic",
+            self._content_box.append(
+                EmptyState(
+                    title="No Keybinds",
+                    description=(
+                        "Bind keys to launch apps, switch workspaces, or trigger "
+                        "any Hyprland dispatcher."
+                    ),
+                    icon_name="keyboard-shortcuts-symbolic",
+                    primary_action=("Add Keybind…", self._on_add),
+                )
             )
-            self._content_box.append(empty)
 
         if vadj and scroll_pos > 0:
             GLib.idle_add(lambda: vadj.set_value(scroll_pos) or False)

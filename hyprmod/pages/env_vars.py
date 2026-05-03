@@ -53,6 +53,7 @@ from hyprmod.core.setup import HYPRLAND_CONF
 from hyprmod.core.undo import SavedListSnapshot
 from hyprmod.pages.section import DragDropReorderMixin
 from hyprmod.ui import clear_children, display_path, make_inline_hint, make_page_layout
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.env_var_edit_dialog import EnvVarEditDialog
 from hyprmod.ui.row_actions import RowActions
 
@@ -188,31 +189,17 @@ class EnvVarsPage(DragDropReorderMixin[EnvVar]):
                 # the base class for the SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
 
-    def _build_empty_state(self) -> Adw.StatusPage:
-        empty = Adw.StatusPage(
+    def _build_empty_state(self) -> EmptyState:
+        return EmptyState(
             title="No Environment Variables",
             description=(
-                "Export variables to processes Hyprland spawns — "
-                "toolkit hints (QT_QPA_PLATFORM), theme overrides, "
-                "scaling settings, and so on."
+                "Export variables to processes Hyprland spawns — toolkit "
+                "hints (QT_QPA_PLATFORM), theme overrides, scaling settings, "
+                "and so on."
             ),
             icon_name="utilities-terminal-symbolic",
+            primary_action=("Add Variable…", self._on_add),
         )
-
-        button_box = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=12,
-            halign=Gtk.Align.CENTER,
-        )
-
-        add_btn = Gtk.Button(label="Add Variable…")
-        add_btn.add_css_class("suggested-action")
-        add_btn.add_css_class("pill")
-        add_btn.connect("clicked", lambda _b: self._on_add())
-        button_box.append(add_btn)
-
-        empty.set_child(button_box)
-        return empty
 
     def _build_group(self) -> Adw.PreferencesGroup:
         n = len(self._owned)

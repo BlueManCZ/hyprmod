@@ -15,6 +15,7 @@ AUTOSTART_ICON = "media-playback-start-symbolic"
 ENV_VARS_ICON = "utilities-terminal-symbolic"
 WINDOW_RULES_ICON = "window-rules-symbolic"
 LAYER_RULES_ICON = "overlapping-windows-symbolic"
+LAYOUTS_ICON = "view-grid-symbolic"
 
 PENDING_ICON = "view-list-symbolic"
 PROFILES_ICON = "user-bookmarks-symbolic"

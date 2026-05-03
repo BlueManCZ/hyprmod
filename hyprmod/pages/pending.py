@@ -27,12 +27,14 @@ from hyprmod.core.window_rules import summarize_rule
 from hyprmod.pages.animations import ANIM_LABELS
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.diff import ConfigDiffWidget
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.icons import (
     AUTOSTART_ICON,
     BINDS_ICON,
     ENV_VARS_ICON,
     FALLBACK_ICON,
     LAYER_RULES_ICON,
+    LAYOUTS_ICON,
     MONITORS_ICON,
     WINDOW_RULES_ICON,
 )
@@ -87,7 +89,7 @@ class PendingChangesPage:
         self._toolbar: Adw.ToolbarView | None = None
         self._content_box: Gtk.Box | None = None
         self._summary_label: Gtk.Label | None = None
-        self._empty_state: Adw.StatusPage | None = None
+        self._empty_state: EmptyState | None = None
         self._groups_box: Gtk.Box | None = None
         self._diff: ConfigDiffWidget | None = None
         self._diff_group: Adw.PreferencesGroup | None = None
@@ -107,6 +109,7 @@ class PendingChangesPage:
             "env_vars": ENV_VARS_ICON,
             "window_rules": WINDOW_RULES_ICON,
             "layer_rules": LAYER_RULES_ICON,
+            "layouts": LAYOUTS_ICON,
         }
         for g in schema.get_groups(window._schema):
             icon = g.get("icon")
@@ -125,14 +128,13 @@ class PendingChangesPage:
         self._summary_label.add_css_class("title-2")
         content_box.append(self._summary_label)
 
-        self._empty_state = Adw.StatusPage(
-            title="No pending changes",
+        self._empty_state = EmptyState(
+            title="No Pending Changes",
             description=(
-                "Edits made on any page will appear here so you can review them before saving."
+                "Edits made on any page will appear here for you to review before saving."
             ),
             icon_name="emblem-ok-symbolic",
         )
-        self._empty_state.set_vexpand(True)
         content_box.append(self._empty_state)
 
         self._groups_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
@@ -195,7 +197,7 @@ class PendingChangesPage:
         changes: list[PendingChange],
         groups_box: Gtk.Box,
         summary_label: Gtk.Label,
-        empty_state: Adw.StatusPage,
+        empty_state: EmptyState,
     ) -> None:
         clear_children(groups_box)
 
@@ -273,7 +275,9 @@ class PendingChangesPage:
     def _on_row_activated(self, _row: Adw.ActionRow, change: PendingChange) -> None:
         if not change.navigate_to:
             return
-        self._window.navigate(change.navigate_to)
+        # Pass the target key so navigate() can flip ViewSwitcher sub-tabs
+        # (e.g. Layouts → Dwindle) before we try to focus the option row.
+        self._window.navigate(change.navigate_to, option_key=change.target_key)
 
         # Highlight + focus the source option once the target page has had a
         # chance to render — same pattern the search-result navigation uses.

@@ -41,6 +41,7 @@ from hyprmod.pages.section import DragDropReorderMixin
 from hyprmod.ui import clear_children, make_inline_hint, make_page_layout
 from hyprmod.ui.app_picker import AppPickerDialog
 from hyprmod.ui.autostart_edit_dialog import AutostartEditDialog
+from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.row_actions import RowActions
 
 # ---------------------------------------------------------------------------
@@ -179,39 +180,21 @@ class AutostartPage(DragDropReorderMixin[ExecData]):
                 # the base class for the SOURCE_REMOVE rationale).
                 GLib.idle_add(self._grab_focus_once, target)
 
-    def _build_empty_state(self) -> Adw.StatusPage:
-        """Empty-state page with action buttons.
+    def _build_empty_state(self) -> EmptyState:
+        """Empty-state page with two action buttons.
 
-        Two actions: "Pick installed app" (opens the app picker
-        directly) and "Add custom command" (opens the edit dialog).
-        Surfaces both paths upfront so users don't have to discover
-        the picker hidden inside the edit dialog.
+        Surfaces both paths upfront so users don't have to discover the
+        picker hidden inside the edit dialog: "Pick from Installed Apps"
+        opens the app picker directly, "Custom Command…" opens the edit
+        dialog.
         """
-        empty = Adw.StatusPage(
+        return EmptyState(
             title="No Autostart Entries",
-            description=("Add programs that should launch automatically when Hyprland starts."),
+            description="Add programs that should launch automatically when Hyprland starts.",
             icon_name="media-playback-start-symbolic",
+            primary_action=("Pick from Installed Apps", self._on_quick_pick),
+            secondary_action=("Custom Command…", self._on_add),
         )
-
-        button_box = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=12,
-            halign=Gtk.Align.CENTER,
-        )
-
-        pick_btn = Gtk.Button(label="Pick from Installed Apps")
-        pick_btn.add_css_class("suggested-action")
-        pick_btn.add_css_class("pill")
-        pick_btn.connect("clicked", lambda _b: self._on_quick_pick())
-        button_box.append(pick_btn)
-
-        add_btn = Gtk.Button(label="Custom Command…")
-        add_btn.add_css_class("pill")
-        add_btn.connect("clicked", lambda _b: self._on_add())
-        button_box.append(add_btn)
-
-        empty.set_child(button_box)
-        return empty
 
     def _build_group(
         self, keyword: str, entries: list[tuple[int, ExecData]]

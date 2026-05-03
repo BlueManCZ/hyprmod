@@ -1,17 +1,16 @@
-"""Sidebar navigation pane with grouped rows, badges, and search entry."""
+"""Sidebar navigation pane with task-oriented categories and toggleable search."""
 
 from collections.abc import Callable
 
 from gi.repository import Adw, Gtk
 
-from hyprmod.ui.dna import DnaWidget
 from hyprmod.ui.icons import (
     AUTOSTART_ICON,
     BINDS_ICON,
     ENV_VARS_ICON,
     LAYER_RULES_ICON,
+    LAYOUTS_ICON,
     MONITORS_ICON,
-    PENDING_ICON,
     PROFILES_ICON,
     SETTINGS_ICON,
     WINDOW_RULES_ICON,
@@ -43,12 +42,25 @@ class SidebarRow(Adw.ActionRow):
 class Sidebar:
     """Builds and manages the sidebar navigation pane.
 
+    The sidebar is organised by user task rather than by ``hyprland.conf``
+    section: *Look & Feel*, *Input*, *Display*, *Window Management*,
+    *Startup*, *Advanced*. Profiles and Settings are pinned at the bottom;
+    Pending Changes lives in each page's header bar as a chip rather than
+    in the navigation list, so the badge is visible from anywhere.
+
+    The search entry hides by default and slides in below the header when
+    the toolbar's search button is toggled (or Ctrl+F is pressed). Keeps
+    the categories close to the top of the sidebar — searching is the
+    sometimes path, browsing is the everyday one.
+
     Parameters:
         on_page_selected: Called with the group_id when a sidebar row is selected.
         on_search_changed: Connected to the search entry's ``search-changed`` signal.
         on_search_activate: Connected to the search entry's ``activate`` signal.
-        on_search_stop: Connected to the search entry's ``stop-search`` signal.
-        on_search_dismissed: Called when the search toggle is deactivated (button or stop-search).
+        on_search_dismissed: Called when the search button is toggled off, the
+            entry's stop-search fires, or :meth:`clear_search` is invoked. The
+            window uses it to restore the previously visible page synchronously
+            (no need to wait on the 150 ms ``search-changed`` debounce).
     """
 
     def __init__(
@@ -57,7 +69,6 @@ class Sidebar:
         on_page_selected: Callable[[str], None],
         on_search_changed: Callable,
         on_search_activate: Callable,
-        on_search_stop: Callable,
         on_search_dismissed: Callable[[], None],
     ):
         self._on_page_selected = on_page_selected
@@ -66,17 +77,16 @@ class Sidebar:
         self._lists: list[Gtk.ListBox] = []
         self._sidebar_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        self._dna = DnaWidget(width=180, height=28)
-        self._dna.set_halign(Gtk.Align.CENTER)
-        self._dna.set_margin_top(4)
-        self._dna.set_margin_bottom(8)
-
-        # Search widgets — the window wires up the handlers
+        # Toggleable search: a button in the sidebar header controls the
+        # entry's visibility. The categories sit at the top of the
+        # sidebar by default and only get pushed down when the user
+        # actually wants to search.
         self.search_button = Gtk.ToggleButton(icon_name="edit-find-symbolic")
         self.search_button.set_tooltip_text("Search options (Ctrl+F)")
+        self.search_button.connect("toggled", self._on_toggle_search)
 
         self._search_entry = Gtk.SearchEntry()
-        self._search_entry.set_placeholder_text("Search options\u2026")
+        self._search_entry.set_placeholder_text("Search options…")
         self._search_entry.set_margin_top(8)
         self._search_entry.set_margin_start(8)
         self._search_entry.set_margin_end(8)
@@ -84,7 +94,9 @@ class Sidebar:
         self._search_entry.set_visible(False)
         self._search_entry.connect("search-changed", on_search_changed)
         self._search_entry.connect("activate", on_search_activate)
-        self._search_entry.connect("stop-search", on_search_stop)
+        # Esc inside the entry routes through clear_search, which toggles
+        # the button off and triggers the same dismiss path as a click.
+        self._search_entry.connect("stop-search", lambda *_: self.clear_search())
 
         # Build navigation page
         self.nav_page = self._build()
@@ -94,8 +106,6 @@ class Sidebar:
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
         header.set_show_title(True)
-
-        self.search_button.connect("toggled", self._on_toggle_search)
         header.pack_end(self.search_button)
         toolbar.add_top_bar(header)
 
@@ -107,18 +117,14 @@ class Sidebar:
         scrolled.set_vexpand(True)
         content.append(scrolled)
 
-        # Pinned list below the scrolled area (profiles + settings).
-        # Added to self._lists in populate() so select_first() picks schema rows.
+        # Pinned utilities below the scrolled area: Profiles and Settings.
+        # Pending Changes used to live here but is now a chip in every page
+        # header — it's status, not navigation, and the count belongs near
+        # the dirty banner where the user acts on it.
         self._pinned_list = Gtk.ListBox()
         self._pinned_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self._pinned_list.add_css_class("navigation-sidebar")
         self._pinned_list.connect("row-selected", self._on_row_selected)
-
-        pending_row = SidebarRow(group_id="pending", title="Pending Changes")
-        pending_row.set_activatable(True)
-        pending_row.add_prefix(Gtk.Image.new_from_icon_name(PENDING_ICON))
-        self._pinned_list.append(pending_row)
-        self._rows_by_id["pending"] = pending_row
 
         profiles_row = SidebarRow(group_id="profiles", title="Profiles")
         profiles_row.set_activatable(True)
@@ -134,14 +140,18 @@ class Sidebar:
 
         content.append(self._pinned_list)
 
-        content.append(self._dna)
-
         toolbar.set_content(content)
         nav_page.set_child(toolbar)
         return nav_page
 
     def populate(self, groups_by_id: dict[str, dict]) -> None:
-        """Add category headers and navigation rows for schema groups."""
+        """Add task-oriented category headers and navigation rows.
+
+        Schema groups whose options are entirely unavailable in the running
+        Hyprland version (filtered upstream by ``schema._drop_unavailable``)
+        are silently skipped, so e.g. ``scrolling`` won't appear on
+        Hyprland < 0.50.
+        """
 
         # Categories attach to the sidebar lazily on first row — so if every
         # schema group in a category was dropped by the version guard (e.g.
@@ -179,31 +189,38 @@ class Sidebar:
                 return
             add_row(listbox, group_id, group["label"], group.get("icon"))
 
-        appearance = new_category("Appearance")
-        add_schema_row(appearance, "general")
-        add_schema_row(appearance, "decoration")
-        add_schema_row(appearance, "animations")
+        look_and_feel = new_category("Look & Feel")
+        add_schema_row(look_and_feel, "general")
+        add_schema_row(look_and_feel, "decoration")
+        add_schema_row(look_and_feel, "animations")
+        add_schema_row(look_and_feel, "cursor")
 
-        input_display = new_category("Input & Display")
-        add_schema_row(input_display, "input")
-        add_schema_row(input_display, "cursor")
-        add_row(input_display, "binds", "Keybinds", BINDS_ICON)
-        add_schema_row(input_display, "gestures")
-        add_row(input_display, "monitors", "Monitors", MONITORS_ICON)
+        input_cat = new_category("Input")
+        add_row(input_cat, "binds", "Keybinds", BINDS_ICON)
+        add_schema_row(input_cat, "input")
+        add_schema_row(input_cat, "gestures")
 
-        layouts = new_category("Layouts")
-        add_schema_row(layouts, "dwindle")
-        add_schema_row(layouts, "master")
-        add_schema_row(layouts, "scrolling")
+        display = new_category("Display")
+        add_row(display, "monitors", "Monitors", MONITORS_ICON)
 
-        other = new_category("Other")
-        add_row(other, "autostart", "Autostart", AUTOSTART_ICON)
-        add_row(other, "env_vars", "Env Variables", ENV_VARS_ICON)
-        add_row(other, "window_rules", "Window Rules", WINDOW_RULES_ICON)
-        add_row(other, "layer_rules", "Layer Rules", LAYER_RULES_ICON)
-        add_schema_row(other, "xwayland")
-        add_schema_row(other, "ecosystem")
-        add_schema_row(other, "misc")
+        windowing = new_category("Window Management")
+        # Dwindle/Master/Scrolling are merged into a single Layouts page
+        # with a ViewSwitcher — see ``pages/layouts.py``. The schema groups
+        # are hidden via ``parent_page: "layouts"`` so they still
+        # contribute option keys to ``_key_to_group`` (for badges) and
+        # remain searchable.
+        add_row(windowing, "layouts", "Layouts", LAYOUTS_ICON)
+        add_row(windowing, "window_rules", "Window Rules", WINDOW_RULES_ICON)
+        add_row(windowing, "layer_rules", "Layer Rules", LAYER_RULES_ICON)
+
+        startup = new_category("Startup")
+        add_row(startup, "autostart", "Autostart", AUTOSTART_ICON)
+        add_row(startup, "env_vars", "Env Variables", ENV_VARS_ICON)
+
+        advanced = new_category("Advanced")
+        add_schema_row(advanced, "xwayland")
+        add_schema_row(advanced, "ecosystem")
+        add_schema_row(advanced, "misc")
 
         # Pinned list goes last so select_first() picks schema rows
         self._lists.append(self._pinned_list)
@@ -241,18 +258,35 @@ class Sidebar:
         for group_id, row in self._rows_by_id.items():
             row.set_badge_count(counts.get(group_id, 0))
 
-    def update_dna(self, values: dict) -> None:
-        """Update the DNA graphic from current live values."""
-        self._dna.set_values(values)
+    # -- Search --
 
-    # -- Search toggle --
+    def focus_search(self) -> None:
+        """Reveal and focus the search entry (used by Ctrl+F)."""
+        self.search_button.set_active(True)
 
-    def _on_toggle_search(self, *_args):
+    def clear_search(self) -> None:
+        """Hide the search entry and restore the previously visible page.
+
+        Routes through the toggle button so the entry stays in sync — the
+        ``toggled`` handler clears the text, hides the entry, and calls
+        ``on_search_dismissed`` synchronously. The synchronous dismiss
+        avoids waiting on the 150 ms ``search-changed`` debounce.
+        """
+        if self.search_button.get_active():
+            self.search_button.set_active(False)
+        else:
+            # Already inactive — call the dismiss callback directly so
+            # callers (e.g. clicking a search result) still get the
+            # page-restore opt-out path.
+            self._on_search_dismissed()
+
+    def _on_toggle_search(self, *_args) -> None:
         if self.search_button.get_active():
             self._search_entry.set_visible(True)
             self._search_entry.grab_focus()
         else:
-            self._search_entry.set_text("")
+            if self._search_entry.get_text():
+                self._search_entry.set_text("")
             self._search_entry.set_visible(False)
             self._on_search_dismissed()
 

@@ -27,6 +27,7 @@ from hyprmod.pages.binds import BindsPage
 from hyprmod.pages.cursor import CursorPage
 from hyprmod.pages.env_vars import EnvVarsPage
 from hyprmod.pages.layer_rules import LayerRulesPage
+from hyprmod.pages.layouts import LayoutsPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.pending import PendingChangesPage
 from hyprmod.pages.profiles import ProfilesPage
@@ -37,6 +38,7 @@ from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, ma
 from hyprmod.ui.about import build_about_dialog
 from hyprmod.ui.banner import DirtyBanner
 from hyprmod.ui.options import digits_for_step
+from hyprmod.ui.pending_chip import PendingChipGroup
 from hyprmod.ui.search import MIN_QUERY_LENGTH, SearchPage
 from hyprmod.ui.shortcuts import build_shortcuts_window
 from hyprmod.ui.sidebar import Sidebar
@@ -91,6 +93,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._env_vars_page: EnvVarsPage | None = None
         self._window_rules_page: WindowRulesPage | None = None
         self._layer_rules_page: LayerRulesPage | None = None
+        self._layouts_page: LayoutsPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
         self._pending_page: PendingChangesPage | None = None
@@ -251,10 +254,15 @@ class HyprModWindow(Adw.ApplicationWindow):
             on_page_selected=self._on_sidebar_selected,
             on_search_changed=self._on_search_changed,
             on_search_activate=self._on_search_activate,
-            on_search_stop=self._on_search_stop,
             on_search_dismissed=self._on_search_dismissed,
         )
         self._split_view.set_sidebar(self._sidebar.nav_page)
+
+        # Pending-changes chip lives in every page header (except the Pending
+        # Changes page itself); the group keeps every chip's count in sync.
+        self._pending_chips = PendingChipGroup(
+            on_click=lambda: self.show_page("pending"),
+        )
 
         self._search_page_builder = SearchPage(self._schema)
 
@@ -359,7 +367,12 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._search_page_builder.add_entries(CursorPage.get_search_entries())
 
         # Standalone pages (no dirty/undo wiring; built from ``self`` only).
+        # ``LayoutsPage`` is schema-driven but doesn't take the section-page
+        # constructor — it embeds Dwindle/Master/Scrolling option groups
+        # behind a ViewSwitcher, registering their option rows via
+        # ``build_schema_group_widgets`` during ``build()``.
         standalone_page_specs: list[tuple[type, str, str, str]] = [
+            (LayoutsPage, "_layouts_page", "layouts", "Layouts"),
             (ProfilesPage, "_profiles_page", "profiles", "Profiles"),
             (PendingChangesPage, "_pending_page", "pending", "Pending Changes"),
             (SettingsPage, "_settings_page", "settings", "Settings"),
@@ -367,7 +380,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         for cls, attr, slug, title in standalone_page_specs:
             page = cls(self)
             setattr(self, attr, page)
-            self._page_stack.add_named(page.build(header=self._make_page_header(title)), slug)
+            # The Pending Changes page header omits the pending chip — it
+            # would just be a no-op shortcut to the page the user is on.
+            with_chip = cls is not PendingChangesPage
+            header = self._make_page_header(title, with_pending_chip=with_chip)
+            self._page_stack.add_named(page.build(header=header), slug)
             self._page_titles[slug] = title
 
         return groups, groups_by_id
@@ -380,8 +397,14 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._page_stack.add_named(toolbar, "search")
         self._page_titles["search"] = "Search Results"
 
-    def _make_page_header(self, title: str) -> Adw.HeaderBar:
-        """Create a content page header with menu button."""
+    def _make_page_header(self, title: str, *, with_pending_chip: bool = True) -> Adw.HeaderBar:
+        """Create a content page header with menu button.
+
+        When *with_pending_chip* is true (the default), a fresh
+        :class:`PendingChip` from ``self._pending_chips`` is added before
+        the menu button. The Pending Changes page itself opts out — the
+        chip would just navigate back to the same page.
+        """
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.WindowTitle(title=title))
 
@@ -400,6 +423,12 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         menu_button.set_menu_model(menu)
         header.pack_end(menu_button)
+
+        if with_pending_chip:
+            # ``pack_end`` stacks right-to-left, so the chip appears to the
+            # left of the menu button — like a status indicator next to the
+            # primary action.
+            header.pack_end(self._pending_chips.new_chip())
 
         return header
 
@@ -526,13 +555,18 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._anim_details_box.set_visible(bool(state and state.live_value))
 
     def _update_dna(self):
-        """Update the sidebar DNA graphic from saved values."""
+        """Update the Profiles page DNA fingerprint from saved values."""
+        if self._profiles_page is None:
+            # Called during ``_register_state`` if the profiles page hasn't
+            # finished building yet — the page builds its DNA from current
+            # state on its own first paint, so we can safely skip.
+            return
         saved = {
             key: value_to_conf(s.saved_value)
             for key, s in self.app_state.options.items()
             if s.saved_managed
         }
-        self._sidebar.update_dna(saved)
+        self._profiles_page.update_dna(saved)
 
     def _notify_ui_change(self):
         """Update banner and sidebar badges after an option change."""
@@ -581,10 +615,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         if self._layer_rules_page and self._layer_rules_page.is_dirty():
             counts["layer_rules"] += self._layer_rules_page.pending_change_count()
 
-        # The pending-changes row totals everything else
+        # The pending-changes chip totals everything else
         counts["pending"] = sum(counts.values())
 
         self._sidebar.update_badges(counts)
+        self._pending_chips.set_count(counts["pending"])
 
     def _refresh_all_dependents(self):
         """Show/hide dependent options based on their parent's current value."""
@@ -681,15 +716,19 @@ class HyprModWindow(Adw.ApplicationWindow):
     # -- Search --
 
     def _on_show_search(self, *_args):
-        """Show and focus the search entry."""
-        self._sidebar.search_button.set_active(True)
+        """Focus the always-visible search entry (Ctrl+F)."""
+        self._sidebar.focus_search()
 
     def _on_hide_search(self, *_args):
-        """Hide search entry (triggers _on_search_dismissed via sidebar)."""
-        self._sidebar.search_button.set_active(False)
+        """Clear search and restore the previously visible page (Escape)."""
+        self._sidebar.clear_search()
 
     def _on_search_dismissed(self):
-        """Restore the previous page when search is closed."""
+        """Restore the previous page when search is cleared.
+
+        Invoked synchronously by ``Sidebar.clear_search()`` so the page
+        switch doesn't wait for the 150 ms ``search-changed`` debounce.
+        """
         if self._pre_search_page_id:
             self.show_page(self._pre_search_page_id)
             self._pre_search_page_id = None
@@ -723,16 +762,20 @@ class HyprModWindow(Adw.ApplicationWindow):
         if widget:
             widget.child_focus(Gtk.DirectionType.TAB_FORWARD)
 
-    def _on_search_stop(self, *_args):
-        self._on_hide_search()
-
     def _on_search_result_activate(self, group_id: str, option_key: str):
-        """Navigate to the group containing the selected search result."""
-        if group_id == "monitor_globals":
-            group_id = "monitors"
+        """Navigate to the group containing the selected search result.
+
+        ``group_id`` already accounts for ``parent_page`` redirects (see
+        ``SearchPage._index_options``), so hidden schema groups like
+        ``monitor_globals`` or ``dwindle`` arrive here as ``monitors`` /
+        ``layouts`` — no extra mapping needed.
+        """
+        # Clear the entry text and bypass the page-restore in
+        # ``_on_search_dismissed`` — the navigate() call below sends the
+        # user where they actually want to go.
         self._pre_search_page_id = None
-        self._sidebar.search_button.set_active(False)
-        self.navigate(group_id)
+        self._sidebar.clear_search()
+        self.navigate(group_id, option_key=option_key)
 
         opt_row = self._option_rows.get(option_key)
         if opt_row:
@@ -757,16 +800,25 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._page_stack.set_visible_child_name(gid)
             self._content_nav.set_title(self._page_titles[gid])
 
-    def navigate(self, group_id: str) -> None:
+    def navigate(self, group_id: str, *, option_key: str | None = None) -> None:
         """Switch to *group_id* and reflect it in the sidebar selection.
 
         ``show_page`` only swaps the visible content; the sidebar's selected
         row stays where it was (which looks broken when the navigation came
         from a non-sidebar source like search results or pending changes).
         Routing through one method keeps the two in sync.
+
+        When *option_key* is provided and the destination hosts a sub-view
+        (currently just the Layouts page's ViewSwitcher), the corresponding
+        sub-tab is selected before the caller focuses the option row —
+        otherwise the row lives in a hidden child and ``grab_focus`` is a
+        no-op.
         """
         self.show_page(group_id)
         self._sidebar.select_row(group_id)
+
+        if group_id == "layouts" and option_key and self._layouts_page is not None:
+            self._layouts_page.focus_layout_for_option(option_key)
 
     def _on_sidebar_selected(self, group_id: str):
         self.show_page(group_id)
