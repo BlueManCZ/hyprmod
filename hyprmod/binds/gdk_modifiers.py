@@ -35,3 +35,23 @@ def gdk_state_to_mods(state: Gdk.ModifierType) -> list[str]:
         if state & gdk_bit:
             mods.append(name)
     return mods
+
+
+def unshifted_keyval(
+    display: Gdk.Display,
+    keycode: int,
+    state: Gdk.ModifierType,
+    group: int,
+    fallback: int,
+) -> int:
+    """Resolve the keyval the keycode would produce without SHIFT.
+
+    Hyprland binds use the unshifted keysym when ``SHIFT`` is in the modifier
+    mask (e.g. ``SUPER SHIFT, 1`` rather than ``SUPER SHIFT, exclam`` on US,
+    or ``SUPER SHIFT, plus`` on Czech). GDK already applied shift to give us
+    the level-1+ symbol, so re-translate the keycode with shift cleared.
+    Other modifiers (AltGr/level3) are preserved so layered layouts still get
+    the right keysym.
+    """
+    ok, kv, *_ = display.translate_key(keycode, state & ~Gdk.ModifierType.SHIFT_MASK, group)
+    return kv if ok and kv else fallback

@@ -19,7 +19,11 @@ from hyprmod.binds.dispatchers import (
     categorize_dispatcher,
     format_action,
 )
-from hyprmod.binds.gdk_modifiers import MODIFIER_KEYVALS, gdk_state_to_mods
+from hyprmod.binds.gdk_modifiers import (
+    MODIFIER_KEYVALS,
+    gdk_state_to_mods,
+    unshifted_keyval,
+)
 from hyprmod.ui import clear_children, confirm
 
 log = logging.getLogger(__name__)
@@ -566,6 +570,14 @@ class BindEditDialog(Adw.Dialog):
             # via Shift+letter combos without losing capture.
             return True
         mods = gdk_state_to_mods(state)
+        if state & Gdk.ModifierType.SHIFT_MASK:
+            widget = controller.get_widget()
+            display = widget.get_display() if widget is not None else None
+            if display is not None:
+                kv = unshifted_keyval(display, keycode, state, controller.get_group(), keyval)
+                resolved = Gdk.keyval_name(kv)
+                if resolved and resolved not in MODIFIER_KEYVALS:
+                    key_name = resolved
         display_key = key_name.upper() if len(key_name) == 1 else key_name
         for mod_name, switch in self._mod_checks.items():
             switch.set_active(mod_name in mods)
