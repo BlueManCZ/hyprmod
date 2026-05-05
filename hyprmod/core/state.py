@@ -14,6 +14,29 @@ from hyprmod.core.undo import OptionChange
 log = logging.getLogger(__name__)
 
 
+def _normalize_gradient_string(value: str) -> str:
+    """Add ``0x`` prefix to bare ``AARRGGBB`` hex tokens in a gradient string.
+
+    Hyprland's IPC reports gradients as bare hex tokens followed by an angle
+    (``"eeb4e718 ee00ff99 45deg"``), but the config-file parser requires
+    ``0x``-prefixed colors. Defensive normalization here — once we depend on
+    ``hyprland-state>=0.2.1`` which fixes this at the IPC layer, this helper
+    becomes redundant and can be removed.
+    """
+    tokens = value.split()
+    if not tokens or not tokens[-1].endswith("deg"):
+        return value
+    out: list[str] = []
+    for token in tokens:
+        if token.endswith("deg") or token.startswith("0x") or "(" in token:
+            out.append(token)
+        elif len(token) == 8 and all(c in "0123456789abcdefABCDEF" for c in token):
+            out.append(f"0x{token}")
+        else:
+            out.append(token)
+    return " ".join(out)
+
+
 @dataclass(slots=True)
 class OptionState:
     """State of a single option being tracked by AppState."""
@@ -68,10 +91,8 @@ class AppState:
         live_value, available = self._hypr.get_live(key, default_value)
         if not available:
             live_value = saved_value if saved_value is not None else default_value
-        # Normalize gradient/color hex tokens so stored values always have the
-        # 0x prefix that Hyprland requires when values are sent back via IPC.
         if isinstance(live_value, str):
-            live_value = value_to_conf(live_value)
+            live_value = _normalize_gradient_string(live_value)
         live_value = self.normalize(key, live_value)
         managed = saved_value is not None
 
@@ -230,7 +251,7 @@ class AppState:
             if not available:
                 continue
             if isinstance(value, str):
-                value = value_to_conf(value)
+                value = _normalize_gradient_string(value)
             value = self.normalize(key, value)
             if value != state.live_value:
                 changed_keys.append(key)
