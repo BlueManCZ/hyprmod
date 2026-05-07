@@ -93,6 +93,7 @@ On first launch, HyprMod asks permission to add one `source` line to your `hyprl
 - Translations (gettext)
 
 **Later**
+- Lua config support — once Hyprland's Lua API stabilizes
 - Pages for the hypr* ecosystem — hyprpaper, hypridle, hyprlock
 - Plugin manager (`hyprpm`)
 - Command-line interface — `hyprmod profile apply <name>`
