@@ -14,6 +14,7 @@ from hyprland_monitors.monitors import (
     nearest_scale_index,
     parse_extras,
     parse_mode,
+    resolve_identifier,
     validate_mirror,
 )
 from hyprland_socket import HyprlandError
@@ -48,6 +49,7 @@ class MonitorsPage(SectionPage):
         "color_management",
         "mirror_of",
         "disabled",
+        "identify_by_description",
     )
 
     def __init__(self, window, on_dirty_changed=None, push_undo=None, saved_sections=None):
@@ -150,19 +152,27 @@ class MonitorsPage(SectionPage):
         # our config actually sets.
         self._clear_unmanaged_extras(saved)
 
-    @staticmethod
-    def _monitor_name_from_line(line: str) -> str:
-        """Extract the monitor name from a ``monitor = NAME, ...`` config line."""
+    def _resolve_line_to_port(self, line: str) -> str | None:
+        """Resolve a ``monitor = ...`` config line's identifier to a live connector name.
+
+        Handles both port-name (``DP-1``) and description (``desc:Acme Pixel``) forms.
+        Returns ``None`` when no currently-connected monitor matches.
+        """
         cleaned = line.removeprefix(config.KEYWORD_MONITOR).strip().removeprefix("=").strip()
-        return cleaned.split(",")[0].strip()
+        token = cleaned.split(",")[0].strip()
+        if not token:
+            return None
+        mon = resolve_identifier(token, self._monitors)
+        return mon.name if mon else None
 
     def _clear_unmanaged_extras(self, saved_lines: list[str]):
         """Clear IPC-leaked extras on managed monitors not in our config."""
         saved_extras: dict[str, set[str]] = {}
         for line in saved_lines:
-            extras = parse_extras(line)
-            name = self._monitor_name_from_line(line)
-            saved_extras[name] = set(extras.keys())
+            port = self._resolve_line_to_port(line)
+            if port is None:
+                continue
+            saved_extras[port] = set(parse_extras(line).keys())
         for mon in self._monitors:
             if not self._ownership.is_owned(mon.name):
                 continue
@@ -178,9 +188,29 @@ class MonitorsPage(SectionPage):
             si = nearest_scale_index(vs, mon.scale)
             mon.scale = vs[si][0]
 
-    @classmethod
-    def _managed_names_from_lines(cls, saved_lines: list[str]) -> set[str]:
-        return {cls._monitor_name_from_line(line) for line in saved_lines} - {""}
+    def _managed_names_from_lines(self, saved_lines: list[str]) -> set[str]:
+        ports = {self._resolve_line_to_port(line) for line in saved_lines}
+        ports.discard(None)
+        return ports  # type: ignore[return-value]
+
+    def _description_is_unique(self, mon: MonitorState) -> bool:
+        """Check if mon's truncated description is unique among connected monitors.
+
+        ``identify_by_description`` only works when no other connected monitor
+        starts with the same description prefix — otherwise Hyprland's first-match
+        rule could route the config to the wrong monitor.
+        """
+        if not mon.description:
+            return False
+        prefix = mon.description.split(",", 1)[0].strip()
+        if not prefix:
+            return False
+        for other in self._monitors:
+            if other.name == mon.name:
+                continue
+            if other.description.startswith(prefix):
+                return False
+        return True
 
     # -- UI building --
 
@@ -266,6 +296,7 @@ class MonitorsPage(SectionPage):
                 on_remove=self._remove_monitor,
                 caps=caps,  # type: ignore[arg-type]  # MonitorCapabilities is a TypedDict
                 mirror_choices=others,
+                desc_unique=self._description_is_unique(mon),
             )
             self._cards.append(card)
             self._content_box.append(card)
@@ -307,6 +338,8 @@ class MonitorsPage(SectionPage):
             self._preview.queue_draw()
 
     def _update_card_states(self):
+        if not self._cards:
+            return
         saved_by_name = {m.name: m for m in self._saved_monitors}
         for card, mon in zip(self._cards, self._monitors, strict=True):
             is_managed = self._ownership.is_owned(mon.name)
@@ -414,11 +447,13 @@ class MonitorsPage(SectionPage):
             return
         excluded = frozenset({config.gui_conf().resolve()})
         user_lines = doc.find_all(config.KEYWORD_MONITOR, exclude_sources=excluded)
-        # Find the last matching line (Hyprland semantics)
+        # Find the last matching line (Hyprland semantics).
+        # A line refers to ``mon`` if its leading token resolves to it — handles
+        # both port-name (``DP-1``) and ``desc:`` forms.
         parts: list[str] = []
         for kw in user_lines:
             p = [s.strip() for s in kw.value.split(",")]
-            if p and p[0] == mon.name:
+            if p and resolve_identifier(p[0], [mon]) is mon:
                 parts = p
         if len(parts) < 4:
             return
@@ -511,6 +546,12 @@ class MonitorsPage(SectionPage):
     def _on_refresh(self, _button):
         self._resync_timer.cancel()
         self._reload_monitors()
+        # Re-snapshot so dirty tracking compares against the freshly-read disk state.
+        # Without this, a monitor that moved to a different port resolves to a new
+        # connector name in ownership, but the old snapshot still has the old name —
+        # leading to a phantom "pending changes" indicator.
+        self._save_snapshot()
+        self._save_confirmed_snapshot()
         self._rebuild()
         self._on_monitors_changed()
 

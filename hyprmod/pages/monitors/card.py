@@ -35,6 +35,7 @@ class MonitorCard(Gtk.Box):
         on_remove=None,
         caps: dict | None = None,
         mirror_choices: list[tuple[str, str]] | None = None,
+        desc_unique: bool = False,
     ):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._monitor = monitor
@@ -43,6 +44,7 @@ class MonitorCard(Gtk.Box):
         self._on_remove = on_remove
         self._caps = caps or {"hdr": False, "ten_bit": False, "vrr": False}
         self._mirror_choices = mirror_choices or []
+        self._desc_unique = desc_unique
 
         connector = monitor.name
         make = monitor.make
@@ -242,6 +244,29 @@ class MonitorCard(Gtk.Box):
         if monitor.mirror_of is not None:
             pos_row.set_sensitive(False)
 
+        # Identify by description — survives moving the monitor between ports.
+        # Use ActionRow + manual Switch (rather than SwitchRow) so the warning
+        # icon sits *before* the switch and the switch stays flush right.
+        self._identify_row = Adw.ActionRow(title="Identify by description")
+        self._identify_warning = Gtk.Image.new_from_icon_name("dialog-warning-symbolic")
+        self._identify_warning.set_valign(Gtk.Align.CENTER)
+        self._identify_warning.add_css_class("warning")
+        self._identify_warning.set_tooltip_text(
+            "Another connected monitor matches the same description prefix — "
+            "Hyprland may apply this config to the wrong monitor"
+        )
+        self._identify_row.add_suffix(self._identify_warning)
+        self._identify_switch = Gtk.Switch(valign=Gtk.Align.CENTER)
+        self._identify_switch.set_active(monitor.identify_by_description)
+        self._identify_row.add_suffix(self._identify_switch)
+        self._identify_row.set_activatable_widget(self._identify_switch)
+        self._signals.connect(self._identify_switch, "notify::active", self._on_identify_changed)
+        self._attach_row_actions(
+            self._identify_row, lambda: self._discard_fields("identify_by_description")
+        )
+        self._advanced_expander.add_row(self._identify_row)
+        self._refresh_identify_state(monitor)
+
         # Optional extras (only shown if hardware supports them)
         self._cm_row = self._build_extra_combo(
             "hdr",
@@ -298,6 +323,7 @@ class MonitorCard(Gtk.Box):
             self._cm_row,
             self._bitdepth_row,
             self._vrr_row,
+            self._identify_row,
         ):
             if row is not None:
                 self._searchable.append((row.get_title(), row.get_subtitle() or ""))
@@ -306,6 +332,48 @@ class MonitorCard(Gtk.Box):
     def searchable_fields(self) -> list[tuple[str, str]]:
         """Return (title, subtitle) pairs for all visible rows."""
         return self._searchable
+
+    def _refresh_identify_state(self, mon: MonitorState):
+        """Update the identify-by-description row's subtitle, sensitivity, and warning.
+
+        Five possible states:
+
+        - description empty → row disabled, explains why
+        - description present, unique → row enabled, subtitle shows the match string
+        - description present, not unique, toggle off → row disabled, collision warning
+        - description present, not unique, toggle on → row stays enabled (so the
+          user can toggle it off), warning icon visible explaining the ambiguity
+        """
+        if not mon.description:
+            self._identify_row.set_subtitle("Description not reported by this monitor")
+            self._identify_row.set_sensitive(False)
+            self._identify_row.set_tooltip_text("This monitor does not report a description")
+            self._identify_warning.set_visible(False)
+            return
+
+        prefix = mon.description.split(",", 1)[0].strip()
+        on = mon.identify_by_description
+        match_text = f"Match by description: “{prefix}”"
+
+        if self._desc_unique:
+            self._identify_row.set_subtitle(match_text)
+            self._identify_row.set_sensitive(True)
+            self._identify_row.set_tooltip_text(None)
+            self._identify_warning.set_visible(False)
+        elif on:
+            self._identify_row.set_subtitle(
+                f"{match_text} — ambiguous, another monitor matches the same prefix"
+            )
+            self._identify_row.set_sensitive(True)
+            self._identify_row.set_tooltip_text(None)
+            self._identify_warning.set_visible(True)
+        else:
+            self._identify_row.set_subtitle(match_text)
+            self._identify_row.set_sensitive(False)
+            self._identify_row.set_tooltip_text(
+                "Another connected monitor shares the same description prefix"
+            )
+            self._identify_warning.set_visible(False)
 
     # -- Helpers --
 
@@ -388,6 +456,9 @@ class MonitorCard(Gtk.Box):
             self._mirror_row.set_selected(mirror_idx)
             self._pos_row.set_sensitive(mon.mirror_of is None and not mon.disabled)
 
+            self._identify_switch.set_active(mon.identify_by_description)
+            self._refresh_identify_state(mon)
+
             for i, m in enumerate(self._modes):
                 parsed = parse_mode(m)
                 if (
@@ -421,12 +492,13 @@ class MonitorCard(Gtk.Box):
                 self._cm_row,
                 self._bitdepth_row,
                 self._vrr_row,
+                self._identify_row,
             ):
                 if row is not None:
                     self._update_row(row, all_dirty, managed)
         else:
             mon = self._monitor
-            fields = [
+            fields: list[tuple[Gtk.Widget | None, bool]] = [
                 (
                     self._mode_row,
                     mon.width != baseline.width
@@ -437,24 +509,17 @@ class MonitorCard(Gtk.Box):
                 (self._transform_row, mon.transform != baseline.transform),
                 (self._pos_row, mon.x != baseline.x or mon.y != baseline.y),
                 (self._mirror_row, mon.mirror_of != baseline.mirror_of),
+                (self._cm_row, mon.color_management != baseline.color_management),
+                (self._bitdepth_row, mon.bit_depth != baseline.bit_depth),
+                (self._vrr_row, mon.vrr != baseline.vrr),
+                (
+                    self._identify_row,
+                    mon.identify_by_description != baseline.identify_by_description,
+                ),
             ]
-            if self._cm_row:
-                fields.append(
-                    (
-                        self._cm_row,
-                        mon.color_management != baseline.color_management,
-                    )
-                )
-            if self._bitdepth_row:
-                fields.append(
-                    (
-                        self._bitdepth_row,
-                        mon.bit_depth != baseline.bit_depth,
-                    )
-                )
-            if self._vrr_row:
-                fields.append((self._vrr_row, mon.vrr != baseline.vrr))
             for row, dirty in fields:
+                if row is None:
+                    continue
                 self._update_row(row, dirty, managed)
                 if dirty:
                     any_dirty = True
@@ -517,6 +582,9 @@ class MonitorCard(Gtk.Box):
         for row in self._setting_rows:
             row.set_sensitive(not disabled)
         self._emit({"disabled": disabled})
+
+    def _on_identify_changed(self, *_args):
+        self._emit({"identify_by_description": self._identify_switch.get_active()})
 
     # -- Per-field discard --
 
