@@ -1,5 +1,6 @@
 """Profile library page — save, load, duplicate, delete configuration profiles."""
 
+from datetime import datetime
 from html import escape as html_escape
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
@@ -16,56 +17,79 @@ def _option_summary(n: int) -> str:
     return f"{n} option{'s' if n != 1 else ''}"
 
 
-class ProfileCard(Gtk.Box):
-    """A card representing a single profile. Click to activate."""
+_MONTH_ABBR = (
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+)
 
-    def __init__(self, profile: dict, is_active: bool, on_action):
+
+def _format_changed_at(iso_str: str) -> str | None:
+    """Format an ISO timestamp as 'Changed May 3' (current year) or 'Changed May 3, 2024'."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str)
+    except ValueError:
+        return None
+    month = _MONTH_ABBR[dt.month - 1]
+    if dt.year == datetime.now().year:
+        return f"Changed {month} {dt.day}"
+    return f"Changed {month} {dt.day}, {dt.year}"
+
+
+def _profile_meta_text(profile: dict, values: dict) -> str:
+    parts = [_option_summary(len(values))]
+    changed = _format_changed_at(profile.get("modified_at", ""))
+    if changed:
+        parts.append(changed)
+    return " · ".join(parts)
+
+
+class ProfileCard(Gtk.Box):
+    """A card representing a saved (non-active) profile. Click to activate."""
+
+    def __init__(self, profile: dict, on_action):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.add_css_class("card")
-        if is_active:
-            self.add_css_class("profile-active")
 
         self._profile = profile
         self._on_action = on_action
 
         profile_values = profiles.read_profile_values(profile["id"])
 
-        # Make entire card clickable to activate
-        if not is_active:
-            click = Gtk.GestureClick()
-            click.connect("released", self._on_click)
-            self.add_controller(click)
-            self.set_cursor_from_name("pointer")
+        click = Gtk.GestureClick()
+        click.connect("released", self._on_click)
+        self.add_controller(click)
+        self.set_cursor_from_name("pointer")
 
-        # ── Single horizontal row ──
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         row.set_margin_top(14)
         row.set_margin_bottom(14)
         row.set_margin_start(16)
         row.set_margin_end(10)
 
-        # Left: text column
         text_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         text_col.set_hexpand(True)
         text_col.set_valign(Gtk.Align.CENTER)
 
         name = profile.get("name", "") or profile["id"]
-        name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         name_label = Gtk.Label(label=html_escape(name))
         name_label.set_xalign(0)
         name_label.add_css_class("heading")
         name_label.set_ellipsize(Pango.EllipsizeMode.END)
-        name_row.append(name_label)
+        text_col.append(name_label)
 
-        if is_active:
-            badge = Gtk.Label(label="Active")
-            badge.add_css_class("profile-badge-active")
-            badge.set_valign(Gtk.Align.CENTER)
-            name_row.append(badge)
-
-        text_col.append(name_row)
-
-        meta_label = Gtk.Label(label=_option_summary(len(profile_values)))
+        meta_label = Gtk.Label(label=_profile_meta_text(profile, profile_values))
         meta_label.set_xalign(0)
         meta_label.add_css_class("dim-label")
         meta_label.add_css_class("caption")
@@ -79,8 +103,7 @@ class ProfileCard(Gtk.Box):
         dna.set_valign(Gtk.Align.CENTER)
         row.append(dna)
 
-        # Menu button
-        menu_btn = self._build_menu_button(profile, is_active)
+        menu_btn = self._build_menu_button(profile)
         menu_btn.set_valign(Gtk.Align.CENTER)
         row.append(menu_btn)
 
@@ -93,15 +116,9 @@ class ProfileCard(Gtk.Box):
             return
         self._on_action("activate", self._profile["id"])
 
-    def _build_menu_button(self, profile: dict, is_active: bool) -> Gtk.MenuButton:
+    def _build_menu_button(self, profile: dict) -> Gtk.MenuButton:
         menu = Gio.Menu()
-
-        if not is_active:
-            menu.append("Activate", f"profile.activate::{profile['id']}")
-
-        if is_active:
-            menu.append("Update from current", f"profile.update::{profile['id']}")
-
+        menu.append("Activate", f"profile.activate::{profile['id']}")
         menu.append("Rename", f"profile.rename::{profile['id']}")
         menu.append("Duplicate", f"profile.duplicate::{profile['id']}")
 
@@ -130,10 +147,7 @@ class ProfilesPage:
         self._last_toast: Adw.Toast | None = None
         self._cached_profiles: list[dict] = []
         self._cached_active_id: str | None = None
-        # DNA widget for the "Current configuration" card. Built lazily in
-        # ``build()`` and kept across rebuilds so we can update its values
-        # without recreating the row.
-        self._current_dna: DnaWidget | None = None
+        self._hero_container: Gtk.Box | None = None
         self._profiles_box: Gtk.Box | None = None
 
     def build(self, header: Adw.HeaderBar | None = None) -> Adw.ToolbarView:
@@ -146,15 +160,12 @@ class ProfilesPage:
 
         toolbar_view, _, self._content_box, _ = make_page_layout(header=page_header, spacing=6)
 
-        # "Current configuration" card — moved here from the sidebar so the
-        # DNA fingerprint sits next to the profile list it's meant to be
-        # compared against. Built once and kept across rebuilds; only the
-        # DNA values change when the user saves.
-        self._content_box.append(self._build_current_config_card())
+        # Hero card depends on which profile is active, so it gets rebuilt
+        # on every ``rebuild()``. Wrap it in a stable container so we can
+        # clear/replace the hero independently of the saved-profile list.
+        self._hero_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._content_box.append(self._hero_container)
 
-        # Profiles get rebuilt on every change; isolate them in their own
-        # box so ``rebuild()`` can clear just this sub-container without
-        # nuking the current-config card above.
         self._profiles_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._content_box.append(self._profiles_box)
 
@@ -163,12 +174,64 @@ class ProfilesPage:
 
         return toolbar_view
 
-    def _build_current_config_card(self) -> Gtk.Widget:
-        """Build the always-present "Current configuration" header card."""
-        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        card.add_css_class("card")
-        card.set_margin_top(0)
-        card.set_margin_bottom(2)
+    # ── Hero builders ──
+
+    def _build_active_hero(self, profile: dict) -> Gtk.Widget:
+        """Hero card for the active profile — promoted out of the saved list."""
+        profile_id = profile["id"]
+        profile_values = profiles.read_profile_values(profile_id)
+
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        hero.add_css_class("card")
+        hero.add_css_class("profile-active")
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        row.set_margin_top(14)
+        row.set_margin_bottom(14)
+        row.set_margin_start(16)
+        row.set_margin_end(10)
+
+        text_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        text_col.set_hexpand(True)
+        text_col.set_valign(Gtk.Align.CENTER)
+
+        name = profile.get("name", "") or profile_id
+        name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        name_label = Gtk.Label(label=html_escape(name), xalign=0)
+        name_label.add_css_class("heading")
+        name_label.set_ellipsize(Pango.EllipsizeMode.END)
+        name_row.append(name_label)
+
+        badge = Gtk.Label(label="Active")
+        badge.add_css_class("profile-badge-active")
+        badge.set_valign(Gtk.Align.CENTER)
+        name_row.append(badge)
+        text_col.append(name_row)
+
+        meta_label = Gtk.Label(label=_profile_meta_text(profile, profile_values), xalign=0)
+        meta_label.add_css_class("dim-label")
+        meta_label.add_css_class("caption")
+        text_col.append(meta_label)
+
+        row.append(text_col)
+
+        dna = DnaWidget(width=180, height=28)
+        dna.set_values(profile_values)
+        dna.set_halign(Gtk.Align.END)
+        dna.set_valign(Gtk.Align.CENTER)
+        row.append(dna)
+
+        menu_btn = self._build_hero_menu_button(profile_id)
+        menu_btn.set_valign(Gtk.Align.CENTER)
+        row.append(menu_btn)
+
+        hero.append(row)
+        return hero
+
+    def _build_no_active_hero(self) -> Gtk.Widget:
+        """Hero shown when profiles exist but none is active."""
+        hero = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        hero.add_css_class("card")
 
         text_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         text_col.set_hexpand(True)
@@ -177,39 +240,52 @@ class ProfilesPage:
         text_col.set_margin_bottom(14)
         text_col.set_margin_start(16)
 
-        title = Gtk.Label(label="Current configuration", xalign=0)
+        title = Gtk.Label(label="No active profile", xalign=0)
         title.add_css_class("heading")
         text_col.append(title)
 
         subtitle = Gtk.Label(
-            label="Fingerprint of the values currently saved on disk",
+            label="Save your current configuration as a profile to track it",
             xalign=0,
         )
         subtitle.add_css_class("dim-label")
         subtitle.add_css_class("caption")
         text_col.append(subtitle)
 
-        card.append(text_col)
+        hero.append(text_col)
 
-        self._current_dna = DnaWidget(width=180, height=28)
-        self._current_dna.set_halign(Gtk.Align.END)
-        self._current_dna.set_valign(Gtk.Align.CENTER)
-        self._current_dna.set_margin_end(26)
-        card.append(self._current_dna)
+        save_btn = Gtk.Button(label="Save current")
+        save_btn.add_css_class("suggested-action")
+        save_btn.add_css_class("pill")
+        save_btn.set_valign(Gtk.Align.CENTER)
+        save_btn.set_margin_end(16)
+        save_btn.connect("clicked", self._on_save_current)
+        hero.append(save_btn)
 
-        return card
+        return hero
 
-    def update_dna(self, values: dict) -> None:
-        """Refresh the current-config DNA fingerprint."""
-        if self._current_dna is not None:
-            self._current_dna.set_values(values)
+    @staticmethod
+    def _build_hero_menu_button(profile_id: str) -> Gtk.MenuButton:
+        menu = Gio.Menu()
+        menu.append("Rename", f"profile.rename::{profile_id}")
+        menu.append("Duplicate", f"profile.duplicate::{profile_id}")
+
+        delete_section = Gio.Menu()
+        delete_section.append("Delete", f"profile.delete::{profile_id}")
+        menu.append_section(None, delete_section)
+
+        btn = Gtk.MenuButton()
+        btn.set_icon_name("view-more-symbolic")
+        btn.add_css_class("flat")
+        btn.add_css_class("circular")
+        btn.set_menu_model(menu)
+        return btn
 
     def _install_actions(self):
         group = Gio.SimpleActionGroup()
 
         for name, handler in [
             ("activate", self._action_activate),
-            ("update", self._action_update),
             ("rename", self._action_rename),
             ("duplicate", self._action_duplicate),
             ("delete", self._action_delete),
@@ -225,13 +301,6 @@ class ProfilesPage:
     def _action_activate(self, _action, param):
         profile_id = param.get_string()
         self._do_activate(profile_id)
-
-    def _action_update(self, _action, param):
-        profile_id = param.get_string()
-        self._window.save()
-        profiles.update(profile_id)
-        self.rebuild()
-        self._show_toast("Profile updated")
 
     def _action_rename(self, _action, param):
         profile_id = param.get_string()
@@ -289,11 +358,9 @@ class ProfilesPage:
     # ── Build ──
 
     def rebuild(self):
-        # Only clear the profiles sub-container — the current-config card
-        # at the top of ``_content_box`` is built once in ``build()`` and
-        # updated in place via ``update_dna()``.
-        if self._profiles_box is None:
+        if self._hero_container is None or self._profiles_box is None:
             return
+        clear_children(self._hero_container)
         clear_children(self._profiles_box)
 
         profile_list, active_id = profiles.list_profiles_and_active()
@@ -314,10 +381,26 @@ class ProfilesPage:
             )
             return
 
-        # Natural order — don't re-sort
-        for prof in profile_list:
-            is_active = prof["id"] == active_id
-            card = ProfileCard(prof, is_active=is_active, on_action=self._on_card_action)
+        active_profile = next((p for p in profile_list if p["id"] == active_id), None)
+        if active_profile is not None:
+            self._hero_container.append(self._build_active_hero(active_profile))
+        else:
+            self._hero_container.append(self._build_no_active_hero())
+
+        # Saved-profiles list excludes the active profile (it lives in the hero now).
+        other_profiles = [p for p in profile_list if p["id"] != active_id]
+        if not other_profiles:
+            return
+
+        heading = Gtk.Label(label="Saved profiles", xalign=0)
+        heading.add_css_class("heading")
+        heading.set_margin_start(4)
+        heading.set_margin_top(10)
+        heading.set_margin_bottom(2)
+        self._profiles_box.append(heading)
+
+        for prof in other_profiles:
+            card = ProfileCard(prof, on_action=self._on_card_action)
             self._profiles_box.append(card)
 
     def _on_card_action(self, action: str, profile_id: str):

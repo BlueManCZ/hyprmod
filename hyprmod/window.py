@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
-from hyprland_config import coerce_config_value, value_to_conf
+from hyprland_config import coerce_config_value
 from hyprland_socket import HyprlandError
 from hyprland_state import ANIM_LOOKUP, HyprlandState
 
@@ -99,6 +99,9 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._pending_page: PendingChangesPage | None = None
         self._pre_search_page_id: str | None = None
         self._search_results: list | None = None
+        # Populated at the end of _build_ui() once section pages exist;
+        # initialized empty so has_dirty() is safe during initial builds.
+        self._section_pages: list[SectionPage] = []
 
         self._load_css()
         self._build_ui()
@@ -272,7 +275,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._build_search_page()
 
         # Cache the list of section pages (animations, monitors, binds) — stable after build
-        self._section_pages: list[SectionPage] = [
+        self._section_pages = [
             p
             for p in (
                 self._animations_page,
@@ -309,7 +312,6 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         self._banner = DirtyBanner(
             on_save=self._on_save,
-            on_save_update=self._on_save_update_profile,
             on_save_without_update=self._on_save_without_update_profile,
             on_save_as_new=self._on_save_as_new_profile,
             on_discard=self._on_discard,
@@ -547,26 +549,11 @@ class HyprModWindow(Adw.ApplicationWindow):
                 opt_row.set_value_silent(state.live_value)
 
         self.app_state.on_change(self._on_state_changed)
-        self._update_dna()
 
         # Set initial visibility of animation details based on animations:enabled
         if self._anim_details_box is not None:
             state = self.app_state.get(ANIMATIONS_ENABLED)
             self._anim_details_box.set_visible(bool(state and state.live_value))
-
-    def _update_dna(self):
-        """Update the Profiles page DNA fingerprint from saved values."""
-        if self._profiles_page is None:
-            # Called during ``_register_state`` if the profiles page hasn't
-            # finished building yet — the page builds its DNA from current
-            # state on its own first paint, so we can safely skip.
-            return
-        saved = {
-            key: value_to_conf(s.saved_value)
-            for key, s in self.app_state.options.items()
-            if s.saved_managed
-        }
-        self._profiles_page.update_dna(saved)
 
     def _notify_ui_change(self):
         """Update banner and sidebar badges after an option change."""
@@ -1092,20 +1079,28 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         return sections
 
-    def _perform_save(self):
+    def _perform_save(self, *, update_active_profile: bool = True):
         config.write_all(self.app_state.get_all_live_values(), self._collect_save_sections())
         self.app_state.mark_saved()
         self.hypr.clear_pending()
         for section in self._section_pages:
             section.mark_saved()
         self._undo.clear()
-        self._update_dna()
         self._refresh_all_modified_indicators()
         self._schedule_pending_refresh()
+        # Keep the active profile in sync with disk on every save. Callers
+        # that want the saved state to intentionally diverge from the
+        # active profile pass ``update_active_profile=False``.
+        if update_active_profile:
+            active_id = profiles.get_active_id()
+            if active_id is not None:
+                profiles.update(active_id)
+        if self._profiles_page is not None:
+            self._profiles_page.rebuild()
 
-    def save(self):
+    def save(self, *, update_active_profile: bool = True):
         """Public save API — performs save and shows banner animation."""
-        self._perform_save()
+        self._perform_save(update_active_profile=update_active_profile)
         self._banner.show_saved()
 
     def reload_after_profile(self):
@@ -1157,7 +1152,6 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._layer_rules_page.reload_from_saved(self._saved_sections)
 
         self._undo.clear()
-        self._update_dna()
         self._banner.hide()
 
     def _update_managed_flags(self):
@@ -1188,26 +1182,13 @@ class HyprModWindow(Adw.ApplicationWindow):
         self.add_toast(toast)
 
     def _on_save(self, *_args):
-        # Entry point for Ctrl+S — the banner's primary button already routes
-        # to _on_save_update_profile when a profile is active, but the keyboard
-        # shortcut bypasses the banner so we need the check here too.
-        if profiles.get_active_id() is not None:
-            self._on_save_update_profile()
-        else:
-            self.save()
-
-    def _on_save_update_profile(self, *_args):
-        """Save config and update the active profile to match."""
+        # Save now keeps the active profile in sync internally; no need
+        # to branch on whether a profile is active.
         self.save()
-        active_id = profiles.get_active_id()
-        if active_id:
-            profiles.update(active_id)
-        if self._profiles_page:
-            self._profiles_page.rebuild()
 
     def _on_save_without_update_profile(self, *_args):
         """Save config but deactivate the profile (it no longer matches)."""
-        self.save()
+        self.save(update_active_profile=False)
         profiles.set_active_id(None)
         if self._profiles_page:
             self._profiles_page.rebuild()

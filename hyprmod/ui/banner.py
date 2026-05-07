@@ -7,20 +7,12 @@ from hyprmod.ui.timer import Timer
 
 
 class DirtyBanner(Gtk.Revealer):
-    """A slide-up banner shown when there are unsaved changes.
-
-    Signals / callbacks:
-        on_save:              called for a plain save (no active profile)
-        on_save_update:       called to save and update the active profile
-        on_save_without_update: called to save and deactivate the profile
-        on_discard:           called when the user clicks "Discard"
-    """
+    """A slide-up banner shown when there are unsaved changes."""
 
     def __init__(
         self,
         *,
         on_save=None,
-        on_save_update=None,
         on_save_without_update=None,
         on_save_as_new=None,
         on_discard=None,
@@ -30,7 +22,6 @@ class DirtyBanner(Gtk.Revealer):
         self.set_reveal_child(False)
 
         self._on_save = on_save
-        self._on_save_update = on_save_update
         self._on_save_without_update = on_save_without_update
         self._on_save_as_new = on_save_as_new
         self._on_discard = on_discard
@@ -118,15 +109,10 @@ class DirtyBanner(Gtk.Revealer):
             group.add_action(action)
         self._save_area.insert_action_group("banner", group)
 
-        # Primary click: update profile if active, plain save otherwise
-        if self._has_active_profile:
-            primary = self._on_save_clicked_update
-        else:
-            primary = self._on_save_clicked
         split = Adw.SplitButton(label="Save now")
         split.add_css_class("suggested-action")
         split.set_menu_model(menu)
-        split.connect("clicked", primary)
+        split.connect("clicked", self._on_save_clicked)
         self._save_widget = split
 
         self._save_area.append(self._save_widget)
@@ -134,10 +120,6 @@ class DirtyBanner(Gtk.Revealer):
     def _on_save_clicked(self, *_args):
         if self._on_save:
             self._on_save()
-
-    def _on_save_clicked_update(self, *_args):
-        if self._on_save_update:
-            self._on_save_update()
 
     def _on_save_clicked_without_update(self, *_args):
         if self._on_save_without_update:
