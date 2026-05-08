@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Per-monitor "Identify by description" toggle — emits `monitor=desc:…` instead of `monitor=DP-1, …` so the saved configuration follows the physical monitor across port changes
+- Per-monitor "Identify by description" toggle — emits `monitor=desc:…` instead of `monitor=DP-1, …` so the saved configuration follows the physical monitor across port changes (#26)
+
+### Changed
+
+- Bind dialog's Manual Edit modifier picker is a compact two-row chip strip instead of stacked switch rows
+
+### Fixed
+
+- Keybinds using the Hyper modifier (and `CAPS`/`MOD2`/`MOD3`/`MOD5`) are now displayed and recorded correctly — previously `Caps Lock + G` under `caps:hyper` rendered as `+ G` and Record captured only `G` (#27)
 
 ## [0.2.0] - 2026-05-07
 

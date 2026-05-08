@@ -4,6 +4,7 @@ import subprocess
 from typing import NamedTuple, cast
 
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
+from hyprland_socket import HyprlandError, set_cursor
 
 from hyprmod.core import config
 from hyprmod.core.cursor_themes import CursorTheme, discover
@@ -285,10 +286,13 @@ class CursorPage(SectionPage):
     def _apply_now(self) -> bool:
         if self._current.theme == _SYSTEM_DEFAULT:
             return GLib.SOURCE_REMOVE
-        theme, size = self._current.theme, str(self._current.size)
-        _run("hyprctl", "setcursor", theme, size)
+        theme, size = self._current.theme, self._current.size
+        try:
+            set_cursor(theme, size)
+        except HyprlandError:
+            pass
         _run("gsettings", "set", "org.gnome.desktop.interface", "cursor-theme", theme)
-        _run("gsettings", "set", "org.gnome.desktop.interface", "cursor-size", size)
+        _run("gsettings", "set", "org.gnome.desktop.interface", "cursor-size", str(size))
         # Hide then restore this window's cursor so Hyprland sees a shape
         # change and repaints with the just-applied theme.
         self._window.set_cursor(Gdk.Cursor.new_from_name("none", None))

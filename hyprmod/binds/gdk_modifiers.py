@@ -1,40 +1,38 @@
-"""GTK-dependent keybind helpers — GDK modifier mapping and key capture utilities."""
+"""GTK-dependent keybind helpers — modifier-keysym tracking and key capture utilities."""
 
 from gi.repository import Gdk
 
-# GdkModifierType -> our modifier names
-GDK_MOD_MAP = {
-    Gdk.ModifierType.SUPER_MASK: "SUPER",
-    Gdk.ModifierType.SHIFT_MASK: "SHIFT",
-    Gdk.ModifierType.CONTROL_MASK: "CTRL",
-    Gdk.ModifierType.ALT_MASK: "ALT",
+# Hyprland modifier names mapped to the X11/Wayland keysyms that produce them.
+#
+# Tracking pressed keysyms is more reliable than reading GDK's modifier
+# bitmask: the bitmask depends on the current keymap defining the right
+# virtual modifier (e.g. ``Hyper``), which Wayland compositors and GTK do
+# not always agree on — a user with ``caps:hyper`` may press Caps and never
+# see ``HYPER_MASK`` in the event state. The keysym a key produces is
+# unambiguous and matches what Hyprland resolves binds against.
+MOD_NAME_TO_KEYSYMS: dict[str, frozenset[str]] = {
+    "SUPER": frozenset({"Super_L", "Super_R"}),
+    "SHIFT": frozenset({"Shift_L", "Shift_R"}),
+    "CTRL": frozenset({"Control_L", "Control_R"}),
+    "ALT": frozenset({"Alt_L", "Alt_R", "Meta_L", "Meta_R"}),
+    "MOD3": frozenset({"Hyper_L", "Hyper_R"}),
+    "MOD5": frozenset({"ISO_Level3_Shift"}),
 }
 
-# Keys that are modifier-only (should not be recorded as the "key" part)
-MODIFIER_KEYVALS = {
-    "Super_L",
-    "Super_R",
-    "Shift_L",
-    "Shift_R",
-    "Control_L",
-    "Control_R",
-    "Alt_L",
-    "Alt_R",
-    "Meta_L",
-    "Meta_R",
-    "Hyper_L",
-    "Hyper_R",
-    "ISO_Level3_Shift",
-}
+# Flat set of every keysym that counts as a modifier — used to skip
+# modifier-only presses when capturing the bind's "key" part.
+MODIFIER_KEYVALS: frozenset[str] = frozenset(
+    ks for keysyms in MOD_NAME_TO_KEYSYMS.values() for ks in keysyms
+)
 
 
-def gdk_state_to_mods(state: Gdk.ModifierType) -> list[str]:
-    """Extract modifier names from GdkModifierType bitmask."""
-    mods = []
-    for gdk_bit, name in GDK_MOD_MAP.items():
-        if state & gdk_bit:
-            mods.append(name)
-    return mods
+def keysyms_to_mods(held: set[str]) -> list[str]:
+    """Return canonical Hyprland modifier names for the held modifier keysyms.
+
+    Result order follows ``MOD_NAME_TO_KEYSYMS`` insertion order so the
+    capture preview reads consistently.
+    """
+    return [name for name, ks in MOD_NAME_TO_KEYSYMS.items() if held & ks]
 
 
 def unshifted_keyval(

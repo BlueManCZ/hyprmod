@@ -21,7 +21,7 @@ from hyprmod.binds.dispatchers import (
 )
 from hyprmod.binds.gdk_modifiers import (
     MODIFIER_KEYVALS,
-    gdk_state_to_mods,
+    keysyms_to_mods,
     unshifted_keyval,
 )
 from hyprmod.ui import clear_children, confirm
@@ -235,6 +235,10 @@ class BindEditDialog(Adw.Dialog):
         self._mouse_gesture = None
         self._focus_handler = None
         self._current_dispatcher_keys: list[str] = []
+        # Modifier keysyms currently held during capture. Tracked via
+        # key-pressed/key-released so we don't have to trust GDK's
+        # bitmask translation for exotic modifiers like Hyper.
+        self._held_modifiers: set[str] = set()
 
         # Trigger mode: ``"mouse"`` for ``bindm`` (mouse drag), else ``"key"``.
         # When opening from the "Mouse Button" category's add button, default
@@ -414,13 +418,37 @@ class BindEditDialog(Adw.Dialog):
         group.add(self._capture_row)
 
         manual_expander = Adw.ExpanderRow(title="Manual Edit")
+
+        # Compact modifier picker: two linked toggle-button strips — common
+        # modifiers on top (SUPER/SHIFT/CTRL/ALT), the rarer ones below
+        # (CAPS/MOD2/MOD3/MOD5). One single 8-button row overflowed the
+        # dialog width; the eight-row ``Adw.SwitchRow`` stack it replaced
+        # was even worse vertically.
         self._mod_checks = {}
-        for mod_name in MOD_BITS:
-            row = Adw.SwitchRow(title=mod_name)
-            row.set_active(mod_name in current_mods)
-            row.connect("notify::active", self._on_manual_mod_changed)
-            self._mod_checks[mod_name] = row
-            manual_expander.add_row(row)
+        mod_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        mod_container.set_halign(Gtk.Align.CENTER)
+        mod_container.set_margin_top(8)
+        mod_container.set_margin_bottom(8)
+
+        mod_names = list(MOD_BITS)
+        for group_names in (mod_names[:4], mod_names[4:]):
+            row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            row_box.add_css_class("linked")
+            row_box.set_halign(Gtk.Align.CENTER)
+            for mod_name in group_names:
+                btn = Gtk.ToggleButton(label=mod_name)
+                btn.set_active(mod_name in current_mods)
+                btn.connect("toggled", self._on_manual_mod_changed)
+                self._mod_checks[mod_name] = btn
+                row_box.append(btn)
+            mod_container.append(row_box)
+
+        mod_picker_row = Gtk.ListBoxRow()
+        mod_picker_row.set_activatable(False)
+        mod_picker_row.set_selectable(False)
+        mod_picker_row.set_focusable(False)
+        mod_picker_row.set_child(mod_container)
+        manual_expander.add_row(mod_picker_row)
 
         # Key text entry (visible when trigger mode is "key").
         self._key_entry = Adw.EntryRow(title="Key")
@@ -494,9 +522,11 @@ class BindEditDialog(Adw.Dialog):
         # Key controller is active in both modes: in mouse mode it still
         # handles Escape (cancel) and modifier-only presses (preview), so
         # the user can hold SUPER and then click to record SUPER + click.
+        self._held_modifiers.clear()
         self._key_controller = Gtk.EventControllerKey.new()
         self._key_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         self._key_controller.connect("key-pressed", self._on_key_captured)
+        self._key_controller.connect("key-released", self._on_key_released)
         self._capture_btn.add_controller(self._key_controller)
         self._capture_btn.grab_focus()
 
@@ -536,9 +566,20 @@ class BindEditDialog(Adw.Dialog):
             self._stop_capture()
 
     def _register_capture_submap(self):
+        # The sentinel bind exists only so Hyprland will accept the submap
+        # (it refuses to enter a submap with no binds — "submap doesn't
+        # exist"). XF86LaunchA is a multimedia keysym that's absent from
+        # virtually every keyboard, so it never matches and never fires.
+        #
+        # We deliberately don't use ``bind = , catchall, pass,``: that
+        # catches modifier-only key events (e.g. ``Hyper_L`` from
+        # ``caps:hyper``) and consumes them, so the focused client never
+        # sees them. With only the sentinel, unmatched keys — including
+        # modifier presses — pass through to the focused client by
+        # default, which is exactly what the keysym tracker needs.
         try:
             self._window.hypr.keyword("submap", "hyprmod_capture")
-            self._window.hypr.keyword("bind", ", catchall, pass,")
+            self._window.hypr.keyword("bind", ", XF86LaunchA, pass,")
             self._window.hypr.keyword("submap", "reset")
         except HyprlandError as e:
             self._window.show_toast(f"Capture setup failed — {e}", timeout=5)
@@ -558,18 +599,18 @@ class BindEditDialog(Adw.Dialog):
             self._stop_capture()
             return True
         if key_name in MODIFIER_KEYVALS:
-            # Modifier-only press updates the live preview in either mode.
-            mods = gdk_state_to_mods(state)
-            preview_parts = [m.upper() for m in mods]
-            preview_parts.append("click…" if self._is_mouse_mode else "...")
-            self._capture_label.set_label(" + ".join(preview_parts))
+            # Modifier-only press: track it and refresh the live preview in
+            # either mode. Tracking from the press event (not the bitmask)
+            # makes the preview accurate for the very first modifier too.
+            self._held_modifiers.add(key_name)
+            self._update_capture_preview()
             return True
         if self._is_mouse_mode:
             # Real keys are not valid input while recording a mouse drag —
             # but we let it through so the user can keep typing modifiers
             # via Shift+letter combos without losing capture.
             return True
-        mods = gdk_state_to_mods(state)
+        mods = keysyms_to_mods(self._held_modifiers)
         if state & Gdk.ModifierType.SHIFT_MASK:
             widget = controller.get_widget()
             display = widget.get_display() if widget is not None else None
@@ -586,6 +627,21 @@ class BindEditDialog(Adw.Dialog):
         self._stop_capture()
         return True
 
+    def _on_key_released(self, _controller, keyval, _keycode, _state):
+        key_name = Gdk.keyval_name(keyval)
+        if key_name in MODIFIER_KEYVALS:
+            self._held_modifiers.discard(key_name)
+            if self._capturing:
+                self._update_capture_preview()
+        return False
+
+    def _update_capture_preview(self) -> None:
+        """Refresh the capture label with currently-held modifiers + placeholder."""
+        mods = keysyms_to_mods(self._held_modifiers)
+        preview_parts = [m.upper() for m in mods]
+        preview_parts.append("click…" if self._is_mouse_mode else "...")
+        self._capture_label.set_label(" + ".join(preview_parts))
+
     def _on_mouse_captured(self, gesture, _n_press, _x, _y):
         if not self._capturing or not self._is_mouse_mode:
             return
@@ -593,9 +649,7 @@ class BindEditDialog(Adw.Dialog):
         mouse_key = GDK_BUTTON_TO_MOUSE_KEY.get(button)
         if mouse_key is None:
             return
-        event = gesture.get_current_event()
-        state = event.get_modifier_state() if event else Gdk.ModifierType(0)
-        mods = gdk_state_to_mods(state)
+        mods = keysyms_to_mods(self._held_modifiers)
         for mod_name, switch in self._mod_checks.items():
             switch.set_active(mod_name in mods)
         self._set_mouse_key(mouse_key)
