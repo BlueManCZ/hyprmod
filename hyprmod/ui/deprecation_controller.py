@@ -6,6 +6,7 @@ post-apply cleanup (toast, cache invalidation, dismissed-state). Keeps
 window holds an instance and calls a few small entry points.
 """
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from gi.repository import Gio
@@ -37,10 +38,14 @@ class DeprecationController:
         settings: Gio.Settings | None,
         *,
         show_toast: ShowToast,
+        get_hyprland_version: Callable[[], str | None] | None = None,
     ):
         self._window = window
         self._settings = settings
         self._show_toast = show_toast
+        # Read live each scan so the controller picks up reconnects to a
+        # different Hyprland (rare in practice but cheap to support).
+        self._get_hyprland_version = get_hyprland_version
         self._action: Gio.SimpleAction | None = None
         # Cached so dismissal can compare against the live scan without
         # re-running it on every banner-visibility check.
@@ -73,6 +78,7 @@ class DeprecationController:
             self._window,
             managed_path=config.managed_path(),
             user_root_path=default_hyprlang_entrypoint(),
+            hyprland_version=self._current_version(),
             on_done=self._on_dialog_done,
         )
 
@@ -88,7 +94,13 @@ class DeprecationController:
         return deprecations.scan(
             managed_path=config.managed_path(),
             user_root_path=default_hyprlang_entrypoint(),
+            hyprland_version=self._current_version(),
         )
+
+    def _current_version(self) -> str | None:
+        if self._get_hyprland_version is None:
+            return None
+        return self._get_hyprland_version()
 
     def _should_offer(self, scan: deprecations.ScanResult) -> bool:
         """True when fixable deprecations exist and the user hasn't dismissed this exact set."""

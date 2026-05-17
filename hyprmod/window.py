@@ -262,11 +262,14 @@ class HyprModWindow(Adw.ApplicationWindow):
 
         # Deprecation assistant: scans the managed file + the user's main
         # hyprland.conf for fixable deprecated syntax and offers a guided
-        # apply with backup.
+        # apply with backup. The version getter lets the scan ignore rules
+        # whose ``version_deprecated`` is newer than the running Hyprland —
+        # those deprecations haven't taken effect for this user yet.
         self._deprecations = DeprecationController(
             self,
             self._settings,
             show_toast=self.show_toast,
+            get_hyprland_version=lambda: self.hypr.version,
         )
         self._deprecations.install_action(self)
 
@@ -1100,7 +1103,11 @@ class HyprModWindow(Adw.ApplicationWindow):
     def _perform_save(self, *, update_active_profile: bool = True):
         # ``write_all`` invalidates ``config.read_cached`` internally, so any
         # subsequent ``saved_sections`` access reflects what we just wrote.
-        config.write_all(self.app_state.get_all_live_values(), self.collect_save_sections())
+        config.write_all(
+            self.app_state.get_all_live_values(),
+            self.collect_save_sections(),
+            hyprland_version=self.hypr.version,
+        )
         self.app_state.mark_saved()
         self.hypr.clear_pending()
         for section in self._section_pages:

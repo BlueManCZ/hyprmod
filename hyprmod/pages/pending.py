@@ -317,6 +317,7 @@ class PendingChangesPage:
         return config.to_managed_text(
             win.app_state.get_all_live_values(),
             win.collect_save_sections(),
+            hyprland_version=win.hypr.version,
         )
 
     # ── Change collection ──

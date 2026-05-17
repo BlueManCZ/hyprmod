@@ -480,7 +480,7 @@ def _build_document(values: dict[str, str], sections: ConfigSections) -> Documen
     return doc
 
 
-def _log_deprecations(doc: Document) -> None:
+def _log_deprecations(doc: Document, *, hyprland_version: str | None = None) -> None:
     """Log any deprecated syntax in *doc* without mutating it.
 
     Save-side rewriting is intentionally not performed here — the schema
@@ -489,19 +489,33 @@ def _log_deprecations(doc: Document) -> None:
     and a buggy rename rule in hyprland-config (see GitHub issue #34) can
     otherwise corrupt valid output. Persistent migrations are routed
     through the user-confirmed flow in :mod:`hyprmod.core.deprecations`.
+
+    *hyprland_version* gates rules to those that have actually taken
+    effect for the running Hyprland — without it, a 0.49 install would
+    log "windowrulev2 was deprecated in 0.53" on every save.
     """
-    for d in check_deprecated(doc):
+    for d in check_deprecated(doc, hyprland_version=hyprland_version):
         log.info("deprecated syntax in outgoing config: %s", d)
 
 
-def build_content(values: dict[str, str], sections: ConfigSections) -> str:
+def build_content(
+    values: dict[str, str],
+    sections: ConfigSections,
+    *,
+    hyprland_version: str | None = None,
+) -> str:
     """Build the Hyprlang-format text for the next save."""
     doc = _build_document(values, sections)
-    _log_deprecations(doc)
+    _log_deprecations(doc, hyprland_version=hyprland_version)
     return serialize_hyprlang(doc)
 
 
-def to_managed_text(values: dict[str, str], sections: ConfigSections) -> str:
+def to_managed_text(
+    values: dict[str, str],
+    sections: ConfigSections,
+    *,
+    hyprland_version: str | None = None,
+) -> str:
     """Build the next-save content in the format that hits disk.
 
     Returns Hyprlang text in Hyprlang mode, Lua text in Lua mode. Used by
@@ -514,11 +528,19 @@ def to_managed_text(values: dict[str, str], sections: ConfigSections) -> str:
     just be noise on every save.
     """
     doc = _build_document(values, sections)
-    _log_deprecations(doc)
+    _log_deprecations(doc, hyprland_version=hyprland_version)
     return serialize_any(doc, managed_path(), emit_migration_markers=False)
 
 
-def write_all(values: dict[str, str], sections: ConfigSections) -> None:
+def write_all(
+    values: dict[str, str],
+    sections: ConfigSections,
+    *,
+    hyprland_version: str | None = None,
+) -> None:
     """Write the managed file in the active format (Hyprlang or Lua)."""
-    atomic_write(managed_path(), to_managed_text(values, sections))
+    atomic_write(
+        managed_path(),
+        to_managed_text(values, sections, hyprland_version=hyprland_version),
+    )
     invalidate_cache()

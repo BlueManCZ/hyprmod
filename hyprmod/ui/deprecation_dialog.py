@@ -24,11 +24,13 @@ class DeprecationDialog(SingletonDialogMixin, Adw.Dialog):
         *,
         managed_path: Path,
         user_root_path: Path,
+        hyprland_version: str | None = None,
         on_done: Callable[[list[deprecations.ApplyResult]], None] | None = None,
     ) -> None:
         super().__init__()
         self._managed_path = managed_path
         self._user_root_path = user_root_path
+        self._hyprland_version = hyprland_version
         self._on_done = on_done
         self._scan: deprecations.ScanResult | None = None
         self._checkboxes: dict[Path, Gtk.CheckButton] = {}
@@ -75,6 +77,7 @@ class DeprecationDialog(SingletonDialogMixin, Adw.Dialog):
         scan = deprecations.scan(
             managed_path=self._managed_path,
             user_root_path=self._user_root_path,
+            hyprland_version=self._hyprland_version,
         )
         self._scan = scan
 

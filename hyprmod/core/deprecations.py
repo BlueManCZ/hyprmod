@@ -92,7 +92,12 @@ class ApplyResult:
     backup_path: Path | None = None
 
 
-def scan(*, managed_path: Path, user_root_path: Path) -> ScanResult:
+def scan(
+    *,
+    managed_path: Path,
+    user_root_path: Path,
+    hyprland_version: str | None = None,
+) -> ScanResult:
     """Look for fixable Hyprland-config deprecations across user-facing files.
 
     Walks *managed_path* (hyprmod's owned file) and *user_root_path* (the
@@ -100,13 +105,23 @@ def scan(*, managed_path: Path, user_root_path: Path) -> ScanResult:
     :class:`ScanResult` listing files whose serialized form would change
     under :func:`hyprland_config.migrate`, plus any leftover deprecations
     that have no automatic fix.
+
+    When *hyprland_version* is set, rules whose ``version_deprecated`` is
+    newer than the running version are filtered out (both for the warning
+    list and for the in-memory migrate pass) — a user on Hyprland 0.49
+    should not see a v0.53 ``windowrulev2`` rename offered to them.
     """
     files: list[FilePlan] = []
     seen: set[Path] = set()
     unfixable: list[ConfigDeprecation] = []
 
     for root_path in (managed_path, user_root_path):
-        plans, leftover = _scan_root(root_path, managed_path=managed_path, seen=seen)
+        plans, leftover = _scan_root(
+            root_path,
+            managed_path=managed_path,
+            seen=seen,
+            hyprland_version=hyprland_version,
+        )
         files.extend(plans)
         unfixable.extend(leftover)
 
@@ -142,6 +157,7 @@ def _scan_root(
     *,
     managed_path: Path,
     seen: set[Path],
+    hyprland_version: str | None = None,
 ) -> tuple[list[FilePlan], list[ConfigDeprecation]]:
     """Scan one entrypoint and its sourced sub-docs for fixable migrations.
 
@@ -189,12 +205,15 @@ def _scan_root(
     # captures everything the user might want to see, including rules that
     # migrate() will fix.
     rules_by_source: dict[str, list[ConfigDeprecation]] = {}
-    for warning in check_deprecated(doc):
+    for warning in check_deprecated(doc, hyprland_version=hyprland_version):
         rules_by_source.setdefault(warning.source_name, []).append(warning)
 
     # 3) Migrate in place across the whole tree, then re-serialize each
-    # sub-doc and compare to its original snapshot.
-    migrate(doc, recursive=True)
+    # sub-doc and compare to its original snapshot. ``to_version`` mirrors
+    # the version gate on check_deprecated: a migration whose target
+    # syntax doesn't exist in the user's Hyprland would corrupt their
+    # config if applied.
+    migrate(doc, recursive=True, to_version=hyprland_version)
 
     plans: list[FilePlan] = []
     fixable_paths: set[Path] = set()

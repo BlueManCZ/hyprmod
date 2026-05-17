@@ -131,6 +131,52 @@ class TestScan:
         assert len(result.files) == 1
         assert result.files[0].path == user_root
 
+    def test_hyprland_version_filters_newer_deprecations(self, tmp_path):
+        """A 0.49 user should not see 0.53 / 0.55 deprecations."""
+        managed = _write(tmp_path / "managed.conf", "general:gaps_in = 5\n")
+        user_root = _write(
+            tmp_path / "hyprland.conf",
+            "windowrulev2 = float, class:^(firefox)$\ndwindle {\n    pseudotile = 1\n}\n",
+        )
+
+        # Without the gate, both rules surface.
+        unfiltered = deprecations.scan(managed_path=managed, user_root_path=user_root)
+        keys = {r.key for plan in unfiltered.files for r in plan.rules} | {
+            r.key for r in unfiltered.unfixable
+        }
+        assert "windowrulev2" in keys
+        assert "dwindle:pseudotile" in keys
+
+        # With hyprland_version=0.49.0, both should be filtered out — leaving
+        # nothing for this fixture.
+        filtered = deprecations.scan(
+            managed_path=managed,
+            user_root_path=user_root,
+            hyprland_version="0.49.0",
+        )
+        assert filtered.has_fixable is False
+        assert filtered.unfixable == ()
+
+    def test_hyprland_version_keeps_applicable_deprecations(self, tmp_path):
+        """Deprecations from versions <= running version stay visible."""
+        managed = _write(tmp_path / "managed.conf", "general:gaps_in = 5\n")
+        # exec_once (0.33) and cursor:no_cursor_warps (0.41) both pre-date 0.49.
+        user_root = _write(
+            tmp_path / "hyprland.conf",
+            "exec_once = waybar\ncursor {\n    no_cursor_warps = true\n}\n",
+        )
+
+        result = deprecations.scan(
+            managed_path=managed,
+            user_root_path=user_root,
+            hyprland_version="0.49.0",
+        )
+        # Both lines have automatic migrations — one FilePlan, two rules.
+        assert len(result.files) == 1
+        rule_keys = {r.key for r in result.files[0].rules}
+        assert "exec_once" in rule_keys
+        assert "cursor:no_cursor_warps" in rule_keys
+
     def test_fingerprint_changes_with_content(self, tmp_path):
         """Adding a new deprecation produces a different fingerprint."""
         managed = _write(tmp_path / "managed.conf", "general:gaps_in = 5\n")
