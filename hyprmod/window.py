@@ -14,6 +14,7 @@ from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config, profiles, schema
 from hyprmod.core.state import AppState
 from hyprmod.core.undo import OptionChange, UndoManager
+from hyprmod.data import bundled_data_dir
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
 from hyprmod.pages.autostart import AutostartPage
@@ -49,7 +50,6 @@ INPUT_TOUCHPAD = "input:touchpad"
 
 
 CSS_PATH = Path(__file__).parent / "style.css"
-GSETTINGS_DIR = Path(__file__).parent / "data"
 # The GSettings schema id matches our application id by convention; aliasing
 # here keeps the schema lookup explicit at point of use.
 SETTINGS_SCHEMA_ID = APPLICATION_ID
@@ -117,9 +117,10 @@ class HyprModWindow(Adw.ApplicationWindow):
 
     def _init_settings(self):
         """Load GSettings for app preferences (auto-save, etc.)."""
-        self._recompile_schemas_if_stale()
+        schema_dir = bundled_data_dir()
+        self._recompile_schemas_if_stale(schema_dir)
         schema_source = Gio.SettingsSchemaSource.new_from_directory(
-            str(GSETTINGS_DIR),
+            str(schema_dir),
             Gio.SettingsSchemaSource.get_default(),
             False,
         )
@@ -130,16 +131,16 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._settings = None
 
     @staticmethod
-    def _recompile_schemas_if_stale():
+    def _recompile_schemas_if_stale(schema_dir: Path):
         """Recompile GSettings schemas if the compiled file is stale or missing."""
-        xml_files = list(GSETTINGS_DIR.glob("*.gschema.xml"))
+        xml_files = list(schema_dir.glob("*.gschema.xml"))
         if not xml_files:
             return
-        compiled = GSETTINGS_DIR / "gschemas.compiled"
+        compiled = schema_dir / "gschemas.compiled"
         latest_xml_mtime = max(xml.stat().st_mtime for xml in xml_files)
         if not compiled.exists() or compiled.stat().st_mtime < latest_xml_mtime:
             subprocess.run(
-                ["glib-compile-schemas", str(GSETTINGS_DIR)],
+                ["glib-compile-schemas", str(schema_dir)],
                 check=False,
             )
 

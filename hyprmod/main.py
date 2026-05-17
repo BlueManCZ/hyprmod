@@ -8,6 +8,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core.setup import needs_setup, run_setup
+from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import try_with_toast
 from hyprmod.ui.onboarding_dialog import OnboardingDialog
 from hyprmod.window import HyprModWindow
@@ -28,6 +29,11 @@ class HyprModApp(Adw.Application):
             theme = Gtk.IconTheme.get_for_display(display)
             paths = theme.get_search_path() or []
             theme.set_search_path([icon_dir, *paths])
+        # Rescue users who did `pipx install hyprmod` without running the
+        # install script: drop a .desktop + icon into $XDG_DATA_HOME so
+        # the app shows up in the launcher next time. No-op if any entry
+        # is already visible on XDG_DATA_DIRS (distro install, prior run).
+        ensure_registered_silently()
 
     def do_activate(self):
         win = self.props.active_window
@@ -46,6 +52,13 @@ class HyprModApp(Adw.Application):
 
 
 def main():
+    if "--install" in sys.argv[1:]:
+        install_user_files()
+        return 0
+    if "--uninstall" in sys.argv[1:]:
+        uninstall_user_files()
+        return 0
+
     app = HyprModApp()
 
     # Route SIGINT/SIGTERM through the GLib main loop so Ctrl-C from the

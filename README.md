@@ -53,39 +53,47 @@ Huge thanks to the creators below — without you, HyprMod would reach far fewer
 
 > HyprMod is in active development and not yet packaged for most distributions.
 
-Requires Python 3.12+, GTK4, libadwaita, and a running Hyprland instance.
+Requires Python 3.12+, GTK4, and libadwaita.
 
-**Arch Linux:** install the [`hyprmod`](https://aur.archlinux.org/packages/hyprmod) AUR package with your favorite helper:
+**Arch Linux** — [`hyprmod`](https://aur.archlinux.org/packages/hyprmod) on the AUR:
 
 ```bash
 yay -S hyprmod
 ```
 
-**Gentoo:** available via the [`edgets`](https://github.com/BlueManCZ/edgets) overlay:
+**Gentoo** — via the [`edgets`](https://github.com/BlueManCZ/edgets) overlay:
 
 ```bash
 emerge -a hyprmod
 ```
 
-Other distributions — build from source:
+**Other distributions** — one-line installer (auto-detects [`uv`](https://docs.astral.sh/uv) or [`pipx`](https://pipx.pypa.io), bootstraps `uv` if missing):
 
 ```bash
-git clone https://github.com/BlueManCZ/hyprmod.git
-cd hyprmod
-uv sync
-uv run hyprmod
+# install
+curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh
+
+# uninstall
+curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh -s -- --uninstall
 ```
 
-Or with [pipx](https://pipx.pypa.io):
+<details>
+<summary>Drive the install yourself</summary>
 
 ```bash
-git clone https://github.com/BlueManCZ/hyprmod.git
-cd hyprmod
-pipx install .
-hyprmod
+# with uv
+uv tool install git+https://github.com/BlueManCZ/hyprmod.git
+hyprmod --install     # places .desktop + icon under ~/.local/share
+
+# or with pipx
+pipx install git+https://github.com/BlueManCZ/hyprmod.git
+hyprmod --install
 ```
 
-On first launch, HyprMod asks permission to add one include line to your top-level config — `source = …` in `hyprland.conf`, or `dofile("…")` in `hyprland.lua` if you're already on the Lua entrypoint. That's the only time it touches your config.
+To remove: `hyprmod --uninstall`, then `uv tool uninstall hyprmod` or `pipx uninstall hyprmod`. `hyprmod --install` is idempotent and runs automatically on first launch if no desktop entry is visible yet.
+</details>
+
+Running from a checkout? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 🗺️ Roadmap
 
