@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from hyprland_monitors import MonitorState
+from hyprland_monitors.monitors import lines_from_monitors
 
 from hyprmod.core import config
 from hyprmod.pages.monitors.page import MonitorsPage
@@ -112,3 +113,22 @@ class TestDescIdentifierResolution:
         assert page._ownership.is_owned("HDMI-A-1")
         # The toggle is restored from the saved line.
         assert page._monitors[0].identify_by_description is True
+
+
+class TestHdrExtras:
+    def test_new_luminance_fields_round_trip(self, page_with_monitors):
+        page = page_with_monitors(
+            "monitor = DP-1, 1920x1080@60.00Hz, 0x0, 1, "
+            "cm, hdr, sdr_min_luminance, 0.3, sdr_max_luminance, 120, "
+            "min_luminance, 0.01, max_luminance, 1000, max_avg_luminance, 400\n",
+            [[_make_monitor("DP-1", "Acme Pixel 5000")]],
+        )
+
+        mon = page._monitors[0]
+        assert mon.sdr_min_luminance == "0.3"
+        assert mon.sdr_max_luminance == "120"
+        assert mon.min_luminance == "0.01"
+        assert mon.max_luminance == "1000"
+        assert mon.max_avg_luminance == "400"
+        assert page.is_dirty() is False
+        assert "sdr_min_luminance, 0.3" in lines_from_monitors([mon])[0]
