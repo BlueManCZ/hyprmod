@@ -53,9 +53,7 @@ for _config_key, _field_name in _EXTRA_CONFIG_FIELDS.items():
 
 _EXTRA_FIELDS = (*dict.fromkeys(_EXTRA_CONFIG_FIELDS.values()), "mirror_of")
 _BASE_MONITOR_FIELDS = tuple(field.name for field in dataclass_fields(MonitorState))
-_ADDED_MONITOR_FIELDS = tuple(
-    field for field in _EXTRA_FIELDS if field not in _BASE_MONITOR_FIELDS
-)
+_ADDED_MONITOR_FIELDS = tuple(field for field in _EXTRA_FIELDS if field not in _BASE_MONITOR_FIELDS)
 
 
 class _ExtendedMonitorState(MonitorState):
