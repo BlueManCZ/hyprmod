@@ -40,7 +40,7 @@ Huge thanks to the creators below — without you, HyprMod would reach far fewer
 
 - **Lua config support** — migrate and edit `hyprland.lua` directly (Hyprland 0.55+)
 - Bezier curve editor with live animation preview
-- Monitor layout editor with VRR, HDR, and 10-bit detection
+- Monitor layout editor with VRR, 10-bit detection, and advanced HDR controls with safe defaults
 - Keybind editor with interactive key capture, including mouse-drag (`bindm`) binds
 - Window rules, layer rules, and workspace rules editors with live preview
 - Autostart (`exec` / `exec-once`) and environment variable management
