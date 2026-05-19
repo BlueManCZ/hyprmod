@@ -572,7 +572,39 @@ class HyprModWindow(Adw.ApplicationWindow):
         group = next((g for g in groups if g["id"] == group_id), None)
         if not group:
             return []
-        return self._build_section_widgets(group)
+        pref_groups = self._build_section_widgets(group)
+        # _register_state only runs once at startup; rebuilds (e.g. monitor
+        # refresh) need to re-push live values and the managed indicator.
+        self._sync_group_widgets_to_state(group, pref_groups)
+        return pref_groups
+
+    def _sync_group_widgets_to_state(
+        self, group: dict, pref_groups: list[Adw.PreferencesGroup]
+    ) -> None:
+        groups_with_visible: set[Adw.PreferencesGroup] = set()
+        any_state = False
+        for section in group.get("sections", []):
+            for option in section.get("options", []):
+                key = option["key"]
+                opt_row = self._option_rows.get(key)
+                state = self.app_state.get(key)
+                if opt_row is None or state is None:
+                    continue
+                any_state = True
+                if not state.available:
+                    opt_row.row.set_visible(False)
+                    continue
+                owner = self._row_owner_group.get(key)
+                if owner is not None:
+                    groups_with_visible.add(owner)
+                if state.live_value is not None:
+                    opt_row.set_value_silent(state.live_value)
+                opt_row.update_modified_state(state.managed, state.is_dirty, state.saved_managed)
+        if not any_state:
+            return
+        for pref_group in pref_groups:
+            if pref_group not in groups_with_visible:
+                pref_group.set_visible(False)
 
     def _register_state(self):
         options_flat = self._options_flat

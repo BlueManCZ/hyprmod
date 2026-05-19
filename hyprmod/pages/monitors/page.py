@@ -243,7 +243,7 @@ class MonitorsPage(SectionPage):
         refresh_btn.connect("clicked", self._on_refresh)
         page_header.pack_start(refresh_btn)
 
-        toolbar_view, page_box, self._content_box, _ = make_page_layout(header=page_header)
+        toolbar_view, page_box, self._content_box, scrolled = make_page_layout(header=page_header)
 
         confirm_banner = Adw.Banner(title="")
         self._confirm = ConfirmController(
@@ -252,7 +252,14 @@ class MonitorsPage(SectionPage):
             on_revert=self._revert_monitors,
             on_confirmed=self._on_confirmed,
         )
-        page_box.prepend(confirm_banner)
+        # Overlay rather than dock — a docked banner shifts every card down
+        # on reveal/hide during the countdown.
+        confirm_banner.set_valign(Gtk.Align.START)
+        overlay = Gtk.Overlay()
+        page_box.remove(scrolled)
+        overlay.set_child(scrolled)
+        overlay.add_overlay(confirm_banner)
+        page_box.append(overlay)
 
         self._rebuild()
         return toolbar_view
@@ -359,7 +366,9 @@ class MonitorsPage(SectionPage):
             if idx < len(self._monitors):
                 card.push_from_monitor(self._monitors[idx])
         if self._preview is not None:
-            self._preview.queue_draw()
+            # Rebinds the list reference too — callers that replace
+            # self._monitors (e.g. revert) don't need to do it themselves.
+            self._preview.set_monitors(self._monitors)
 
     def _update_card_states(self):
         if not self._cards:
@@ -602,8 +611,11 @@ class MonitorsPage(SectionPage):
             return
         self._monitors = copy.deepcopy(self._confirmed_monitors)
         self._snap_scales()
-        self._applying = False
-        self._rebuild()
+        # Update in place — a full rebuild would collapse the Advanced expander.
+        try:
+            self._push_to_ui()
+        finally:
+            self._applying = False
         self._on_monitors_changed()
         self._schedule_resync()
 
