@@ -9,7 +9,7 @@ dependencies = [
     "hyprland-config>=0.6.5",
     "hyprland-schema>=0.6.1",
     "hyprland-state>=0.4.1",
-    "hyprland-monitors>=0.6.0",
+    "hyprland-monitors>=0.7.0",
     "hyprland-socket>=0.12.1",
 ]
 

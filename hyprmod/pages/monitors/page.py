@@ -2,9 +2,7 @@
 
 import copy
 from collections.abc import Iterator
-from dataclasses import fields as dataclass_fields
 
-import hyprland_monitors.monitors as monitor_lib
 from gi.repository import Adw, GLib, Gtk
 from hyprland_monitors import get_monitor_capabilities
 from hyprland_monitors.monitors import (
@@ -35,42 +33,21 @@ from hyprmod.ui.icons import MONITORS_ICON
 from hyprmod.ui.monitor_preview import MonitorLayoutPreview
 from hyprmod.ui.timer import Timer
 
-_EXTRA_CONFIG_FIELDS = {
-    "bitdepth": "bit_depth",
-    "vrr": "vrr",
-    "cm": "color_management",
-    "sdrbrightness": "sdr_brightness",
-    "sdrsaturation": "sdr_saturation",
-    "sdr_min_luminance": "sdr_min_luminance",
-    "sdr_max_luminance": "sdr_max_luminance",
-    "min_luminance": "min_luminance",
-    "max_luminance": "max_luminance",
-    "max_avg_luminance": "max_avg_luminance",
-}
-
-for _config_key, _field_name in _EXTRA_CONFIG_FIELDS.items():
-    monitor_lib._CONFIG_TO_FIELD.setdefault(_config_key, _field_name)
-
-_EXTRA_FIELDS = (*dict.fromkeys(_EXTRA_CONFIG_FIELDS.values()), "mirror_of")
-_BASE_MONITOR_FIELDS = tuple(field.name for field in dataclass_fields(MonitorState))
-_ADDED_MONITOR_FIELDS = tuple(field for field in _EXTRA_FIELDS if field not in _BASE_MONITOR_FIELDS)
-
-
-class _ExtendedMonitorState(MonitorState):
-    """MonitorState with slots for newer monitor extras not yet in the dependency."""
-
-    __slots__ = _ADDED_MONITOR_FIELDS
-
-
-def _extend_monitor(mon: MonitorState) -> MonitorState:
-    """Return a MonitorState instance that can hold all extras HyprMod exposes."""
-    if isinstance(mon, _ExtendedMonitorState):
-        return mon
-    values = {field: getattr(mon, field) for field in _BASE_MONITOR_FIELDS}
-    extended = _ExtendedMonitorState(**values)
-    for field in _ADDED_MONITOR_FIELDS:
-        setattr(extended, field, getattr(mon, field, None))
-    return extended
+# Fields cleared on managed monitors that aren't present in the saved config.
+# Kept aligned with hyprland-monitors's monitor-line serialization.
+_EXTRA_FIELDS = (
+    "bit_depth",
+    "vrr",
+    "color_management",
+    "sdr_brightness",
+    "sdr_saturation",
+    "sdr_min_luminance",
+    "sdr_max_luminance",
+    "min_luminance",
+    "max_luminance",
+    "max_avg_luminance",
+    "mirror_of",
+)
 
 
 class MonitorsPage(SectionPage):
@@ -183,10 +160,7 @@ class MonitorsPage(SectionPage):
 
     def _reload_monitors(self, saved_sections=None):
         """Fetch monitors from IPC, snap scales, and merge saved config."""
-        self._monitors = sorted(
-            (_extend_monitor(mon) for mon in self._window.hypr.monitors.get_all() or []),
-            key=lambda m: m.name,
-        )
+        self._monitors = sorted(self._window.hypr.monitors.get_all() or [], key=lambda m: m.name)
         self._snap_scales()
         sections = saved_sections if saved_sections is not None else self._window.saved_sections
         saved = config.collect_section(sections, config.KEYWORD_MONITOR)

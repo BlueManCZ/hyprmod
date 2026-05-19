@@ -195,10 +195,6 @@ def _format_hdr_display_value(value: float, spec: _HdrSliderSpec) -> str:
     return f"{value:.{digits}f}"
 
 
-def _monitor_extra(mon: MonitorState, field: str) -> str | None:
-    return getattr(mon, field, None)
-
-
 class MonitorCard(Gtk.Box):
     """Editable card for a single monitor."""
 
@@ -613,7 +609,7 @@ class MonitorCard(Gtk.Box):
 
         rows: list[Adw.ActionRow] = []
         for spec in HDR_SLIDER_SPECS:
-            value = _parse_hdr_value(_monitor_extra(monitor, spec.field), spec.default)
+            value = _parse_hdr_value(getattr(monitor, spec.field), spec.default)
             row = Adw.ActionRow(title=spec.title, subtitle=spec.subtitle)
             scale = self._make_hdr_slider(spec, value)
             value_label = Gtk.Label(
@@ -741,7 +737,7 @@ class MonitorCard(Gtk.Box):
                 slider = self._hdr_sliders.get(spec.field)
                 if slider is None:
                     continue
-                value = _parse_hdr_value(_monitor_extra(mon, spec.field), spec.default)
+                value = _parse_hdr_value(getattr(mon, spec.field), spec.default)
                 slider.set_value(value)
                 label = self._hdr_value_labels.get(spec.field)
                 if label is not None:
@@ -816,8 +812,11 @@ class MonitorCard(Gtk.Box):
                     mon.identify_by_description != baseline.identify_by_description,
                 ),
             ]
-            for row, field in zip(self._hdr_slider_rows, HDR_SLIDER_FIELDS, strict=True):
-                fields.append((row, _monitor_extra(mon, field) != _monitor_extra(baseline, field)))
+            # Rows are built only when the monitor reports HDR capability;
+            # skip when absent so the strict zip stays meaningful for the HDR path.
+            if self._hdr_slider_rows:
+                for row, field in zip(self._hdr_slider_rows, HDR_SLIDER_FIELDS, strict=True):
+                    fields.append((row, getattr(mon, field) != getattr(baseline, field)))
             for row, dirty in fields:
                 if row is None:
                     continue
@@ -867,7 +866,7 @@ class MonitorCard(Gtk.Box):
         return {
             field: self._format_hdr_safe_value(field)
             for field in HDR_RESET_FIELDS
-            if _monitor_extra(self._monitor, field) is None
+            if getattr(self._monitor, field) is None
         }
 
     def _set_hdr_slider_value(self, field: str, value: float) -> float:
