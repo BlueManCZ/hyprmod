@@ -51,16 +51,19 @@ class _HdrSliderSpec:
 
 
 HDR_SLIDER_SPECS = (
+    # Hyprland's 1.0 sdr_brightness over-brightens SDR-in-HDR;
+    # 0.5 is the community recommended starting point
     _HdrSliderSpec(
         field="sdr_brightness",
         title="SDR Brightness",
         subtitle="Brightness for SDR content in HDR mode",
-        default=SDR_VALUE_DEFAULT,
+        default=0.5,
         minimum=SDR_VALUE_MIN,
         maximum=SDR_VALUE_MAX,
         step=SDR_VALUE_STEP,
         page=SDR_VALUE_STEP * 4,
         digits=SDR_VALUE_DIGITS,
+        auto_default=True,
     ),
     _HdrSliderSpec(
         field="sdr_saturation",

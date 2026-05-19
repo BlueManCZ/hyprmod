@@ -100,14 +100,15 @@ class TestHdrSliderValues:
         assert spec.maximum == 2000.0
         assert spec.default == 500.0
 
-    def test_auto_default_flag_set_on_all_luminance_fields(self):
+    def test_auto_default_flag_set_for_fields_with_non_hyprland_defaults(self):
         # The auto_default flag drives the config-emission semantic: True means
-        # spec.default is a real value (panel EDID) and gets written to disk
-        # explicitly; False means spec.default is Hyprland's own correct
-        # no-override (the 1.0 default for sdr_brightness/sdr_saturation), so
+        # spec.default is a real value to write to disk explicitly (panel EDID
+        # for luminance, the HDR-mode 0.5 starting point for sdr_brightness);
+        # False means spec.default is Hyprland's own correct no-override, so
         # omit from disk and let hyprland-state's explicit_hdr_defaults=True
         # handle the live-apply reset.
         for field in (
+            "sdr_brightness",
             "sdr_min_luminance",
             "sdr_max_luminance",
             "min_luminance",
@@ -117,9 +118,14 @@ class TestHdrSliderValues:
             spec = HDR_SLIDER_SPEC_BY_FIELD[field]
             assert spec.auto_default is True, f"{field} should auto-default"
 
-        for field in ("sdr_brightness", "sdr_saturation"):
-            spec = HDR_SLIDER_SPEC_BY_FIELD[field]
-            assert spec.auto_default is False, f"{field} should not auto-default"
+        # sdr_saturation is the lone holdout — Hyprland's 1.0 default is the
+        # right value for HDR mode too, so we omit at default.
+        assert HDR_SLIDER_SPEC_BY_FIELD["sdr_saturation"].auto_default is False
+
+    def test_sdr_brightness_hdr_default(self):
+        # sdr_brightness sits at 0.5 in HDR mode, not Hyprland's no-override 1.0
+        # which over-brightens SDR content in the HDR pipeline.
+        assert HDR_SLIDER_SPEC_BY_FIELD["sdr_brightness"].default == 0.5
 
     def test_luminance_fields_present(self):
         for field in (
@@ -161,10 +167,11 @@ class TestResolveHdrSpecs:
         assert specs["max_luminance"].default == 800.0
 
     def test_sdr_brightness_and_saturation_unaffected(self):
-        # Scalar pipeline knobs with 1.0 as the real Hyprland default — never overridden.
+        # Scalar pipeline knobs — defaults are creative/Hyprland constants,
+        # never overridden by EDID.
         caps = {"max_luminance": 993.0, "max_avg_luminance": 277.0, "min_luminance": 0.0006}
         specs = {s.field: s for s in _resolve_hdr_specs(caps)}
-        assert specs["sdr_brightness"].default == SDR_VALUE_DEFAULT
+        assert specs["sdr_brightness"].default == 0.5
         assert specs["sdr_saturation"].default == SDR_VALUE_DEFAULT
 
 
