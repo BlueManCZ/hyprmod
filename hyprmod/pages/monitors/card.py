@@ -253,9 +253,7 @@ class MonitorCard(Gtk.Box):
         # where the panel reports mastering luminance. Falls back to the static
         # template defaults for monitors without HDR caps or EDID coverage.
         self._hdr_specs = _resolve_hdr_specs(self._caps)
-        self._hdr_specs_by_field: dict[str, _HdrSliderSpec] = {
-            s.field: s for s in self._hdr_specs
-        }
+        self._hdr_specs_by_field: dict[str, _HdrSliderSpec] = {s.field: s for s in self._hdr_specs}
 
         connector = monitor.name
         make = monitor.make
