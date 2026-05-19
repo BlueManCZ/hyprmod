@@ -5,60 +5,15 @@ from dataclasses import replace
 from hyprmod.pages.monitors.card import (
     CM_MODES,
     CM_VALUES,
-    HDR_RESET_FIELDS,
     HDR_SLIDER_FIELDS,
     HDR_SLIDER_SPEC_BY_FIELD,
     SDR_VALUE_DEFAULT,
+    SDR_VALUE_DIGITS,
     _format_hdr_display_value,
     _format_hdr_value,
-    _format_sdr,
     _parse_hdr_value,
-    _parse_sdr,
     _resolve_hdr_specs,
 )
-
-
-class TestParseSdr:
-    def test_none_returns_default(self):
-        assert _parse_sdr(None) == SDR_VALUE_DEFAULT
-
-    def test_numeric_string(self):
-        assert _parse_sdr("1.25") == 1.25
-
-    def test_zero(self):
-        assert _parse_sdr("0") == 0.0
-
-    def test_invalid_falls_back_to_default(self):
-        assert _parse_sdr("not a number") == SDR_VALUE_DEFAULT
-
-
-class TestFormatSdr:
-    def test_default_returns_none(self):
-        assert _format_sdr(SDR_VALUE_DEFAULT) is None
-
-    def test_near_default_returns_none(self):
-        # Float-precision jitter around 1.0 — still treated as "default".
-        assert _format_sdr(1.0 + 1e-9) is None
-        assert _format_sdr(1.0 - 1e-9) is None
-
-    def test_just_below_default_emits_value(self):
-        # 0.95 is a valid override the spinner can produce; it must not be swallowed.
-        assert _format_sdr(0.95) == "0.95"
-
-    def test_override_formatted(self):
-        assert _format_sdr(1.2) == "1.2"
-
-    def test_trailing_zero_stripped(self):
-        assert _format_sdr(1.5) == "1.5"
-        assert _format_sdr(0.8) == "0.8"
-
-    def test_two_decimal_places(self):
-        assert _format_sdr(0.98) == "0.98"
-
-    def test_zero_renders_as_zero(self):
-        # Regression: naive rstrip("0").rstrip(".") would produce "" for 0.0,
-        # which then got written as a malformed config line.
-        assert _format_sdr(0.0) == "0"
 
 
 class TestHdrSliderValues:
@@ -74,6 +29,21 @@ class TestHdrSliderValues:
         assert _format_hdr_value(80.0, 80.0, 0) is None
         assert _format_hdr_value(120.0, 80.0, 0) == "120"
         assert _format_hdr_value(0.25, 0.2, 2) == "0.25"
+
+    def test_format_tolerates_fp_jitter_at_default(self):
+        # Slider can land slightly off the default due to FP arithmetic; the
+        # 1e-3 epsilon catches it and still emits None.
+        assert _format_hdr_value(1.0 + 1e-9, SDR_VALUE_DEFAULT, SDR_VALUE_DIGITS) is None
+        assert _format_hdr_value(1.0 - 1e-9, SDR_VALUE_DEFAULT, SDR_VALUE_DIGITS) is None
+
+    def test_format_zero_renders_as_zero(self):
+        # Regression: a naive rstrip("0").rstrip(".") would produce "" for 0.0,
+        # which then got written as a malformed config line.
+        assert _format_hdr_value(0.0, SDR_VALUE_DEFAULT, SDR_VALUE_DIGITS) == "0"
+
+    def test_format_strips_trailing_zeros(self):
+        assert _format_hdr_value(1.5, SDR_VALUE_DEFAULT, SDR_VALUE_DIGITS) == "1.5"
+        assert _format_hdr_value(0.8, SDR_VALUE_DEFAULT, SDR_VALUE_DIGITS) == "0.8"
 
     def test_format_always_emits_for_auto_default_fields(self):
         # auto_default=True (luminance): spec.default is the panel's EDID value;
@@ -160,9 +130,6 @@ class TestHdrSliderValues:
             "max_avg_luminance",
         ):
             assert field in HDR_SLIDER_FIELDS
-
-    def test_reset_fields_cover_all_hdr_sliders(self):
-        assert HDR_RESET_FIELDS == HDR_SLIDER_FIELDS
 
 
 class TestResolveHdrSpecs:
