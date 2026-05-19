@@ -1,5 +1,7 @@
 """Unit tests for the pure helpers in monitor card UI (no GTK required)."""
 
+from dataclasses import replace
+
 from hyprmod.pages.monitors.card import (
     CM_MODES,
     CM_VALUES,
@@ -12,6 +14,7 @@ from hyprmod.pages.monitors.card import (
     _format_sdr,
     _parse_hdr_value,
     _parse_sdr,
+    _resolve_hdr_specs,
 )
 
 
@@ -64,15 +67,48 @@ class TestHdrSliderValues:
         assert _parse_hdr_value("250", 80.0) == 250.0
         assert _parse_hdr_value("invalid", -1.0) == -1.0
 
-    def test_format_uses_field_default(self):
+    def test_format_returns_none_at_default_for_non_auto_fields(self):
+        # auto_default=False (sdr_brightness/saturation): omit at default so the
+        # saved config doesn't carry redundant lines for values Hyprland already
+        # uses by default.
         assert _format_hdr_value(80.0, 80.0, 0) is None
         assert _format_hdr_value(120.0, 80.0, 0) == "120"
         assert _format_hdr_value(0.25, 0.2, 2) == "0.25"
+
+    def test_format_always_emits_for_auto_default_fields(self):
+        # auto_default=True (luminance): spec.default is the panel's EDID value;
+        # the config must carry it explicitly because Hyprland's no-override
+        # behavior for these fields is wrong (uses an internal default that
+        # ignores the panel's mastering luminance).
+        assert _format_hdr_value(993.0, 993.0, 0, auto_default=True) == "993"
+        assert _format_hdr_value(800.0, 993.0, 0, auto_default=True) == "800"
+
+    def test_format_rounds_to_slider_precision(self):
+        # Sub-precision panel values like 0.000611 cd/m² collapse to 0 at the
+        # slider's digits=2 representation. That's by design — the difference
+        # is well below human perception and the panel can't display it
+        # distinctly anyway, so the config stays panel-spec-agnostic.
+        assert _format_hdr_value(0.000611, 0.000611, 2, auto_default=True) == "0"
+        # Slider-representable values keep their precision.
+        assert _format_hdr_value(0.5, 0.000611, 2, auto_default=True) == "0.5"
 
     def test_sdr_brightness_display_uses_two_decimals(self):
         spec = HDR_SLIDER_SPEC_BY_FIELD["sdr_brightness"]
         assert _format_hdr_display_value(1.0, spec) == "1.00"
         assert _format_hdr_display_value(1.25, spec) == "1.25"
+
+    def test_display_value_uses_slider_precision(self):
+        # Labels render at the slider's native digits — sub-precision panel
+        # defaults render as "0.00" because that's what the slider represents,
+        # and the imperceptible difference between 0 and 0.000611 cd/m² makes
+        # the precision-loss harmless.
+        min_spec = replace(HDR_SLIDER_SPEC_BY_FIELD["sdr_min_luminance"], default=0.000611)
+        assert _format_hdr_display_value(0.000611, min_spec) == "0.00"
+        assert _format_hdr_display_value(0.5, min_spec) == "0.50"
+
+        max_spec = replace(HDR_SLIDER_SPEC_BY_FIELD["sdr_max_luminance"], default=993.486)
+        assert _format_hdr_display_value(993.486, max_spec) == "993"
+        assert _format_hdr_display_value(990.0, max_spec) == "990"
 
     def test_luminance_ranges_and_defaults(self):
         assert HDR_SLIDER_SPEC_BY_FIELD["min_luminance"].title == "HDR Min Luminance"
@@ -83,21 +119,37 @@ class TestHdrSliderValues:
             assert spec.minimum == 0.0
             assert spec.maximum == 2000.0
             assert spec.default == 800.0
-            assert spec.auto_default is False
 
         for field in ("sdr_min_luminance", "min_luminance"):
             spec = HDR_SLIDER_SPEC_BY_FIELD[field]
             assert spec.minimum == 0.0
             assert spec.maximum == 1.0
-            assert spec.auto_default is False
 
-    def test_max_avg_defaults_to_auto_without_negative_range(self):
         spec = HDR_SLIDER_SPEC_BY_FIELD["max_avg_luminance"]
         assert spec.minimum == 0.0
         assert spec.maximum == 2000.0
         assert spec.default == 500.0
-        assert spec.auto_default is True
-        assert _format_hdr_display_value(spec.default, spec) == "Auto"
+
+    def test_auto_default_flag_set_on_all_luminance_fields(self):
+        # The auto_default flag drives the config-emission semantic: True means
+        # spec.default is a real value (panel EDID) and gets written to disk
+        # explicitly; False means spec.default is Hyprland's own correct
+        # no-override (the 1.0 default for sdr_brightness/sdr_saturation), so
+        # omit from disk and let hyprland-state's explicit_hdr_defaults=True
+        # handle the live-apply reset.
+        for field in (
+            "sdr_min_luminance",
+            "sdr_max_luminance",
+            "min_luminance",
+            "max_luminance",
+            "max_avg_luminance",
+        ):
+            spec = HDR_SLIDER_SPEC_BY_FIELD[field]
+            assert spec.auto_default is True, f"{field} should auto-default"
+
+        for field in ("sdr_brightness", "sdr_saturation"):
+            spec = HDR_SLIDER_SPEC_BY_FIELD[field]
+            assert spec.auto_default is False, f"{field} should not auto-default"
 
     def test_luminance_fields_present(self):
         for field in (
@@ -111,6 +163,42 @@ class TestHdrSliderValues:
 
     def test_reset_fields_cover_all_hdr_sliders(self):
         assert HDR_RESET_FIELDS == HDR_SLIDER_FIELDS
+
+
+class TestResolveHdrSpecs:
+    def test_caps_override_auto_position_with_edid_value(self):
+        # A real-panel example: 993 cd/m² peak, 277 cd/m² average, 0.0006 cd/m² min.
+        # Both SDR and HDR variants of min/max share the same EDID source.
+        caps = {
+            "max_luminance": 993.0,
+            "max_avg_luminance": 277.0,
+            "min_luminance": 0.0006,
+        }
+        specs = {s.field: s for s in _resolve_hdr_specs(caps)}
+        assert specs["sdr_max_luminance"].default == 993.0
+        assert specs["max_luminance"].default == 993.0
+        assert specs["max_avg_luminance"].default == 277.0
+        assert specs["sdr_min_luminance"].default == 0.0006
+        assert specs["min_luminance"].default == 0.0006
+
+    def test_falls_back_to_template_when_caps_missing(self):
+        # No EDID coverage at all (typical for non-HDR monitors).
+        specs = {s.field: s for s in _resolve_hdr_specs({})}
+        assert specs["sdr_max_luminance"].default == 800.0
+        assert specs["max_avg_luminance"].default == 500.0
+
+    def test_falls_back_when_caps_value_is_none(self):
+        # Caps dict includes the key but EDID didn't carry a value — still falls back.
+        caps = {"max_luminance": None, "max_avg_luminance": None, "min_luminance": None}
+        specs = {s.field: s for s in _resolve_hdr_specs(caps)}
+        assert specs["max_luminance"].default == 800.0
+
+    def test_sdr_brightness_and_saturation_unaffected(self):
+        # Scalar pipeline knobs with 1.0 as the real Hyprland default — never overridden.
+        caps = {"max_luminance": 993.0, "max_avg_luminance": 277.0, "min_luminance": 0.0006}
+        specs = {s.field: s for s in _resolve_hdr_specs(caps)}
+        assert specs["sdr_brightness"].default == SDR_VALUE_DEFAULT
+        assert specs["sdr_saturation"].default == SDR_VALUE_DEFAULT
 
 
 class TestColorManagementPresets:
