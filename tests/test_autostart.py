@@ -7,6 +7,7 @@ from hyprmod.core.autostart import (
     EXEC_KEYWORDS,
     KEYWORD_LABELS,
     ExecData,
+    load_external_exec_entries,
     parse_exec_line,
     parse_exec_lines,
     serialize,
@@ -710,4 +711,107 @@ class TestWriteIntegration:
             "exec-once = waybar",
             "exec-once = swaybg",
             "exec = pkill",
+        ]
+
+
+# ---------------------------------------------------------------------------
+# External loader (exec entries from outside our managed file)
+# ---------------------------------------------------------------------------
+
+
+class TestExternalLoader:
+    """``load_external_exec_entries`` walks the user's ``hyprland.conf``
+    and any sourced files for exec entries the user defined themselves,
+    surfaced read-only on the page. Mirrors
+    :class:`tests.test_env_vars.TestExternalLoader`.
+    """
+
+    def test_loads_exec_from_root_file(self, tmp_path):
+        root = tmp_path / "hyprland.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text("exec-once = waybar\nexec = pkill -SIGUSR1 waybar\n")
+        managed.write_text("")
+        external = load_external_exec_entries(root, managed)
+        assert len(external) == 2
+        kinds = {e.entry.keyword for e in external}
+        assert kinds == {"exec-once", "exec"}
+        waybar = next(e for e in external if e.entry.command == "waybar")
+        assert waybar.entry == ExecData(keyword="exec-once", command="waybar")
+        assert waybar.source_path == root
+        assert waybar.lineno >= 1
+
+    def test_loads_exec_from_sourced_file(self, tmp_path):
+        # External entries can live in a file sourced from the root —
+        # exactly the situation users hit when they split their config
+        # across ``autostart.conf``, ``binds.conf``, etc.
+        root = tmp_path / "hyprland.conf"
+        sourced = tmp_path / "autostart.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text(f"source = {sourced}\n")
+        sourced.write_text("exec-once = swaybg -i wallpaper.jpg\n")
+        managed.write_text("")
+        external = load_external_exec_entries(root, managed)
+        assert len(external) == 1
+        assert external[0].entry.command == "swaybg -i wallpaper.jpg"
+        # The loader records the *actual* source file, not the root —
+        # that's what the page renders as the row's group title.
+        assert external[0].source_path == sourced
+
+    def test_excludes_managed_file(self, tmp_path):
+        # Anything in the managed file is *not* surfaced as external —
+        # the page renders managed entries from SavedList and external
+        # from this loader; double-counting would confuse users.
+        root = tmp_path / "hyprland.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text(f"source = {managed}\n")
+        managed.write_text("exec-once = waybar\n")
+        external = load_external_exec_entries(root, managed)
+        assert external == []
+
+    def test_missing_root_returns_empty(self, tmp_path):
+        managed = tmp_path / "hyprland-gui.conf"
+        managed.write_text("")
+        external = load_external_exec_entries(tmp_path / "nonexistent.conf", managed)
+        assert external == []
+
+    def test_skips_unparseable_lines(self, tmp_path):
+        root = tmp_path / "hyprland.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text(
+            "exec-once = \n"  # empty command → parser drops
+            "exec-once = waybar\n"
+        )
+        managed.write_text("")
+        external = load_external_exec_entries(root, managed)
+        assert len(external) == 1
+        assert external[0].entry.command == "waybar"
+
+    def test_preserves_line_numbers(self, tmp_path):
+        root = tmp_path / "hyprland.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text("# leading comment\n\nexec-once = first\nexec-once = second\n")
+        managed.write_text("")
+        external = load_external_exec_entries(root, managed)
+        assert len(external) == 2
+        first = next(e for e in external if e.entry.command == "first")
+        second = next(e for e in external if e.entry.command == "second")
+        assert second.lineno == first.lineno + 1
+
+    def test_preserves_source_order(self, tmp_path):
+        # Order is meaningful — users may rely on swaybg before waybar.
+        # The loader walks the document in source order, so the returned
+        # list mirrors what Hyprland would execute.
+        root = tmp_path / "hyprland.conf"
+        managed = tmp_path / "hyprland-gui.conf"
+        root.write_text(
+            "exec-once = swaybg -i wallpaper.jpg\n"
+            "exec-once = waybar\n"
+            "exec = pkill -SIGUSR1 waybar\n"
+        )
+        managed.write_text("")
+        external = load_external_exec_entries(root, managed)
+        assert [e.entry.command for e in external] == [
+            "swaybg -i wallpaper.jpg",
+            "waybar",
+            "pkill -SIGUSR1 waybar",
         ]

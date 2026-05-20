@@ -31,6 +31,8 @@ from hyprmod.core.autostart import (
     EXEC_KEYWORDS,
     KEYWORD_LABELS,
     ExecData,
+    ExternalExec,
+    load_external_exec_entries,
     parse_exec_lines,
     serialize,
 )
@@ -85,6 +87,11 @@ class AutostartPage(DragDropReorderMixin[ExecData]):
         raw_lines = config.collect_section(saved_sections, *EXEC_KEYWORDS)
         items = parse_exec_lines(raw_lines)
         self._owned = SavedList(items, key=lambda e: e.to_line())
+        # External entries — exec/exec-once defined in the user's
+        # hyprland.conf or any file it sources, excluding our managed
+        # file. Surfaced read-only so users see what already runs at
+        # Hyprland startup/reload without us pretending we manage it.
+        self._external = load_external_exec_entries(config.user_entry_path(), config.managed_path())
 
     # ── Build ──
 
@@ -265,6 +272,63 @@ class AutostartPage(DragDropReorderMixin[ExecData]):
         row.set_activatable(True)
         row.connect("activated", lambda _r, i=idx: self._on_edit_at(i))
         row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+        return row
+
+    # ── External (read-only display) ──
+    #
+    # Unlike env vars, there's no override path: Hyprland runs every
+    # matching ``exec`` / ``exec-once`` line, so an entry in the user's
+    # ``hyprland.conf`` can't be suppressed by adding one to our managed
+    # file — the user has to edit the source file directly. The rows
+    # below are advisory: they let users see what already runs at
+    # startup/reload without surfacing it as something hyprmod manages.
+
+    def _build_external_hint(self) -> Gtk.Widget:
+        return make_inline_hint(
+            "Entries below come from your hyprland.conf or its sourced "
+            "files and already run at Hyprland startup or reload. Edit "
+            "those files directly to change them.",
+            icon_name="changes-prevent-symbolic",
+        )
+
+    def _make_external_row(self, ext: ExternalExec) -> Adw.ActionRow:
+        # Mirror the managed-row matching so external entries get the
+        # same friendly name + app icon when their command resolves to
+        # an installed app. The keyword (once-vs-reload) is the most
+        # useful disambiguator in the subtitle since the source path is
+        # already in the group header.
+        matched = match_command(ext.entry.command, self._installed_apps)
+        keyword_label = KEYWORD_LABELS.get(ext.entry.keyword, ext.entry.keyword)
+        if matched is not None:
+            title = matched.name
+            subtitle = f"{keyword_label}  ·  {ext.entry.command}  ·  line {ext.lineno}"
+        else:
+            title = ext.entry.command
+            subtitle = f"{keyword_label}  ·  line {ext.lineno}"
+
+        row = Adw.ActionRow(
+            title=html_escape(title),
+            subtitle=html_escape(subtitle),
+        )
+        row.set_title_lines(1)
+        row.set_subtitle_lines(1)
+        row.add_css_class("option-default")
+        row.set_opacity(0.65)
+        row.set_tooltip_text(f"{ext.source_path}:{ext.lineno}")
+
+        if matched is not None and matched.icon_name:
+            prefix = Gtk.Image.new_from_icon_name(matched.icon_name)
+            prefix.set_pixel_size(32)
+            prefix.set_opacity(0.6)
+        else:
+            prefix = Gtk.Image.new_from_icon_name(AUTOSTART_ICON)
+            prefix.set_opacity(0.4)
+        row.add_prefix(prefix)
+
+        lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
+        lock_icon.set_opacity(0.4)
+        lock_icon.set_valign(Gtk.Align.CENTER)
+        row.add_suffix(lock_icon)
         return row
 
     # ── Reorder (mixin provides drag-and-drop + Alt+arrow keyboard) ──

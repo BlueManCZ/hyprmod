@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Toggling "Numlock by default" wrote an invalid `input:kb_numlock` option that Hyprland rejected on reload; the option is now written as `input:numlock_by_default` per the schema (#34)
 - Rules from your managed config no longer leak into the read-only "external rules" list when `hyprland-gui.conf` is reached through a symlinked path (typical dotfiles setup)
 - Named window and layer rules (block-form `windowrule { name = … }` or Lua `name = "…"`) are now recognized and editable instead of being silently dropped (#37)
+- Autostart page surfaces `exec` / `exec-once` entries defined in your `hyprland.conf` (or any file it sources) as read-only rows alongside the managed ones, matching the existing behavior of the Env Variables, Window Rules, and Layer Rules pages (#37)
 - Lua migration preserves Hyprlang `$var` references as named Lua locals instead of inlining their values or emitting literal `"$var"` strings that Hyprland rejected on reload (#38)
 - Deleting or disabling a window rule with `float`, `tile`, `pin`, `fullscreen`, or `maximize` now reverts the effect on matching open windows instead of waiting for the next Hyprland reload
 

@@ -19,8 +19,10 @@ sequentially, and users may rely on, e.g., ``swaybg`` finishing before
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from hyprmod.core import config
+from hyprmod.core.external import load_external_keyword_entries
 
 # Set of keyword names this module handles. The order here also defines
 # the order entries are written back to disk (once-then-recurring), which
@@ -97,3 +99,52 @@ def serialize(items: list[ExecData]) -> list[str]:
     exec) before calling this.
     """
     return [item.to_line() for item in items]
+
+
+# ---------------------------------------------------------------------------
+# External loader (exec entries from outside our managed file)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalExec:
+    """An ``exec``/``exec-once`` entry from a config file outside hyprmod's.
+
+    Surfaced read-only on the Autostart page so users see entries that
+    are already running on Hyprland startup/reload from their own
+    ``hyprland.conf`` (or any file it sources). Unlike env vars, there's
+    no "override" affordance: Hyprland always runs *every* matching
+    ``exec``/``exec-once`` line, so a managed entry can't suppress an
+    external one — the user has to edit the source file directly.
+    """
+
+    entry: ExecData
+    source_path: Path
+    lineno: int
+
+
+def load_external_exec_entries(
+    root_path: Path,
+    managed_path: Path,
+) -> list[ExternalExec]:
+    """Walk *root_path* and its sourced files for exec entries outside
+    *managed_path*.
+
+    Errors return an empty list (advisory display only; failing silently
+    is safer than blocking the page on a flaky config).
+    """
+    entries = load_external_keyword_entries(root_path, managed_path, EXEC_KEYWORDS)
+    external: list[ExternalExec] = []
+    for entry in entries:
+        line = f"{entry.key} = {entry.value}"
+        parsed = parse_exec_line(line)
+        if parsed is None:
+            continue
+        external.append(
+            ExternalExec(
+                entry=parsed,
+                source_path=entry.source_path,
+                lineno=entry.lineno,
+            )
+        )
+    return external
