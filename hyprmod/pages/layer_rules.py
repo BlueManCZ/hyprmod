@@ -46,6 +46,7 @@ release. Layer rule order is less critical than window rule order
 from html import escape as html_escape
 
 from gi.repository import Adw, Gtk
+from hyprland_config import render_rule_live
 from hyprland_socket import HyprlandError
 
 from hyprmod.core import config
@@ -256,10 +257,20 @@ class LayerRulesPage(SavedListSectionPage[LayerRule]):
         """
         if not rule.enabled:
             return False
+        # ``render_rule_live`` picks the grammar the running compositor
+        # understands: ``layerrule = match:namespace …`` on 0.54+, the
+        # effect-first ``layerrule = blur, ^(waybar)$`` below, with one
+        # (keyword, value) pair per effect on the older grammar.
+        version = self._window.hypr.version
+
+        def _push() -> None:
+            for keyword, value in render_rule_live(rule.to_rule_node(), version):
+                self._window.hypr.keyword(keyword, value)
+
         return try_with_toast(
             self._window.show_bug_toast,
             "Layer rule failed",
-            lambda: self._window.hypr.keyword(config.KEYWORD_LAYERRULE, rule.body()),
+            _push,
             catch=HyprlandError,
         )
 
@@ -319,9 +330,12 @@ class LayerRulesPage(SavedListSectionPage[LayerRule]):
 
         Order is preserved — placement matters for ``unset`` and for
         ``order N`` predictability, so the order users see in the UI
-        is exactly what's written.
+        is exactly what's written. The running Hyprland version drives
+        the grammar: pre-0.54 emits the legacy ``layerrule = effect,
+        namespace`` form so the saved config reloads cleanly on the
+        compositor that's actually running.
         """
-        return serialize(list(self._owned))
+        return serialize(list(self._owned), self._window.hypr.version)
 
 
 __all__ = ["LayerRulesPage"]

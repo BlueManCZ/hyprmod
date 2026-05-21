@@ -57,10 +57,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from hyprland_config import LAYER_BOOL_EFFECTS, Rule, split_top_level
+from hyprland_config import (
+    LAYER_BOOL_EFFECTS,
+    LAYERRULE_V3_VERSION,
+    Rule,
+    parse_version,
+    render_rule_hyprlang,
+    split_top_level,
+)
 
 from hyprmod.core import config
 from hyprmod.core.external import load_external_rule_entries
+
+
+def _predates_v3_layerrule(version: str) -> bool:
+    """True when *version* predates Hyprland's v3 layerrule grammar (0.54).
+
+    Below 0.54 the compositor uses the effect-first form
+    (``layerrule = blur, ^(waybar)$``) with run-together effect names
+    (``noanim``, ``blurpopups``, …); pushing ``match:namespace`` is
+    rejected.
+    """
+    return parse_version(version) < LAYERRULE_V3_VERSION
+
 
 # Sequence of accepted keywords on read. Single-element tuple kept as a
 # tuple (not a bare string) so the external loader and any hypothetical
@@ -193,14 +212,20 @@ class LayerRule:
             effects=[(e.name, e.args) for e in self.effects],
         )
 
-    def to_line(self) -> str:
-        """Serialize as on-disk form: single-line keyword OR block.
+    def to_line(self, version: str | None = None) -> str:
+        """Serialize as on-disk form for *version*.
 
-        Block form is used when the rule carries a :attr:`name` or is
-        disabled — those fields only exist in block syntax. Anonymous
-        enabled rules, including multi-effect ones, emit as compact
-        single-line.
+        Hyprland 0.54+ accepts the v3 grammar: anonymous rules emit as
+        compact single-line, named/disabled ones as a ``layerrule { … }``
+        block (the single-line handler rejects ``name``/``enable``).
+        Below 0.54 the grammar is effect-first (``layerrule = blur,
+        ^(waybar)$``) with the older run-together effect names; that
+        path delegates to :func:`hyprland_config.render_rule_hyprlang`
+        so the grammar lives in one place. ``None`` (the default, used
+        for identity keys) always emits v3.
         """
+        if version is not None and _predates_v3_layerrule(version):
+            return render_rule_hyprlang(self.to_rule_node(), version).rstrip("\n")
         needs_block = bool(self.name) or not self.enabled
         if needs_block:
             return self._to_block()
@@ -594,9 +619,14 @@ def parse_layer_rule_lines(lines: list[str]) -> list[LayerRule]:
     return result
 
 
-def serialize(items: list[LayerRule]) -> list[str]:
-    """Serialize a list of :class:`LayerRule` back to v3 config lines."""
-    return [item.to_line() for item in items]
+def serialize(items: list[LayerRule], version: str | None = None) -> list[str]:
+    """Serialize a list of :class:`LayerRule` to Hyprlang config lines.
+
+    *version* selects the grammar: below 0.54 each rule renders in the
+    legacy effect-first form so the saved config reloads cleanly on the
+    compositor that's actually running. ``None`` emits v3.
+    """
+    return [item.to_line(version) for item in items]
 
 
 def from_rule_node(node: "Rule") -> LayerRule | None:

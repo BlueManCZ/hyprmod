@@ -673,6 +673,53 @@ def test_write_keyword_is_v3():
 
 
 # ---------------------------------------------------------------------------
+# Issue #41: hyprmod must emit pre-v3 grammar on Hyprland < 0.53.
+#
+# The v3 ``match:class …`` syntax was introduced in 0.53; pushing it via
+# ``hypr.keyword`` on 0.49 fails with "Invalid rulev2 found" because the
+# old parser reads the first comma-segment as the rule action.
+# ---------------------------------------------------------------------------
+
+
+class TestPreV3Serialization:
+    def test_issue_41_rule_renders_as_windowrulev2_on_049(self):
+        rule = WindowRule(
+            matchers=[Matcher(key="class", value=r"^(io\.github\.bluemancz\.hyprmod)$")],
+            effects=[Effect(name="float")],
+        )
+        assert (
+            rule.to_line("0.49.0")
+            == r"windowrulev2 = float, class:^(io\.github\.bluemancz\.hyprmod)$"
+        )
+
+    def test_default_call_still_emits_v3_for_identity_use(self):
+        # SavedList / change_tracking use ``to_line()`` with no version
+        # as a stable identity key; that must stay canonical (v3) so
+        # baselines and current edits compare cleanly within a session.
+        rule = WindowRule(
+            matchers=[Matcher(key="class", value="kitty")], effects=[Effect(name="float")]
+        )
+        assert rule.to_line() == "windowrule = match:class kitty, float on"
+
+    def test_v3_versions_keep_match_grammar(self):
+        rule = WindowRule(
+            matchers=[Matcher(key="class", value="kitty")], effects=[Effect(name="float")]
+        )
+        assert rule.to_line("0.53.0").startswith("windowrule = match:")
+        assert rule.to_line("0.55.2").startswith("windowrule = match:")
+
+    def test_serialize_threads_version(self):
+        from hyprmod.core.window_rules import serialize
+
+        rule = WindowRule(
+            matchers=[Matcher(key="class", value="kitty")], effects=[Effect(name="float")]
+        )
+        assert serialize([rule], "0.49.0") == ["windowrulev2 = float, class:kitty"]
+        assert serialize([rule], "0.55.2") == ["windowrule = match:class kitty, float on"]
+        assert serialize([rule]) == ["windowrule = match:class kitty, float on"]
+
+
+# ---------------------------------------------------------------------------
 # Self-targeting detection (matches_hyprmod)
 # ---------------------------------------------------------------------------
 

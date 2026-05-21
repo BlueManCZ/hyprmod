@@ -548,15 +548,10 @@ def to_managed_text(
     Returns Hyprlang text in Hyprlang mode, Lua text in Lua mode. Used by
     :func:`write_all` and the Pending Changes diff so both see the same
     bytes that will land on disk.
-
-    ``emit_migration_markers=False`` keeps repeat Lua saves quiet — when a
-    user picks "Once at startup" in the Autostart page their intent is
-    unambiguous, so the converter's ``-- TODO: was exec-once`` hint would
-    just be noise on every save.
     """
     doc = _build_document(values, sections)
     _log_deprecations(doc, hyprland_version=hyprland_version)
-    return serialize_any(doc, managed_path(), emit_migration_markers=False)
+    return serialize_any(doc, managed_path())
 
 
 def write_all(

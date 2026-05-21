@@ -384,6 +384,38 @@ class TestKeywords:
         assert config.KEYWORD_LAYERRULE == "layerrule"
 
 
+class TestPreV3LayerSerialization:
+    """Layer rules took the v3 ``match:namespace`` grammar at 0.54. Below
+    that, the compositor only understands the effect-first form with old
+    run-together effect names (``noanim``, ``blurpopups``, …)."""
+
+    def test_pre_v3_layer_emits_effect_first(self):
+        rule = LayerRule(namespace=r"^(waybar)$", effects=[LayerEffect(name="blur")])
+        assert rule.to_line("0.53.0") == r"layerrule = blur, ^(waybar)$"
+
+    def test_pre_v3_renames_effect(self):
+        rule = LayerRule(namespace="rofi", effects=[LayerEffect(name="no_anim")])
+        assert rule.to_line("0.53.0") == "layerrule = noanim, rofi"
+
+    def test_v3_layer_unchanged(self):
+        rule = LayerRule(namespace="waybar", effects=[LayerEffect(name="blur")])
+        assert rule.to_line("0.55.2") == "layerrule = match:namespace waybar, blur on"
+
+    def test_layer_boundary_is_054(self):
+        rule = LayerRule(namespace="rofi", effects=[LayerEffect(name="blur")])
+        # 0.53 is still pre-v3 for layer rules (window rules switched at 0.53).
+        assert rule.to_line("0.53.0") == "layerrule = blur, rofi"
+        assert rule.to_line("0.54.0").startswith("layerrule = match:namespace")
+
+    def test_serialize_threads_version(self):
+        from hyprmod.core.layer_rules import serialize
+
+        rule = LayerRule(namespace="waybar", effects=[LayerEffect(name="blur")])
+        assert serialize([rule], "0.53.0") == ["layerrule = blur, waybar"]
+        assert serialize([rule], "0.55.2") == ["layerrule = match:namespace waybar, blur on"]
+        assert serialize([rule]) == ["layerrule = match:namespace waybar, blur on"]
+
+
 class TestBoolEffectCatalog:
     """Spot-check that the bool set covers the effects with auto-``on`` —
     these are the ones Hyprland 0.54.3 rejects when emitted bare."""

@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lua migration preserves Hyprlang `$var` references as named Lua locals instead of inlining their values or emitting literal `"$var"` strings that Hyprland rejected on reload (#38)
 - Deleting or disabling a window rule with `float`, `tile`, `pin`, `fullscreen`, or `maximize` now reverts the effect on matching open windows instead of waiting for the next Hyprland reload
 - Per-monitor VRR `Off` now writes `vrr, 0` and actually disables VRR; a new `Use global` option preserves the previous omit-the-clause behavior (#39)
+- Window and layer rules now apply correctly on Hyprland < 0.53 and < 0.54, which expect the pre-v3 `windowrulev2` / `layerrule = effect, namespace` grammar; the v3 `match:` form hyprmod previously always emitted was rejected with `Invalid rulev2 found` (#41)
 
 ## [0.2.0] - 2026-05-07
 

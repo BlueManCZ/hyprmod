@@ -72,6 +72,7 @@ import re
 from html import escape as html_escape
 
 from gi.repository import Adw, Gtk
+from hyprland_config import render_rule_live
 from hyprland_socket import HyprlandError, get_windows
 
 from hyprmod.core import config
@@ -326,10 +327,21 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         """
         if not rule.enabled:
             return False
+        # ``render_rule_live`` picks the grammar the running compositor
+        # accepts (``windowrule = match:…`` on 0.53+, ``windowrulev2 =
+        # effect, class:…`` below) and yields one (keyword, value) pair
+        # per push: multi-effect rules emit multiple pairs on the pre-v3
+        # grammar, one on v3.
+        version = self._window.hypr.version
+
+        def _push() -> None:
+            for keyword, value in render_rule_live(rule.to_rule_node(), version):
+                self._window.hypr.keyword(keyword, value)
+
         ok = try_with_toast(
             self._window.show_bug_toast,
             "Window rule failed",
-            lambda: self._window.hypr.keyword(config.KEYWORD_WINDOWRULE, rule.body()),
+            _push,
             catch=HyprlandError,
         )
         if not ok:
@@ -602,9 +614,12 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         """Serialize the current rules for ``config.write_all``.
 
         Order is preserved — rule order matters in Hyprland, so the
-        order users see in the UI is exactly what's written.
+        order users see in the UI is exactly what's written. The running
+        Hyprland version drives the grammar: pre-0.53 emits the legacy
+        ``windowrulev2 = effect, class:regex`` form so the saved config
+        reloads cleanly on the compositor that's actually running.
         """
-        return serialize(list(self._owned))
+        return serialize(list(self._owned), self._window.hypr.version)
 
 
 __all__ = ["WindowRulesPage"]

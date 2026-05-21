@@ -15,10 +15,27 @@ without dragging the parser or the IPC layer along.
 from dataclasses import dataclass
 from typing import Literal
 
-from hyprland_config import V3_BOOL_EFFECTS, Rule
+from hyprland_config import (
+    V3_BOOL_EFFECTS,
+    WINDOWRULE_V3_VERSION,
+    Rule,
+    parse_version,
+    render_rule_hyprlang,
+)
 
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config
+
+
+def _predates_v3_windowrule(version: str) -> bool:
+    """True when *version* is older than Hyprland adopted v3 windowrule syntax.
+
+    Below 0.53 the compositor only understands ``windowrulev2 = effect,
+    class:regex`` (effect-first); pushing v3 ``match:`` syntax is
+    rejected as "Invalid rulev2 found".
+    """
+    return parse_version(version) < WINDOWRULE_V3_VERSION
+
 
 # HyprMod's own application id — the value Hyprland reports as ``class``
 # for our window. Used by :func:`matches_hyprmod` to gate live-apply
@@ -172,16 +189,23 @@ class WindowRule:
             effects=[(e.name, e.args) for e in self.effects],
         )
 
-    def to_line(self) -> str:
-        """Serialize as the on-disk form: single-line keyword OR block.
+    def to_line(self, version: str | None = None) -> str:
+        """Serialize as the on-disk form for *version*.
 
-        Block form is used when the rule carries a :attr:`name` or is
-        disabled — those fields only exist in block syntax (Hyprland's
-        single-line handler rejects them). Anonymous enabled rules,
-        including multi-effect ones, emit as compact single-line —
-        Hyprland accepts multi-effect on one line and that matches
-        what users typically author.
+        Hyprland 0.53+ accepts the v3 grammar: anonymous rules emit as
+        compact single-line, named/disabled ones as a ``windowrule { … }``
+        block (the single-line handler rejects ``name``/``enable``).
+        Below 0.53 the grammar is effect-first (``windowrulev2 = float,
+        class:^(x)$``), one line per effect, with no named/disabled
+        equivalent; that path delegates to
+        :func:`hyprland_config.render_rule_hyprlang` so the grammar lives
+        in one place. ``None`` (the default, used for identity keys)
+        always emits v3.
         """
+        if version is not None and _predates_v3_windowrule(version):
+            # ``RAW_KEY`` opaque tokens get dropped here; they don't
+            # translate to pre-v3 grammar anyway.
+            return render_rule_hyprlang(self.to_rule_node(), version).rstrip("\n")
         needs_block = bool(self.name) or not self.enabled
         if needs_block:
             return self._to_block()

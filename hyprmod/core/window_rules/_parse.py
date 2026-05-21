@@ -82,9 +82,15 @@ def from_rule_nodes(nodes: list[Rule]) -> list[WindowRule]:
     return out
 
 
-def serialize(items: list[WindowRule]) -> list[str]:
-    """Serialize a list of :class:`WindowRule` to Hyprlang config lines."""
-    return [item.to_line() for item in items]
+def serialize(items: list[WindowRule], version: str | None = None) -> list[str]:
+    """Serialize a list of :class:`WindowRule` to Hyprlang config lines.
+
+    *version* is the running Hyprland version; below 0.53 each rule
+    renders in the effect-first ``windowrulev2`` grammar (one line per
+    effect; see :meth:`WindowRule.to_line`). ``None`` (the default)
+    emits v3.
+    """
+    return [item.to_line(version) for item in items]
 
 
 def parse_window_rule_line(line: str) -> WindowRule | None:
