@@ -55,6 +55,20 @@ Huge thanks to the creators below — without you, HyprMod would reach far fewer
 
 Requires Python 3.12+, GTK4, and libadwaita.
 
+The one-line installer works on any distribution.
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh
+```
+
+To uninstall:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh -s -- --uninstall
+```
+
+### Distribution packages
+
 **Arch Linux** — [`hyprmod`](https://aur.archlinux.org/packages/hyprmod) on the AUR:
 
 ```bash
@@ -65,16 +79,6 @@ yay -S hyprmod
 
 ```bash
 emerge -a hyprmod
-```
-
-**Other distributions** — one-line installer (auto-detects [`uv`](https://docs.astral.sh/uv) or [`pipx`](https://pipx.pypa.io), bootstraps `uv` if missing):
-
-```bash
-# install
-curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh
-
-# uninstall
-curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh -s -- --uninstall
 ```
 
 <details>
