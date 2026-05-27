@@ -2,7 +2,7 @@
 
 These cover the contract used by the deprecation dialog: a scan must
 identify which files need rewriting and what would change, and an apply
-must produce a backup beside the file before atomically overwriting.
+must produce a backup in a .hyprmod-backups/ directory before atomically overwriting.
 """
 
 from pathlib import Path
@@ -227,7 +227,7 @@ class TestApplyToFile:
         assert "no_warps" in plan.path.read_text()
         assert "no_cursor_warps" not in plan.path.read_text()
 
-    def test_writes_backup_beside_original(self, tmp_path):
+    def test_writes_backup_in_dotdir(self, tmp_path):
         plan = self._make_plan(tmp_path)
         original_text = plan.path.read_text()
 
@@ -236,7 +236,8 @@ class TestApplyToFile:
         assert outcome.backup_path is not None
         assert outcome.backup_path.exists()
         assert outcome.backup_path.read_text() == original_text
-        assert outcome.backup_path.name.startswith("hyprland.conf.hyprmod-bak-")
+        assert outcome.backup_path.parent.name == ".hyprmod-backups"
+        assert outcome.backup_path.parent.parent == plan.path.parent
 
     def test_backup_skipped_when_disabled(self, tmp_path):
         plan = self._make_plan(tmp_path)

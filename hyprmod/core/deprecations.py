@@ -131,10 +131,11 @@ def scan(
 def apply_to_file(plan: FilePlan, *, backup: bool = True) -> ApplyResult:
     """Write *plan*.migrated to *plan*.path, with an optional backup file.
 
-    The backup lands at ``<path>.hyprmod-bak-<unix-ts>`` next to the
-    original. Returns a structured :class:`ApplyResult` rather than
-    raising — the caller (dialog) wants to report per-file outcomes
-    without unwinding the whole apply loop.
+    The backup lands in a ``.hyprmod-backups/`` directory next to the
+    original so ``source = …/*`` globs don't pick it up. Returns a
+    structured :class:`ApplyResult` rather than raising — the caller
+    (dialog) wants to report per-file outcomes without unwinding the
+    whole apply loop.
     """
     backup_path: Path | None = None
     try:
@@ -273,8 +274,14 @@ def _safe_resolve(path: Path) -> Path:
 
 
 def _write_backup(path: Path) -> Path:
-    """Copy *path* to ``<path>.hyprmod-bak-<unix-ts>`` and return the new path."""
-    backup = path.with_suffix(path.suffix + f".hyprmod-bak-{int(time.time())}")
+    """Copy *path* into a ``.hyprmod-backups/`` sibling directory.
+
+    Using a dot-prefixed directory keeps backups out of ``source = …/*``
+    globs that Hyprland expands when loading config fragments.
+    """
+    backup_dir = path.parent / ".hyprmod-backups"
+    backup_dir.mkdir(exist_ok=True)
+    backup = backup_dir / f"{path.name}.{int(time.time())}"
     atomic_write(backup, path.read_text())
     return backup
 

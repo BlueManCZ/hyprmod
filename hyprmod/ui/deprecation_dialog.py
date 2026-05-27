@@ -3,7 +3,7 @@
 Thin preview-and-confirm shell around :mod:`hyprmod.core.deprecations`:
 runs ``scan()`` on present, lists each fixable file with a unified diff
 of what would change, and on Apply calls ``apply_to_file`` per selected
-plan, writing a timestamped backup beside each original.
+plan, writing a timestamped backup into a .hyprmod-backups/ directory beside each original.
 """
 
 from collections.abc import Callable
@@ -99,7 +99,7 @@ class DeprecationDialog(SingletonDialogMixin, Adw.Dialog):
         group = Adw.PreferencesGroup(title="Fixable files")
         group.set_description(
             "Each file is rewritten in place; a timestamped backup is "
-            "saved beside it (.hyprmod-bak-<unix-ts>) before the change."
+            "saved in a .hyprmod-backups/ directory beside it."
         )
 
         for plan in scan.files:
