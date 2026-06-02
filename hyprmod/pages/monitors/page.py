@@ -166,6 +166,39 @@ class MonitorsPage(SectionPage):
         saved = config.collect_section(sections, config.KEYWORD_MONITOR)
         if saved:
             merge_saved_state(self._monitors, saved)
+
+            live_names = {m.name for m in self._monitors}
+            for line in saved:
+                port = self._resolve_line_to_port(line)
+                if port and port not in live_names:
+                    is_line_disabled = "disabled" in line.lower() or "none" in line.lower()
+
+                    if is_line_disabled:
+                        # If it's unplugged AND disabled, skip creating a mock object.
+                        # This marks it for removal from the configuration on the next save/commit.
+                        continue
+
+                    # Create a mock MonitorState object for the missing/disabled display
+                    disabled_mon = MonitorState(
+                        name=port,
+                        make="",
+                        model="Disabled Display",
+                        width=0,
+                        height=0,
+                        refresh_rate=0.0,
+                        x=0,
+                        y=0,
+                        scale=1.0,
+                    )
+                    disabled_mon.disabled = True
+
+                    # Append the mock so the UI registers the "Disabled Display" with a card
+                    self._monitors.append(disabled_mon)
+                    live_names.add(port)
+
+            # Sort to maintain clean order in the UI layout
+            self._monitors.sort(key=lambda m: m.name)
+
         self._ownership = OwnershipSet(self._managed_names_from_lines(saved))
         # Since monitor= is all-or-nothing, our line replaces the user's
         # entire line.  IPC may still report extras from the user's config
@@ -748,6 +781,13 @@ class MonitorsPage(SectionPage):
             self._confirm.cancel()
         if self._content_box is not None:
             self._update_card_states()
+
+        try:
+            self._window.hypr.monitors._state.reload_compositor()
+        except Exception as e:
+            # Fallback wrapper tracking in case of unexpected socket bubbles
+            if hasattr(self._window, "show_toast"):
+                self._window.show_toast(f"Compositor reload notification failed: {e}")
 
     def discard(self):
         if not self._saved_monitors or not self.is_dirty():
