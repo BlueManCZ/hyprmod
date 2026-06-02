@@ -1,6 +1,9 @@
 """Monitor management page — orchestrates cards, preview, and Hyprland IPC."""
 
 import copy
+import json
+import re
+import subprocess
 from collections.abc import Iterator
 
 from gi.repository import Adw, GLib, Gtk
@@ -167,6 +170,12 @@ class MonitorsPage(SectionPage):
         if saved:
             merge_saved_state(self._monitors, saved)
 
+            # Extract hardware names to identify disabled-but-physically-plugged monitors
+            hardware_monitors = self._fetch_hardware_monitors()
+            hardware_names = {
+                str(h.get("name")) for h in hardware_monitors if isinstance(h.get("name"), str)
+            }
+
             live_names = {m.name for m in self._monitors}
             for line in saved:
                 port = self._resolve_line_to_port(line)
@@ -174,18 +183,18 @@ class MonitorsPage(SectionPage):
                     is_line_disabled = "disabled" in line.lower() or "none" in line.lower()
 
                     if is_line_disabled:
-                        # If it's unplugged AND disabled, skip creating a mock object.
-                        # This marks it for removal from the configuration on the next save/commit.
-                        continue
+                        # Only skip creating a mock object if it is completely unplugged (absent from hardware)
+                        if hardware_names and port not in hardware_names:
+                            continue
 
                     # Create a mock MonitorState object for the missing/disabled display
                     disabled_mon = MonitorState(
                         name=port,
                         make="",
                         model="Disabled Display",
-                        width=0,
-                        height=0,
-                        refresh_rate=0.0,
+                        width=640,
+                        height=480,
+                        refresh_rate=30.0,
                         x=0,
                         y=0,
                         scale=1.0,
@@ -217,7 +226,12 @@ class MonitorsPage(SectionPage):
         if not token:
             return None
         mon = resolve_identifier(token, self._monitors)
-        return mon.name if mon else None
+        if mon:
+            return mon.name
+
+        # Fallback: If the monitor is disabled or unplugged, it won't be in active self._monitors.
+        # If it's identified directly by its port name, we can safely use the token as-is.
+        return token if not token.startswith("desc:") else None
 
     def _clear_unmanaged_extras(self, saved_lines: list[str]):
         """Clear IPC-leaked extras on managed monitors not in our config."""
@@ -445,20 +459,96 @@ class MonitorsPage(SectionPage):
             self._applying = True
             try:
                 old_w, old_h = mon.effective_size
+
+                # Detect if the display is transitioning from disabled to enabled
+                is_being_enabled = "disabled" in new_vals and not new_vals["disabled"]
+
                 for k, v in new_vals.items():
                     setattr(mon, k, v)
-                if "width" in new_vals or "height" in new_vals:
+
+                if is_being_enabled:
+                    # Query the global hardware list via our helper method
+                    try:
+                        all_hardware = self._fetch_hardware_monitors()
+
+                        # Locate the hardware block matching this monitor's connector name
+                        hw_match = next(
+                            (
+                                h
+                                for h in all_hardware
+                                if isinstance(h.get("name"), str) and h["name"] == mon.name
+                            ),
+                            None,
+                        )
+                        if hw_match:
+                            modes = hw_match.get("availableModes")
+                            if isinstance(modes, list) and len(modes) > 0:
+                                # Parse the first (preferred/native) resolution mode
+                                first_mode = str(modes[0]).strip().replace("Hz", "")
+                                match = re.match(r"(\d+)x(\d+)(?:@([\d.]+))?", first_mode)
+                                if match:
+                                    mon.width = int(match.group(1))
+                                    mon.height = int(match.group(2))
+                                    mon.refresh_rate = (
+                                        float(match.group(3)) if match.group(3) else 60.0
+                                    )
+                    except Exception as hardware_error:
+                        self._window.show_toast(
+                            "Error finding available modes "
+                            + f"for re-enabled display: {hardware_error}",
+                            timeout=3,
+                            copy=True,
+                        )
+
+                    # Conditional Snapping: Check if enabling this monitor leaves a layout gap or causes an overlap
+                    active_others = [
+                        m
+                        for m in self._monitors
+                        if m.name != mon.name and not m.disabled and not m.mirror_of
+                    ]
+
+                    # Detect spatial collision/overlap with any currently active monitors
+                    has_overlap = False
+                    mw, mh = mon.effective_size
+                    for other in active_others:
+                        ow, oh = other.effective_size
+                        if (
+                            mon.x < other.x + ow
+                            and mon.x + mw > other.x
+                            and mon.y < other.y + oh
+                            and mon.y + mh > other.y
+                        ):
+                            has_overlap = True
+                            break
+
+                    # Snap to the right if there's an overlap or a gap in overall layout connectivity
+                    if has_overlap or not all_monitors_connected(self._monitors):
+                        if active_others:
+                            # Position it instantly adjacent to the far-right edge of the active layout
+                            mon.x = max(m.x + m.effective_size[0] for m in active_others)
+                            mon.y = 0
+                        # Align edges cleanly using a 0x0 baseline context
+                        adjust_neighbors(self._monitors, mon, 0, 0)
+
+                elif "width" in new_vals or "height" in new_vals:
                     vs = compute_valid_scales(mon.width, mon.height)
                     si = nearest_scale_index(vs, mon.scale)
                     mon.scale = vs[si][0]
-                if "disabled" not in new_vals and "mirror_of" not in new_vals:
+
+                if (
+                    not is_being_enabled
+                    and "disabled" not in new_vals
+                    and "mirror_of" not in new_vals
+                ):
                     adjust_neighbors(self._monitors, mon, old_w, old_h)
+
                 # Disabling a monitor clears any monitors mirroring it
                 if new_vals.get("disabled"):
                     for other in self._monitors:
                         if other.mirror_of == mon.name:
                             other.mirror_of = None
                             self._ownership.own(other.name)
+
                 if not try_with_toast(
                     self._window.show_bug_toast,
                     "Monitor config failed",
@@ -469,22 +559,6 @@ class MonitorsPage(SectionPage):
                 self._push_to_ui()
             finally:
                 self._applying = False
-        self._on_monitors_changed()
-        self._schedule_resync()
-
-    def _commit_to_hyprland(self):
-        """Send all monitors to Hyprland, push to UI."""
-        self._applying = True
-        try:
-            self._window.hypr.monitors.apply(self._monitors)
-        except HyprlandError as e:
-            self._applying = False
-            self._window.show_bug_toast(f"Monitor config failed — {e}", detail=str(e), timeout=5)
-            return
-        try:
-            self._push_to_ui()
-        finally:
-            self._applying = False
         self._on_monitors_changed()
         self._schedule_resync()
 
@@ -848,3 +922,20 @@ class MonitorsPage(SectionPage):
     def get_monitor_lines(self) -> list[str]:
         managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
         return [f"monitor = {line}" for line in lines_from_monitors(managed)]
+
+    def _fetch_hardware_monitors(self) -> list[dict[str, object]]:
+        """Query the global hardware list of all connected monitors from Hyprland IPC."""
+        result: list[dict[str, object]] = []
+        try:
+            # TODO 02/06/26 - self._window.hypr.monitors.get_all() should do this, but does not.
+            # Should update hyprland-state &| hyprland-socket with a function of either
+            # `hyprctl monitors` and `hyprctl monitors all`
+            output = subprocess.check_output(["hyprctl", "monitors", "all", "-j"], text=True)
+            data = json.loads(output)
+            if isinstance(data, list):
+                result = data
+        except Exception as e:
+            self._window.show_bug_toast(
+                f"Hyprctl monitors all -j failed — {e}", detail=str(e), timeout=5
+            )
+        return result
