@@ -6,7 +6,7 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
     "pygobject>=3.56.2",
-    "hyprland-config>=0.9.5",
+    "hyprland-config>=0.9.6",
     "hyprland-schema>=0.6.1",
     "hyprland-state>=0.4.2",
     "hyprland-monitors>=0.7.0",
