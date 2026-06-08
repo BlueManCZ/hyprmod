@@ -1,18 +1,16 @@
 """Monitor management page — orchestrates cards, preview, and Hyprland IPC."""
 
 import copy
-import json
-import re
-import subprocess
 from collections.abc import Iterator
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, Gtk
 from hyprland_monitors import get_monitor_capabilities
 from hyprland_monitors.monitors import (
     MonitorState,
     adjust_neighbors,
     all_monitors_connected,
     compute_valid_scales,
+    is_adjacent,
     lines_from_monitors,
     merge_saved_state,
     nearest_scale_index,
@@ -146,7 +144,6 @@ class MonitorsPage(SectionPage):
                     setattr(mon, field, getattr(saved, field))
         self._ownership.restore(owned_names)
         self._push_to_ui()
-        self._commit_to_hyprland()
 
     # -- Data loading --
 
@@ -169,44 +166,6 @@ class MonitorsPage(SectionPage):
         saved = config.collect_section(sections, config.KEYWORD_MONITOR)
         if saved:
             merge_saved_state(self._monitors, saved)
-
-            # Extract hardware names to identify disabled-but-physically-plugged monitors
-            hardware_monitors = self._fetch_hardware_monitors()
-            hardware_names = {
-                str(h.get("name")) for h in hardware_monitors if isinstance(h.get("name"), str)
-            }
-
-            live_names = {m.name for m in self._monitors}
-            for line in saved:
-                port = self._resolve_line_to_port(line)
-                if port and port not in live_names:
-                    is_line_disabled = "disabled" in line.lower() or "none" in line.lower()
-
-                    if is_line_disabled:
-                        # Only skip creating a mock object if it is completely unplugged (absent from hardware)
-                        if hardware_names and port not in hardware_names:
-                            continue
-
-                    # Create a mock MonitorState object for the missing/disabled display
-                    disabled_mon = MonitorState(
-                        name=port,
-                        make="",
-                        model="Disabled Display",
-                        width=640,
-                        height=480,
-                        refresh_rate=30.0,
-                        x=0,
-                        y=0,
-                        scale=1.0,
-                    )
-                    disabled_mon.disabled = True
-
-                    # Append the mock so the UI registers the "Disabled Display" with a card
-                    self._monitors.append(disabled_mon)
-                    live_names.add(port)
-
-            # Sort to maintain clean order in the UI layout
-            self._monitors.sort(key=lambda m: m.name)
 
         self._ownership = OwnershipSet(self._managed_names_from_lines(saved))
         # Since monitor= is all-or-nothing, our line replaces the user's
@@ -252,7 +211,14 @@ class MonitorsPage(SectionPage):
     def _snap_scales(self):
         """Map 2dp scales from Hyprland to full-precision 1/120 values."""
         for mon in self._monitors:
+            # Skip disabled or unconfigured monitors from IPC that have 0 width/height
+            if mon.disabled or mon.width == 0 or mon.height == 0:
+                continue
+
             vs = compute_valid_scales(mon.width, mon.height)
+            if not vs:
+                continue
+
             si = nearest_scale_index(vs, mon.scale)
             mon.scale = vs[si][0]
 
@@ -461,80 +427,19 @@ class MonitorsPage(SectionPage):
                 old_w, old_h = mon.effective_size
 
                 # Detect if the display is transitioning from disabled to enabled
-                is_being_enabled = "disabled" in new_vals and not new_vals["disabled"]
+                is_being_enabled = mon.disabled and not new_vals.get("disabled", mon.disabled)
 
                 for k, v in new_vals.items():
                     setattr(mon, k, v)
 
-                if is_being_enabled:
-                    # Query the global hardware list via our helper method
-                    try:
-                        all_hardware = self._fetch_hardware_monitors()
+                # Clear special keywords if explicit resolution/positioning changes are targeted
+                if not is_being_enabled:
+                    if "width" in new_vals or "height" in new_vals or "refresh_rate" in new_vals:
+                        mon.mode = None
+                    if "x" in new_vals or "y" in new_vals:
+                        mon.position = None
 
-                        # Locate the hardware block matching this monitor's connector name
-                        hw_match = next(
-                            (
-                                h
-                                for h in all_hardware
-                                if isinstance(h.get("name"), str) and h["name"] == mon.name
-                            ),
-                            None,
-                        )
-                        if hw_match:
-                            modes = hw_match.get("availableModes")
-                            if isinstance(modes, list) and len(modes) > 0:
-                                # Parse the first (preferred/native) resolution mode
-                                first_mode = str(modes[0]).strip().replace("Hz", "")
-                                match = re.match(r"(\d+)x(\d+)(?:@([\d.]+))?", first_mode)
-                                if match:
-                                    mon.width = int(match.group(1))
-                                    mon.height = int(match.group(2))
-                                    mon.refresh_rate = (
-                                        float(match.group(3)) if match.group(3) else 60.0
-                                    )
-                    except Exception as hardware_error:
-                        self._window.show_toast(
-                            "Error finding available modes "
-                            + f"for re-enabled display: {hardware_error}",
-                            timeout=3,
-                            copy=True,
-                        )
-
-                    # Conditional Snapping: Check if enabling this monitor leaves a layout gap or causes an overlap
-                    active_others = [
-                        m
-                        for m in self._monitors
-                        if m.name != mon.name and not m.disabled and not m.mirror_of
-                    ]
-
-                    # Detect spatial collision/overlap with any currently active monitors
-                    has_overlap = False
-                    mw, mh = mon.effective_size
-                    for other in active_others:
-                        ow, oh = other.effective_size
-                        if (
-                            mon.x < other.x + ow
-                            and mon.x + mw > other.x
-                            and mon.y < other.y + oh
-                            and mon.y + mh > other.y
-                        ):
-                            has_overlap = True
-                            break
-
-                    # Snap to the right if there's an overlap or a gap in overall layout connectivity
-                    if has_overlap or not all_monitors_connected(self._monitors):
-                        if active_others:
-                            # Position it instantly adjacent to the far-right edge of the active layout
-                            mon.x = max(m.x + m.effective_size[0] for m in active_others)
-                            mon.y = 0
-                        # Align edges cleanly using a 0x0 baseline context
-                        adjust_neighbors(self._monitors, mon, 0, 0)
-
-                elif "width" in new_vals or "height" in new_vals:
-                    vs = compute_valid_scales(mon.width, mon.height)
-                    si = nearest_scale_index(vs, mon.scale)
-                    mon.scale = vs[si][0]
-
+                # Calculate side-effects (neighbor offsets / breaking mirror lines)
                 if (
                     not is_being_enabled
                     and "disabled" not in new_vals
@@ -549,13 +454,26 @@ class MonitorsPage(SectionPage):
                             other.mirror_of = None
                             self._ownership.own(other.name)
 
-                if not try_with_toast(
+                if is_being_enabled:
+                    has_active_neighbor = any(
+                        is_adjacent(mon, other)
+                        for other in self._monitors
+                        if other.name != mon.name and not other.disabled
+                    )
+                    if not has_active_neighbor:
+                        mon.position = "auto"
+
+                success = try_with_toast(
                     self._window.show_bug_toast,
                     "Monitor config failed",
                     lambda: self._window.hypr.monitors.apply(self._monitors),
                     catch=HyprlandError,
-                ):
+                )
+                if not success:
                     return
+
+                # Push safe UI state
+                self._sync_dimensions_from_hardware()
                 self._push_to_ui()
             finally:
                 self._applying = False
@@ -573,14 +491,12 @@ class MonitorsPage(SectionPage):
             for field in self._RESTORABLE_FIELDS:
                 setattr(mon, field, getattr(baseline, field))
             self._ownership.discard(mon.name)
-            self._commit_to_hyprland()
 
     def _remove_monitor(self, mon: MonitorState):
         """Remove a monitor from HyprMod management."""
         with self._undo_track():
             self._ownership.disown(mon.name)
             self._apply_monitor_fallback(mon)
-            self._commit_to_hyprland()
 
     def _apply_monitor_fallback(self, mon: MonitorState):
         """Revert a monitor to user-config values (excluding HyprMod).
@@ -637,33 +553,15 @@ class MonitorsPage(SectionPage):
         self._resync_timer.schedule(200, self._deferred_resync)
 
     def _deferred_resync(self):
-        old_lines = lines_from_monitors(self._monitors)
-        actual = self._window.hypr.monitors.get_all()
-        if not actual:
-            return GLib.SOURCE_REMOVE
+        self._sync_dimensions_from_hardware()
 
-        actual_by_name = {m.name: m for m in actual}
-        for mon in self._monitors:
-            if mon.disabled:
-                continue
-            real = actual_by_name.get(mon.name)
-            if not real:
-                continue
-            # MonitorState and Monitor share the geometry fields used here;
-            # update_geometry_from_ipc declares Monitor but tolerates either.
-            mon.update_geometry_from_ipc(real)  # type: ignore[arg-type]
-            vs = compute_valid_scales(mon.width, mon.height)
-            si = nearest_scale_index(vs, real.scale)
-            mon.scale = vs[si][0]
+        self._applying = True
+        try:
+            self._push_to_ui()
+        finally:
+            self._applying = False
 
-        if lines_from_monitors(self._monitors) != old_lines:
-            self._applying = True
-            try:
-                self._push_to_ui()
-            finally:
-                self._applying = False
-            self._on_monitors_changed()
-        return GLib.SOURCE_REMOVE
+        self._on_monitors_changed()
 
     # -- Preview drag --
 
@@ -682,9 +580,32 @@ class MonitorsPage(SectionPage):
     def _on_preview_drag_end(self):
         idx = self._last_dragged_idx
         self._last_dragged_idx = -1
+
         if 0 <= idx < len(self._monitors):
-            self._ownership.own(self._monitors[idx].name)
-        self._commit_to_hyprland()
+            mon = self._monitors[idx]
+            self._ownership.own(mon.name)
+
+            # Commit the final dragged position to Hyprland
+            self._applying = True
+            try:
+                mon.position = None  # Clear keywords (like "auto") to lock hard coordinates
+
+                success = try_with_toast(
+                    self._window.show_bug_toast,
+                    "Monitor layout failed",
+                    lambda: self._window.hypr.monitors.apply(self._monitors),
+                    catch=HyprlandError,
+                )
+                if success:
+                    self._sync_dimensions_from_hardware()
+                    self._push_to_ui()
+            finally:
+                self._applying = False
+
+            # Notify the UI that changes happened (triggers the confirm banner)
+            self._on_monitors_changed()
+            self._schedule_resync()
+
         if self._drag_undo_state is not None:
             self._push_undo_from(self._drag_undo_state)
             self._drag_undo_state = None
@@ -923,19 +844,32 @@ class MonitorsPage(SectionPage):
         managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
         return [f"monitor = {line}" for line in lines_from_monitors(managed)]
 
-    def _fetch_hardware_monitors(self) -> list[dict[str, object]]:
-        """Query the global hardware list of all connected monitors from Hyprland IPC."""
-        result: list[dict[str, object]] = []
+    def _sync_dimensions_from_hardware(self) -> None:
+        """Query live hardware state to update dimensions, positions, and scales."""
         try:
-            # TODO 02/06/26 - self._window.hypr.monitors.get_all() should do this, but does not.
-            # Should update hyprland-state &| hyprland-socket with a function of either
-            # `hyprctl monitors` and `hyprctl monitors all`
-            output = subprocess.check_output(["hyprctl", "monitors", "all", "-j"], text=True)
-            data = json.loads(output)
-            if isinstance(data, list):
-                result = data
+            actual = self._window.hypr.monitors.get_all()
+            if not actual:
+                return
+
+            actual_by_name = {m.name: m for m in actual}
+            for mon in self._monitors:
+                if mon.disabled:
+                    continue
+
+                real = actual_by_name.get(mon.name)
+                if not real:
+                    continue
+
+                # Automatically updates x, y, width, height, and refresh_rate
+                mon.update_geometry_from_ipc(real)  # type: ignore[arg-type]
+
+                # Update scales
+                vs = compute_valid_scales(mon.width, mon.height)
+                if vs:
+                    si = nearest_scale_index(vs, real.scale)
+                    mon.scale = vs[si][0]
+
         except Exception as e:
             self._window.show_bug_toast(
-                f"Hyprctl monitors all -j failed — {e}", detail=str(e), timeout=5
+                f"Failed to sync dimension data from hardware — {e}", detail=str(e), timeout=5
             )
-        return result
