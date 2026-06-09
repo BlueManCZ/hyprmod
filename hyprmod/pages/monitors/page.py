@@ -480,6 +480,30 @@ class MonitorsPage(SectionPage):
         self._on_monitors_changed()
         self._schedule_resync()
 
+    def _commit_to_hyprland(self):
+        """Send all monitors to Hyprland, push to UI."""
+        self._applying = True
+        try:
+            success = try_with_toast(
+                self._window.show_bug_toast,
+                "Monitor config failed",
+                lambda: self._window.hypr.monitors.apply(self._monitors),
+                catch=HyprlandError,
+            )
+
+            if success:
+                # Always synchronize live coordinates/scales directly from hardware.
+                self._sync_dimensions_from_hardware()
+                self._push_to_ui()
+
+                # Notify the state tracking system that updates occurred
+                # (e.g., triggers confirm banner)
+                self._on_monitors_changed()
+                self._schedule_resync()
+
+        finally:
+            self._applying = False
+
     def _discard_monitor(self, mon: MonitorState):
         """Revert a single monitor to its saved state."""
         saved_by_name = {m.name: m for m in self._saved_monitors}
@@ -491,12 +515,14 @@ class MonitorsPage(SectionPage):
             for field in self._RESTORABLE_FIELDS:
                 setattr(mon, field, getattr(baseline, field))
             self._ownership.discard(mon.name)
+            self._commit_to_hyprland()
 
     def _remove_monitor(self, mon: MonitorState):
         """Remove a monitor from HyprMod management."""
         with self._undo_track():
             self._ownership.disown(mon.name)
             self._apply_monitor_fallback(mon)
+            self._commit_to_hyprland()
 
     def _apply_monitor_fallback(self, mon: MonitorState):
         """Revert a monitor to user-config values (excluding HyprMod).
@@ -585,26 +611,10 @@ class MonitorsPage(SectionPage):
             mon = self._monitors[idx]
             self._ownership.own(mon.name)
 
-            # Commit the final dragged position to Hyprland
-            self._applying = True
-            try:
-                mon.position = None  # Clear keywords (like "auto") to lock hard coordinates
-
-                success = try_with_toast(
-                    self._window.show_bug_toast,
-                    "Monitor layout failed",
-                    lambda: self._window.hypr.monitors.apply(self._monitors),
-                    catch=HyprlandError,
-                )
-                if success:
-                    self._sync_dimensions_from_hardware()
-                    self._push_to_ui()
-            finally:
-                self._applying = False
-
-            # Notify the UI that changes happened (triggers the confirm banner)
-            self._on_monitors_changed()
-            self._schedule_resync()
+            # Clear positional keywords (like "auto") so that
+            # Hyprland respects the explicit numeric x,y coordinates from the drag.
+            mon.position = None
+            self._commit_to_hyprland()
 
         if self._drag_undo_state is not None:
             self._push_undo_from(self._drag_undo_state)
