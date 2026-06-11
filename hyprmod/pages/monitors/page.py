@@ -143,7 +143,7 @@ class MonitorsPage(SectionPage):
                 for field in self._RESTORABLE_FIELDS:
                     setattr(mon, field, getattr(saved, field))
         self._ownership.restore(owned_names)
-        self._push_to_ui()
+        self._commit_to_hyprland()
 
     # -- Data loading --
 
@@ -187,10 +187,7 @@ class MonitorsPage(SectionPage):
         mon = resolve_identifier(token, self._monitors)
         if mon:
             return mon.name
-
-        # Fallback: If the monitor is disabled or unplugged, it won't be in active self._monitors.
-        # If it's identified directly by its port name, we can safely use the token as-is.
-        return token if not token.startswith("desc:") else None
+        return None
 
     def _clear_unmanaged_extras(self, saved_lines: list[str]):
         """Clear IPC-leaked extras on managed monitors not in our config."""
@@ -473,7 +470,6 @@ class MonitorsPage(SectionPage):
                     return
 
                 # Push safe UI state
-                self._sync_dimensions_from_hardware()
                 self._push_to_ui()
             finally:
                 self._applying = False
@@ -492,8 +488,6 @@ class MonitorsPage(SectionPage):
             )
 
             if success:
-                # Always synchronize live coordinates/scales directly from hardware.
-                self._sync_dimensions_from_hardware()
                 self._push_to_ui()
 
                 # Notify the state tracking system that updates occurred
@@ -579,7 +573,26 @@ class MonitorsPage(SectionPage):
         self._resync_timer.schedule(200, self._deferred_resync)
 
     def _deferred_resync(self):
-        self._sync_dimensions_from_hardware()
+        old_managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
+        old_lines = sorted(lines_from_monitors(old_managed))
+
+        # Retrieve live dimensions directly from hardware with error handling
+
+        actual = self._window.hypr.monitors.get_all()
+        if actual:
+            actual_by_name = {m.name: m for m in actual if not m.disabled}
+            for mon in self._monitors:
+                hw_mon = actual_by_name.get(mon.name)
+                if not hw_mon:
+                    continue
+
+                # MonitorState and Monitor share the geometry fields used here;
+                # update_geometry_from_ipc declares Monitor but tolerates either.
+                mon.update_geometry_from_ipc(hw_mon)  # type: ignore[arg-type]
+                vs = compute_valid_scales(mon.width, mon.height)
+                if vs:
+                    si = nearest_scale_index(vs, hw_mon.scale)
+                    mon.scale = vs[si][0]
 
         self._applying = True
         try:
@@ -587,7 +600,12 @@ class MonitorsPage(SectionPage):
         finally:
             self._applying = False
 
-        self._on_monitors_changed()
+        # 4. Only trigger change events if the geometry actually moved
+        new_managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
+        new_lines = sorted(lines_from_monitors(new_managed))
+
+        if new_lines != old_lines:
+            self._on_monitors_changed()
 
     # -- Preview drag --
 
@@ -787,13 +805,6 @@ class MonitorsPage(SectionPage):
         if self._content_box is not None:
             self._update_card_states()
 
-        try:
-            self._window.hypr.monitors._state.reload_compositor()
-        except Exception as e:
-            # Fallback wrapper tracking in case of unexpected socket bubbles
-            if hasattr(self._window, "show_toast"):
-                self._window.show_toast(f"Compositor reload notification failed: {e}")
-
     def discard(self):
         if not self._saved_monitors or not self.is_dirty():
             return
@@ -853,33 +864,3 @@ class MonitorsPage(SectionPage):
     def get_monitor_lines(self) -> list[str]:
         managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
         return [f"monitor = {line}" for line in lines_from_monitors(managed)]
-
-    def _sync_dimensions_from_hardware(self) -> None:
-        """Query live hardware state to update dimensions, positions, and scales."""
-        try:
-            actual = self._window.hypr.monitors.get_all()
-            if not actual:
-                return
-
-            actual_by_name = {m.name: m for m in actual}
-            for mon in self._monitors:
-                if mon.disabled:
-                    continue
-
-                real = actual_by_name.get(mon.name)
-                if not real:
-                    continue
-
-                # Automatically updates x, y, width, height, and refresh_rate
-                mon.update_geometry_from_ipc(real)  # type: ignore[arg-type]
-
-                # Update scales
-                vs = compute_valid_scales(mon.width, mon.height)
-                if vs:
-                    si = nearest_scale_index(vs, real.scale)
-                    mon.scale = vs[si][0]
-
-        except Exception as e:
-            self._window.show_bug_toast(
-                f"Failed to sync dimension data from hardware — {e}", detail=str(e), timeout=5
-            )
