@@ -185,9 +185,7 @@ class MonitorsPage(SectionPage):
         if not token:
             return None
         mon = resolve_identifier(token, self._monitors)
-        if mon:
-            return mon.name
-        return None
+        return mon.name if mon else None
 
     def _clear_unmanaged_extras(self, saved_lines: list[str]):
         """Clear IPC-leaked extras on managed monitors not in our config."""
@@ -428,6 +426,8 @@ class MonitorsPage(SectionPage):
 
                 for k, v in new_vals.items():
                     setattr(mon, k, v)
+                if is_being_enabled and mon.width == 0 and mon.height == 0:
+                    mon.mode = "preferred"
 
                 # Clear special keywords if explicit resolution/positioning changes are targeted
                 if not is_being_enabled:
@@ -600,7 +600,7 @@ class MonitorsPage(SectionPage):
         finally:
             self._applying = False
 
-        # 4. Only trigger change events if the geometry actually moved
+        # Only trigger change events if the geometry actually moved
         new_managed = [m for m in self._monitors if self._ownership.is_owned(m.name)]
         new_lines = sorted(lines_from_monitors(new_managed))
 

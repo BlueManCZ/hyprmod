@@ -6,6 +6,7 @@ from gi.repository import Adw, Gtk
 from hyprland_monitors.monitors import (
     TRANSFORMS,
     MonitorState,
+    ScaleOption,
     compute_valid_scales,
     nearest_scale_index,
     parse_mode,
@@ -372,6 +373,8 @@ class MonitorCard(Gtk.Box):
 
         w, h = monitor.width, monitor.height
         self._valid_scales = compute_valid_scales(w, h)
+        if not self._valid_scales:
+            self._valid_scales = [ScaleOption(1.00, "1.00")]
         scale_labels = [label for _, label in self._valid_scales]
         self._scale_row = Adw.ComboRow(
             title="Scale",
@@ -785,10 +788,13 @@ class MonitorCard(Gtk.Box):
             self._pos_y.set_value(mon.y)
 
             new_scales = compute_valid_scales(mon.width, mon.height)
-            if new_scales != self._valid_scales:
-                self._valid_scales = new_scales
-                self._scale_row.set_model(Gtk.StringList.new([label for _, label in new_scales]))
-            self._scale_row.set_selected(nearest_scale_index(self._valid_scales, mon.scale))
+            if new_scales:
+                if new_scales != self._valid_scales:
+                    self._valid_scales = new_scales
+                    self._scale_row.set_model(
+                        Gtk.StringList.new([label for _, label in new_scales])
+                    )
+                self._scale_row.set_selected(nearest_scale_index(self._valid_scales, mon.scale))
             self._transform_row.set_selected(mon.transform)
 
             if self._bitdepth_row:
