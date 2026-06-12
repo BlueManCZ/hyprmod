@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changing the active or inactive window border color in Lua mode no longer fails with an `invalid color` error; a single-color border was sent to Hyprland with a redundant `0deg` angle that its Lua config manager rejected (#43)
 - Migrating a `hyprland.conf` to Lua no longer drops or breaks keybinds: concatenated and mixed-case modifiers (`SUPERSHIFT`, `Alt`) now decompose into canonical tokens, and nested `match { … }` blocks in block-form `windowrule`/`layerrule` nest correctly instead of being rejected (#45)
 - Disabling a monitor no longer makes it vanish from the Monitors page; hyprmod now reads disabled outputs too, so a turned-off monitor stays listed and can be switched back on (https://github.com/BlueManCZ/hyprland-socket/pull/2)
+- Workspace rules in generated Lua configs now write the workspace selector as a string (`workspace = "1"` instead of `workspace = 1`); `hl.workspace_rule` declares the field as a string, and the integer form relied on Lua's implicit coercion and was flagged by lua-language-server (#48)
 
 ## [0.3.0] - 2026-05-25
 
