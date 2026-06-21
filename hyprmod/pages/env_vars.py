@@ -48,7 +48,7 @@ from hyprmod.core.env_vars import (
     serialize,
 )
 from hyprmod.core.ownership import SavedList
-from hyprmod.pages.section import DragDropReorderMixin
+from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import make_inline_hint, make_page_layout
 from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.env_var_edit_dialog import EnvVarEditDialog
@@ -60,7 +60,7 @@ from hyprmod.ui.row_actions import RowActions
 # ---------------------------------------------------------------------------
 
 
-class EnvVarsPage(DragDropReorderMixin[EnvVar]):
+class EnvVarsPage(SavedListSectionPage[EnvVar]):
     """List editor for ``env = NAME,value`` config entries."""
 
     _unit_singular = "variable"
@@ -187,9 +187,7 @@ class EnvVarsPage(DragDropReorderMixin[EnvVar]):
         # ``Gtk.DragSource`` only claims the press if motion crosses its
         # threshold, so a plain click still activates the row (edit dialog).
         # Keyboard parallel: Alt+Up / Alt+Down on the focused row.
-        self._attach_drag_source(row, idx)
-        self._attach_drop_target(row, idx)
-        self._attach_keyboard_reorder(row, idx)
+        self._reorder.attach(row, idx)
         if idx < len(self._rows_by_idx):
             self._rows_by_idx[idx] = row
 

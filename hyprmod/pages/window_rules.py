@@ -282,7 +282,7 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         prefix.set_pixel_size(28)
         row.add_prefix(prefix)
 
-        self._attach_keyboard_reorder(row, idx)
+        self._reorder.attach_keyboard(row, idx)
         if idx < len(self._rows_by_idx):
             self._rows_by_idx[idx] = row
 

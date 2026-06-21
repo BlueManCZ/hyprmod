@@ -38,7 +38,7 @@ from hyprmod.core.autostart import (
 )
 from hyprmod.core.desktop_apps import DesktopApp, list_apps, match_command
 from hyprmod.core.ownership import SavedList
-from hyprmod.pages.section import DragDropReorderMixin
+from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import make_inline_hint, make_page_layout
 from hyprmod.ui.app_picker import AppPickerDialog
 from hyprmod.ui.autostart_edit_dialog import AutostartEditDialog
@@ -51,7 +51,7 @@ from hyprmod.ui.row_actions import RowActions
 # ---------------------------------------------------------------------------
 
 
-class AutostartPage(DragDropReorderMixin[ExecData]):
+class AutostartPage(SavedListSectionPage[ExecData]):
     """List editor for ``exec`` / ``exec-once`` config entries."""
 
     _page_attr = "_autostart_page"
@@ -241,9 +241,7 @@ class AutostartPage(DragDropReorderMixin[ExecData]):
         # still routes to the row's ``activated`` signal (edit dialog).
         # Keyboard parallel: Alt+Up / Alt+Down on the focused row,
         # advertised via the page-top hint.
-        self._attach_drag_source(row, idx)
-        self._attach_drop_target(row, idx)
-        self._attach_keyboard_reorder(row, idx)
+        self._reorder.attach(row, idx)
         if idx < len(self._rows_by_idx):
             self._rows_by_idx[idx] = row
 
@@ -331,7 +329,7 @@ class AutostartPage(DragDropReorderMixin[ExecData]):
         row.add_suffix(lock_icon)
         return row
 
-    # ── Reorder (mixin provides drag-and-drop + Alt+arrow keyboard) ──
+    # ── Reorder (RowReorderController drives drag-and-drop + Alt+arrow) ──
 
     def _is_valid_move(self, src_idx: int, dst_idx: int) -> bool:
         """Restrict reorder to within a single keyword group.

@@ -19,9 +19,9 @@ keyboard reorder, deleted-restore, pending-change roll-up, and the
 methods so each page keeps only the row/group rendering and item-level
 actions.
 
-:class:`DragDropReorderMixin` adds whole-row drag-and-drop on top of
-``SavedListSectionPage``, used by autostart and env-vars. Window-rules
-and layer-rules use keyboard-only reorder for now.
+Reorder (keyboard for every page, plus drag-and-drop where the page wires
+it via ``self._reorder.attach``) lives in :class:`RowReorderController`;
+the page supplies :meth:`_perform_reorder` and :meth:`_is_valid_move`.
 """
 
 from abc import ABC, abstractmethod
@@ -31,13 +31,12 @@ from html import escape as html_escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from gi.repository import Adw, Gdk, GLib, GObject, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from hyprmod.core.change_tracking import (
     LineSerialisable,
     count_pending_changes,
     detect_reorder,
-    drop_target_idx,
     iter_item_changes,
 )
 from hyprmod.core.config import display_path
@@ -45,6 +44,7 @@ from hyprmod.core.ownership import SavedList
 from hyprmod.core.pending import ChangeKind, PendingChange
 from hyprmod.core.undo import SavedListSnapshot
 from hyprmod.ui import clear_children
+from hyprmod.ui.reorder import RowReorderController
 
 if TYPE_CHECKING:
     from hyprmod.core.undo import UndoEntry
@@ -144,9 +144,11 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
     and rebuilds the list with ``_rebuild_list``. The operations that all
     four pages duplicated verbatim live here:
 
-    - **Alt+↑/↓ keyboard reorder** (``_attach_keyboard_reorder``,
-      ``_on_row_key_pressed``, ``_move_relative``) — subclasses with
-      cross-group constraints override :meth:`_is_valid_move`.
+    - **Reorder** via :class:`RowReorderController` (``self._reorder``):
+      keyboard for every page, drag-and-drop where the page calls
+      ``self._reorder.attach``. The page provides :meth:`_perform_reorder`
+      (apply + undo) and :meth:`_is_valid_move` (subclasses with cross-group
+      constraints override the latter).
     - **Deleted-baseline detection** (``_deleted_baselines``) for the
       "Removed (pending save)" group.
     - **Reorder roll-up** (``is_reordered``, ``revert_reorder``) for
@@ -209,6 +211,13 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
         # via a class attribute).
         self._rows_by_idx: list[Adw.ActionRow | None] = []
         self._external: list[Any] = []
+        # Shared reorder plumbing. Keyboard-only pages call
+        # ``attach_keyboard``; pages that also drag call ``attach``.
+        self._reorder = RowReorderController(
+            move=self._perform_reorder,
+            iter_rows=lambda: [row for row in self._rows_by_idx if row is not None],
+            can_move=self._is_valid_move,
+        )
 
     # ── Subclass hooks ──
 
@@ -369,56 +378,22 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
         self._load(saved_sections)
         self._rebuild_list()
 
-    # ── Keyboard reorder ──
+    # ── Reorder (keyboard + drag-and-drop via RowReorderController) ──
 
-    def _attach_keyboard_reorder(self, row: Adw.ActionRow, idx: int) -> None:
-        """Bind Alt+Up / Alt+Down on *row* to move it within the list."""
-        controller = Gtk.EventControllerKey.new()
-        controller.connect("key-pressed", self._on_row_key_pressed, idx)
-        row.add_controller(controller)
+    def _perform_reorder(self, src: int, target: int) -> bool:
+        """Apply a reorder (drag-drop or keyboard) and push one undo entry.
 
-    def _on_row_key_pressed(
-        self,
-        _controller: Gtk.EventControllerKey,
-        keyval: int,
-        _keycode: int,
-        state: Gdk.ModifierType,
-        idx: int,
-    ) -> bool:
-        # Require Alt only — Shift/Ctrl/Super combos are reserved for
-        # future shortcuts (e.g. Alt+Shift+Up = move-to-top).
-        wanted = Gdk.ModifierType.ALT_MASK
-        relevant = (
-            Gdk.ModifierType.ALT_MASK
-            | Gdk.ModifierType.CONTROL_MASK
-            | Gdk.ModifierType.SHIFT_MASK
-            | Gdk.ModifierType.SUPER_MASK
-        )
-        if state & relevant != wanted:
-            return False
-
-        if keyval == Gdk.KEY_Up:
-            delta = -1
-        elif keyval == Gdk.KEY_Down:
-            delta = 1
-        else:
-            return False
-        return self._move_relative(idx, delta)
-
-    def _move_relative(self, idx: int, delta: int) -> bool:
-        """Move the entry at *idx* by *delta* slots (typically ±1).
-
-        Returns ``True`` when the move was performed, ``False`` when the
-        move would have been illegal (out of range, no-op, or refused by
-        :meth:`_is_valid_move`). Keyboard handlers propagate this as the
-        "event consumed" flag so unhandled arrows fall through to default
-        focus traversal.
+        Returns whether the move happened, which keyboard handling propagates
+        as the "event consumed" flag so an illegal Alt+arrow falls through to
+        default focus traversal. ``RowReorderController`` has already gated the
+        move through :meth:`_is_valid_move`; the range/no-op guard here keeps a
+        same-position drop from pushing an empty undo entry.
         """
-        target = idx + delta
-        if not self._is_valid_move(idx, target):
+        n = len(self._owned)
+        if target == src or not (0 <= src < n and 0 <= target < n):
             return False
         with self._undo_track():
-            self._owned.move(idx, target)
+            self._owned.move(src, target)
         self._notify_dirty()
         self._rebuild_list(focus_idx=target)
         return True
@@ -805,215 +780,3 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
     def _build_external_hint(self) -> Gtk.Widget:
         """Inline-hint widget rendered above the external section."""
         raise NotImplementedError
-
-
-class DragDropReorderMixin[T: LineSerialisable](SavedListSectionPage[T]):
-    """Whole-row drag-and-drop reorder for :class:`SavedListSectionPage`.
-
-    Each row becomes both a ``Gtk.DragSource`` and a ``Gtk.DropTarget``.
-    The drag carries the source-row index as ``GObject.TYPE_INT``;
-    drop computes a between-rows insertion point from the cursor's
-    vertical position within the hover row, with CSS classes painting
-    the indicator line.
-
-    Used by autostart and env-vars. Window-rules and layer-rules use
-    keyboard-only reorder for now.
-
-    A plain click on the row still routes to ``activated`` (the edit
-    dialog) — ``Gtk.DragSource`` only claims the input sequence once
-    motion crosses its threshold.
-    """
-
-    def __init__(
-        self,
-        window: "HyprModWindow",
-        on_dirty_changed: Callable[[], None] | None = None,
-        push_undo: Callable[["UndoEntry"], None] | None = None,
-    ):
-        super().__init__(window, on_dirty_changed, push_undo)
-        # Index of the row currently being dragged (``None`` when no drag
-        # is in progress). Read by ``motion`` to validate drops synchronously
-        # without waiting for the drag value to resolve.
-        self._dragging_idx: int | None = None
-        # ``(x, y)`` of the press that started the current drag, in
-        # source-row-local coords. Stashed by ``drag-prepare`` for
-        # ``drag-begin`` to use as the icon's hot spot. ``None`` when no
-        # drag is active.
-        self._drag_press: tuple[float, float] | None = None
-
-    def _attach_drag_source(self, row: Adw.ActionRow, idx: int) -> None:
-        """Make *row* the source of a same-list reorder drag."""
-        source = Gtk.DragSource.new()
-        source.set_actions(Gdk.DragAction.MOVE)
-        source.connect("prepare", self._on_drag_prepare, idx)
-        source.connect("drag-begin", self._on_drag_begin, idx)
-        source.connect("drag-end", self._on_drag_end)
-        row.add_controller(source)
-
-    def _attach_drop_target(self, row: Adw.ActionRow, idx: int) -> None:
-        """Make *row* a drop target for same-list reorder."""
-        target = Gtk.DropTarget.new(int, Gdk.DragAction.MOVE)
-        target.connect("motion", self._on_drop_motion, idx)
-        target.connect("leave", self._on_drop_leave)
-        target.connect("drop", self._on_drop, idx)
-        row.add_controller(target)
-
-    def _on_drag_prepare(
-        self,
-        _source: Gtk.DragSource,
-        x: float,
-        y: float,
-        idx: int,
-    ) -> Gdk.ContentProvider | None:
-        # Stash the press coords so ``drag-begin`` can use them as the
-        # icon's hot spot. Setting the icon in ``prepare`` doesn't always
-        # stick — some compositors apply it only once the drag is fully
-        # initialised, between ``prepare`` and ``drag-begin``.
-        self._drag_press = (x, y)
-        val = GObject.Value(GObject.TYPE_INT, idx)
-        return Gdk.ContentProvider.new_for_value(val)
-
-    def _on_drag_begin(self, source: Gtk.DragSource, drag: Gdk.Drag, idx: int) -> None:
-        self._dragging_idx = idx
-        press = self._drag_press or (0.0, 0.0)
-        hot_x, hot_y = int(press[0]), int(press[1])
-        # ``Adw.ActionRow`` has no intrinsic background — the visible "card"
-        # appearance comes from the parent ``PreferencesGroup``'s
-        # ``boxed-list`` styling. Painted in isolation the row would be
-        # transparent, so we add a short-lived CSS class that gives it a
-        # solid background + corner radius for the duration of the drag.
-        # ``Gtk.WidgetPaintable`` is a *live* view, so it picks up the new
-        # CSS class on the next paint.
-        widget = source.get_widget()
-        if widget is not None:
-            widget.add_css_class("dragging-row")
-            paintable = Gtk.WidgetPaintable.new(widget)
-            source.set_icon(paintable, hot_x, hot_y)
-        # Belt-and-suspenders: also set the hot spot directly on the
-        # ``Gdk.Drag``. ``GtkDragSource.set_icon`` calls this internally
-        # but at least one Wayland compositor (Hyprland) appears to ignore
-        # the hot spot at that point — repeating the call against the
-        # live ``Gdk.Drag`` after it's been initialised is harmless if
-        # redundant and effective when the earlier call was lost.
-        drag.set_hotspot(hot_x, hot_y)
-
-    def _on_drag_end(
-        self,
-        source: Gtk.DragSource,
-        _drag: Gdk.Drag,
-        _delete: bool,
-    ) -> None:
-        self._dragging_idx = None
-        self._drag_press = None
-        widget = source.get_widget()
-        if widget is not None:
-            widget.remove_css_class("dragging-row")
-        # If the drop completed and rebuilt the list before ``leave``
-        # fired, dangling indicator classes would carry over to other
-        # rows that happen to land at the same widget pointer.
-        self._clear_drop_indicators()
-
-    def _on_drop_motion(
-        self,
-        target: Gtk.DropTarget,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> Gdk.DragAction:
-        # ``motion`` doesn't have access to the dragged value — that's
-        # only resolved at drop time — so we read ``_dragging_idx`` set
-        # in ``drag-begin`` to validate the move synchronously.
-        src = self._dragging_idx
-        if src is None or src == hover_idx:
-            return Gdk.DragAction(0)
-        if not self._is_valid_move(src, hover_idx):
-            return Gdk.DragAction(0)
-
-        widget = target.get_widget()
-        if widget is None:
-            return Gdk.DragAction(0)
-
-        before = self._is_above_half(widget, y)
-        # Top-edge or bottom-edge insertion line via inset box-shadow.
-        # Only one class at a time per row, so flicking across the
-        # midpoint cleanly swaps the indicator.
-        if before:
-            widget.add_css_class("drop-above")
-            widget.remove_css_class("drop-below")
-        else:
-            widget.add_css_class("drop-below")
-            widget.remove_css_class("drop-above")
-        return Gdk.DragAction.MOVE
-
-    def _on_drop_leave(self, target: Gtk.DropTarget) -> None:
-        widget = target.get_widget()
-        if widget is not None:
-            widget.remove_css_class("drop-above")
-            widget.remove_css_class("drop-below")
-
-    def _on_drop(
-        self,
-        target: Gtk.DropTarget,
-        value: object,
-        _x: float,
-        y: float,
-        hover_idx: int,
-    ) -> bool:
-        # PyGObject normally unwraps ``GObject.TYPE_INT`` to a plain ``int``,
-        # but the signal contract is ``object`` so the type checker can't
-        # see that. Fall back to ``int(value)`` for the rare wrapper case;
-        # the ``type: ignore`` covers the int() call against an arbitrary
-        # object.
-        src_idx = value if isinstance(value, int) else int(value)  # type: ignore[arg-type]
-        if not self._is_valid_move(src_idx, hover_idx):
-            return False
-        widget = target.get_widget()
-        if widget is None:
-            return False
-        before = self._is_above_half(widget, y)
-
-        target_idx = drop_target_idx(src_idx, hover_idx, before)
-
-        # ``move()`` itself rejects out-of-range targets, but compute
-        # cleanly here so a same-position no-op doesn't push an empty
-        # undo entry.
-        if target_idx == src_idx:
-            return False
-        n = len(self._owned)
-        if not 0 <= target_idx < n:
-            return False
-        if not 0 <= src_idx < n:
-            return False
-
-        with self._undo_track():
-            self._owned.move(src_idx, target_idx)
-        self._notify_dirty()
-        self._rebuild_list()
-        return True
-
-    @staticmethod
-    def _is_above_half(widget: Gtk.Widget, y: float) -> bool:
-        """True if *y* falls in the upper half of *widget*.
-
-        Used to choose between insert-above and insert-below for a drop
-        on this widget. Falls back to "above" for zero-height widgets
-        (shouldn't happen, but cheap to handle).
-        """
-        height = widget.get_height() or widget.get_allocated_height()
-        if height <= 0:
-            return True
-        return y < height / 2
-
-    def _clear_drop_indicators(self) -> None:
-        """Remove insertion-line classes from every tracked row.
-
-        Belt-and-suspenders: ``leave`` should clear them per row, but if
-        the drop completed and ``_rebuild_list`` ran before the leave
-        signal fired, the freshly-rebuilt rows shouldn't inherit any
-        stale state. Iterating the rows we already track avoids a
-        recursive widget-tree walk.
-        """
-        for row in self._rows_by_idx:
-            if row is not None:
-                row.remove_css_class("drop-above")
-                row.remove_css_class("drop-below")
