@@ -56,5 +56,14 @@ class SingletonDialogMixin:
     def _on_singleton_closed(cls, _dialog: Adw.Dialog) -> None:
         SingletonDialogMixin._open_instances.pop(cls, None)
 
+    @classmethod
+    def current(cls) -> "Adw.Dialog | None":
+        """Return the open instance of this dialog class, or ``None``.
+
+        Lets a caller push a live update into an already-open dialog (e.g.
+        refreshing it after an external state change).
+        """
+        return SingletonDialogMixin._open_instances.get(cls)
+
 
 __all__ = ["SingletonDialogMixin"]

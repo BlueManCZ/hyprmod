@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Multiple keyboard layouts (#44): the Keyboard layouts row opens a dialog to add, reorder, edit, and remove input sources (a layout plus its variant), written to `kb_layout` and `kb_variant`
+
 ### Fixed
 
 - Changing the active or inactive window border color in Lua mode no longer fails with an `invalid color` error; a single-color border was sent to Hyprland with a redundant `0deg` angle that its Lua config manager rejected (#43)

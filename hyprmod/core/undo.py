@@ -61,6 +61,25 @@ class OptionChange(UndoEntry):
 
 
 @dataclass(slots=True)
+class PairedOptionChange(UndoEntry):
+    """Undo entry for option keys that change together as one user action.
+
+    A keyboard-layout edit writes both ``kb_layout`` and ``kb_variant`` from
+    a single change; wrapping their per-key :class:`OptionChange` entries keeps
+    undo/redo atomic instead of splitting one action across two steps (where
+    a half-applied state reads as "redo does nothing").
+    """
+
+    changes: list[OptionChange]
+
+    def apply(self, window: "HyprModWindow", *, undo: bool) -> bool:
+        applied = False
+        for change in self.changes:
+            applied = change.apply(window, undo=undo) or applied
+        return applied
+
+
+@dataclass(slots=True)
 class AnimationUndoEntry(UndoEntry):
     """Undo entry for an animation state change."""
 

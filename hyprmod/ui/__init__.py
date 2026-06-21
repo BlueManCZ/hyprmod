@@ -8,7 +8,11 @@ from gi.repository import Adw, Gdk, Gtk, Pango
 from hyprland_config import keyword_to_lua
 
 from hyprmod.core import config
-from hyprmod.ui.options import OptionRow, create_option_row  # noqa: F401
+from hyprmod.ui.options import (  # noqa: F401
+    KeyboardLayoutsOptionRow,
+    OptionRow,
+    create_option_row,
+)
 from hyprmod.ui.row_actions import RowActions  # noqa: F401
 
 

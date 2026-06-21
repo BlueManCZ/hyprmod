@@ -3,6 +3,7 @@
 from hyprmod.ui.options.base import OptionRow
 from hyprmod.ui.options.color import ColorOptionRow, GradientOptionRow
 from hyprmod.ui.options.combo import ComboOptionRow, SourceComboOptionRow
+from hyprmod.ui.options.keyboard import KeyboardLayoutsOptionRow
 from hyprmod.ui.options.multi import MultiSourceOptionRow
 from hyprmod.ui.options.numeric import (
     SpinFloatOptionRow,
@@ -31,6 +32,8 @@ def create_option_row(
 
     Returns an OptionRow wrapper (access .row for the Gtk widget), or None if unsupported.
     """
+    if option.get("type") == "keyboard_layouts":
+        return KeyboardLayoutsOptionRow(option, value, on_change, on_reset, on_discard)
     if option.get("source") and option.get("multi"):
         return MultiSourceOptionRow(option, value, on_change, on_reset, on_discard)
     if option.get("source"):

@@ -4,7 +4,17 @@ import pytest
 
 from hyprmod.core.schema import _drop_unavailable, load_schema
 
-VALID_TYPES = {"bool", "int", "float", "string", "choice", "color", "gradient", "vec2"}
+VALID_TYPES = {
+    "bool",
+    "int",
+    "float",
+    "string",
+    "choice",
+    "color",
+    "gradient",
+    "vec2",
+    "keyboard_layouts",
+}
 
 
 @pytest.fixture(scope="module")

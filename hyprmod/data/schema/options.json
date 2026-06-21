@@ -356,17 +356,16 @@
           "options": [
             {
               "key": "input:kb_layout",
-              "label": "Keyboard layout",
-              "description": "Keyboard layout code (e.g. us, de, fr)",
-              "source": "xkb_layouts"
+              "label": "Keyboard layouts",
+              "description": "Active layouts in order; the first is the default. Add a layout-switch shortcut under Keyboard options.",
+              "type": "keyboard_layouts",
+              "source": "xkb_input_sources",
+              "companion_key": "input:kb_variant"
             },
             {
               "key": "input:kb_variant",
               "label": "Keyboard variant",
-              "description": "Variant of the selected keyboard layout (e.g. dvorak, colemak)",
-              "source": "xkb_variants",
-              "source_args": { "layout": "us" },
-              "depends_on": "input:kb_layout"
+              "managed_by": "input:kb_layout"
             },
             {
               "key": "input:kb_options",

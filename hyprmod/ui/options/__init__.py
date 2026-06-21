@@ -14,5 +14,6 @@ keep working.
 
 from hyprmod.ui.options.base import OptionRow, digits_for_step
 from hyprmod.ui.options.factory import create_option_row
+from hyprmod.ui.options.keyboard import KeyboardLayoutsOptionRow
 
-__all__ = ["OptionRow", "create_option_row", "digits_for_step"]
+__all__ = ["KeyboardLayoutsOptionRow", "OptionRow", "create_option_row", "digits_for_step"]

@@ -25,32 +25,30 @@ def _get_xkb_info():
     return GnomeDesktop.XkbInfo()
 
 
-def _xkb_layouts(**_) -> list[dict]:
-    """Return all base XKB layouts (no variants) sorted by display name."""
+def _xkb_input_sources(**_) -> list[dict]:
+    """Return every layout and variant as a flat list of input sources.
+
+    Each entry carries its own ``layout`` and ``variant`` so a selection
+    serializes to the positionally-aligned ``kb_layout`` / ``kb_variant``
+    pair (e.g. picking "English (Dvorak)" then "Russian" yields
+    ``kb_layout = us,ru`` and ``kb_variant = dvorak,``). ``name`` is the
+    bare display name for list rows; ``label`` appends the code for search.
+    """
     xkb = _get_xkb_info()
     results = []
     for layout_id in xkb.get_all_layouts():
-        if "+" in layout_id:
-            continue  # skip variant entries
-        ok, display_name, *_ = xkb.get_layout_info(layout_id)
+        ok, display_name, _, layout, variant = xkb.get_layout_info(layout_id)
         if ok:
-            results.append({"id": layout_id, "label": f"{display_name} ({layout_id})"})
+            results.append(
+                {
+                    "id": layout_id,
+                    "layout": layout,
+                    "variant": variant or "",
+                    "name": display_name,
+                    "label": f"{display_name} ({layout_id})",
+                }
+            )
     results.sort(key=lambda v: v["label"].casefold())
-    return results
-
-
-def _xkb_variants(layout: str = "us", **_) -> list[dict]:
-    """Return all variants for a given base layout."""
-    xkb = _get_xkb_info()
-    results = [{"id": "", "label": "Default"}]
-    prefix = f"{layout}+"
-    for layout_id in xkb.get_all_layouts():
-        if not layout_id.startswith(prefix):
-            continue
-        ok, display_name, _, _, variant = xkb.get_layout_info(layout_id)
-        if ok and variant:
-            results.append({"id": variant, "label": display_name})
-    results[1:] = sorted(results[1:], key=lambda v: v["label"].casefold())
     return results
 
 
@@ -74,8 +72,7 @@ def _xkb_options(**_) -> list[dict]:
 
 
 _SOURCES: dict[str, Callable] = {
-    "xkb_layouts": _xkb_layouts,
-    "xkb_variants": _xkb_variants,
+    "xkb_input_sources": _xkb_input_sources,
     "xkb_options": _xkb_options,
 }
 

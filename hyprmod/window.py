@@ -14,7 +14,7 @@ from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config, profiles, schema
 from hyprmod.core.bug_report import build_bug_report_url
 from hyprmod.core.state import AppState
-from hyprmod.core.undo import OptionChange, UndoManager
+from hyprmod.core.undo import OptionChange, PairedOptionChange, UndoManager
 from hyprmod.data import bundled_data_dir
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.pages.animations import AnimationsPage
@@ -31,7 +31,14 @@ from hyprmod.pages.section import SectionPage
 from hyprmod.pages.settings import SettingsPage
 from hyprmod.pages.window_rules import WindowRulesPage
 from hyprmod.pages.workspaces import WorkspacesPage
-from hyprmod.ui import OptionRow, clear_children, confirm, create_option_row, make_page_layout
+from hyprmod.ui import (
+    KeyboardLayoutsOptionRow,
+    OptionRow,
+    clear_children,
+    confirm,
+    create_option_row,
+    make_page_layout,
+)
 from hyprmod.ui.about import build_about_dialog
 from hyprmod.ui.banner import DirtyBanner
 from hyprmod.ui.deprecation_controller import ACTION_NAME as DEPRECATIONS_ACTION
@@ -562,6 +569,10 @@ class HyprModWindow(Adw.ApplicationWindow):
                 continue
 
             for option in section.get("options", []):
+                # Companion keys are driven by another row (e.g. kb_variant by
+                # the keyboard-layouts row); they stay tracked but render no row.
+                if option.get("managed_by"):
+                    continue
                 value = option.get("default")
                 opt_row = create_option_row(
                     option,
@@ -577,6 +588,13 @@ class HyprModWindow(Adw.ApplicationWindow):
                     parent = option.get("depends_on")
                     if parent:
                         self._dependents.setdefault(parent, []).append(option["key"])
+                    companion = option.get("companion_key")
+                    if companion and isinstance(opt_row, KeyboardLayoutsOptionRow):
+                        # The row owns a second key for value/state sync; bind
+                        # state so it can read both keys' live + managed values,
+                        # and apply both as one atomic undo step.
+                        self._option_rows[companion] = opt_row
+                        opt_row.bind_state(self.app_state, self._on_paired_option_changed)
 
             result.append(pref_group)
         return result
@@ -982,6 +1000,32 @@ class HyprModWindow(Adw.ApplicationWindow):
                 opt_row.set_value_silent(state.live_value)
         elif entry is not None:
             self._undo.push(entry)
+            if self.auto_save:
+                self._schedule_auto_save()
+
+    def _on_paired_option_changed(self, changes: list[tuple[str, object]]):
+        """Apply several keys as one atomic undo step (keyboard layouts own two).
+
+        Used where a single user action writes more than one config key, so
+        undo/redo moves them together instead of one key per step.
+        """
+        entries = []
+        for key, value in changes:
+            state = self.app_state.get(key)
+            if state and value == state.live_value:
+                continue
+            opt_row = self._option_rows.get(key)
+            try:
+                entry = self.app_state.set_live(key, value)
+            except HyprlandError as e:
+                if opt_row:
+                    opt_row.flash_error()
+                self.show_bug_toast(f"Failed to set {key} — {e}", detail=str(e), timeout=5)
+                continue
+            if entry is not None:
+                entries.append(entry)
+        if entries:
+            self._undo.push(PairedOptionChange(entries))
             if self.auto_save:
                 self._schedule_auto_save()
 
