@@ -12,7 +12,7 @@ Hyprland 0.55.0 made Lua the default config language. When the user has
 from types import SimpleNamespace
 
 import pytest
-from hyprland_config import load_lua
+from hyprland_config import LuaReaderError, load_lua
 
 from hyprmod.core import config, setup
 
@@ -300,6 +300,43 @@ class TestNeedsSetup:
 
     def test_commented_require_is_ignored(self, lua_mode) -> None:
         lua_mode.user_lua.write_text('-- require("hyprland-gui")\n')
+        assert setup.needs_setup() is True
+
+    def test_require_from_sourced_subfile_is_recognised(self, lua_mode) -> None:
+        # Issue #51: the entrypoint doesn't mention us directly — a file it
+        # require()s does. Hyprland resolves require/dofile recursively, so
+        # the managed file *is* loaded and setup is complete. Detection must
+        # follow the chain instead of inspecting only hyprland.lua, otherwise
+        # the onboarding dialog re-appears on every launch.
+        sub = lua_mode.user_lua.parent / "caelestia.lua"
+        sub.write_text('require("hyprland-gui")\n')
+        lua_mode.managed_lua.write_text("")
+        lua_mode.user_lua.write_text('require("caelestia")\n')
+        assert setup.needs_setup() is False
+
+    def test_source_from_sourced_subfile_is_recognised(self, hyprlang_mode) -> None:
+        # Hyprlang analogue of #51: hyprland.conf sources an intermediate
+        # file, and *that* file is the one sourcing our managed config.
+        sub = hyprlang_mode.user_conf.parent / "sub.conf"
+        sub.write_text(f"source = {hyprlang_mode.managed_conf}\n")
+        hyprlang_mode.managed_conf.write_text("")
+        hyprlang_mode.user_conf.write_text(f"source = {sub}\n")
+        assert setup.needs_setup() is False
+
+    def test_falls_back_to_entrypoint_when_tree_unloadable(self, lua_mode, monkeypatch) -> None:
+        # No `lua` interpreter, or a config that won't execute: the tree
+        # walk raises and detection degrades to the entrypoint-only check
+        # rather than crashing or spuriously forcing onboarding.
+        def _boom(*_args, **_kwargs):
+            raise LuaReaderError("lua unavailable")
+
+        monkeypatch.setattr(setup, "load_any", _boom)
+
+        lua_mode.managed_lua.write_text("")
+        lua_mode.user_lua.write_text('require("hyprland-gui")\n')
+        assert setup.needs_setup() is False
+
+        lua_mode.user_lua.write_text("-- no include line here\n")
         assert setup.needs_setup() is True
 
 

@@ -5,7 +5,14 @@ import shutil
 from collections.abc import Iterator
 from pathlib import Path
 
-from hyprland_config import Source, atomic_write, load, serialize_hyprlang
+from hyprland_config import (
+    ParseError,
+    Source,
+    atomic_write,
+    load,
+    load_any,
+    serialize_hyprlang,
+)
 
 from hyprmod.core import config
 
@@ -19,10 +26,45 @@ _REQUIRE_RE = re.compile(r"""require\s*\(\s*['"]([^'"]+)['"]\s*\)""")
 
 
 def needs_setup() -> bool:
-    """Return ``True`` when the user's entrypoint still needs our include line."""
+    """Return ``True`` when Hyprland's config tree doesn't yet load our file.
+
+    Walks the full source/require/dofile chain, not just the entrypoint: a
+    user who moved our include line into a sourced sub-file is already set
+    up even though ``hyprland.lua`` doesn't mention us directly. When the
+    tree can't be loaded (no ``lua`` interpreter, a config that fails to
+    execute) we fall back to inspecting the entrypoint alone.
+    """
     entry = config.user_entry_path()
     if not entry.exists():
         return False
+    if config.is_lua_target(entry):
+        target = config.managed_lua_path()
+    else:
+        target = config.managed_conf_path()
+    try:
+        doc = load_any(entry, lenient=True)
+    except (ParseError, OSError):
+        return _needs_setup_shallow(entry)
+    return not _tree_includes(doc, target)
+
+
+def _tree_includes(doc, target: Path) -> bool:
+    """Return ``True`` when *target* is sourced anywhere in the loaded tree.
+
+    Both readers pre-resolve include paths into ``Source.resolved_paths``
+    (``.resolve()``-d), so a plain membership check handles symlinked
+    dotfiles, ``$VAR`` expansion, and ``source`` paths relative to a
+    sub-file's own directory without re-deriving them here.
+    """
+    resolved = target.resolve()
+    return any(
+        isinstance(line, Source) and resolved in line.resolved_paths
+        for _owner, line in doc.iter_lines(recursive=True)
+    )
+
+
+def _needs_setup_shallow(entry: Path) -> bool:
+    """Entrypoint-only check — the fallback when the source tree won't load."""
     if config.is_lua_target(entry):
         return not _has_lua_include(
             entry.read_text(encoding="utf-8"),
