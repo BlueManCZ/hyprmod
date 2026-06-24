@@ -53,6 +53,9 @@ from hyprmod.ui.timer import Timer
 # Hyprland option keys
 ANIMATIONS_ENABLED = "animations:enabled"
 INPUT_TOUCHPAD = "input:touchpad"
+GESTURES = "gestures"
+GESTURES_TOUCHPAD = "gestures:touchpad"
+GESTURES_TOUCHSCREEN = "gestures:touchscreen"
 
 
 CSS_PATH = Path(__file__).parent / "style.css"
@@ -76,10 +79,19 @@ class HyprModWindow(Adw.ApplicationWindow):
         if self._hyprland_available:
             self.hypr.reload_compositor()  # Reset runtime state to match config files
         self._has_touchpad = self.hypr.has_touchpad() if self._hyprland_available else True
+        self._has_touchscreen = self.hypr.has_touchscreen() if self._hyprland_available else True
         # Load the option catalog matching the running compositor version.
         # Falls back to the bundled catalog when Hyprland is offline or the
         # version cannot be resolved (see core.schema.load_schema).
         self._schema = schema.load_schema(version=self.hypr.version)
+        # Gestures are workspace-swipe only, which fires from a touchpad or
+        # touchscreen. With neither, drop the whole page rather than show an
+        # inert one in an already-long sidebar; the touchpad/touchscreen
+        # subsections still grey out individually when only one is missing.
+        if not self._has_touchpad and not self._has_touchscreen:
+            self._schema["groups"] = [
+                g for g in schema.get_groups(self._schema) if g["id"] != GESTURES
+            ]
         self.app_state = AppState(self.hypr)
         self._option_rows: dict[str, OptionRow] = {}
         # Track the PreferencesGroup that owns each option row so we can hide
@@ -509,10 +521,17 @@ class HyprModWindow(Adw.ApplicationWindow):
             if section.get("description"):
                 pref_group.set_description(section["description"])
 
-            # Disable sections for unavailable hardware
+            # Grey out a subsection when only its hardware is missing. The
+            # whole Gestures page is already dropped when both are absent
+            # (see __init__), so here at least one input device exists.
             section_id = section.get("id", "")
-            if section_id == INPUT_TOUCHPAD and not self._has_touchpad:
-                pref_group.set_description("No touchpad detected")
+            reason = None
+            if section_id in (INPUT_TOUCHPAD, GESTURES_TOUCHPAD) and not self._has_touchpad:
+                reason = "No touchpad detected"
+            elif section_id == GESTURES_TOUCHSCREEN and not self._has_touchscreen:
+                reason = "No touchscreen detected"
+            if reason:
+                pref_group.set_description(reason)
                 pref_group.set_sensitive(False)
                 result.append(pref_group)
                 continue
