@@ -554,40 +554,34 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         return filled
 
     def _apply_picked_window(self, window: Window) -> None:
-        """Update existing matcher rows with values from the picked window.
+        """Replace the current matcher rows with class+title from the picked window.
 
-        Previously, picking was treated as a "start over" gesture that
-        wiped the rows and only filled class/title. This was frustrating
-        if the user already added an `initialTitle` or `xwayland` row
-        and just wanted to populate them. Now, we fill whatever rows
-        the user has added, falling back to adding a `class` row if
-        none of the existing rows could be filled (e.g. empty state).
+        Picking is treated as a "start over" gesture — anything the
+        user typed before is replaced. This is less surprising than
+        appending: the most common picker flow is "I want to make a
+        rule for THIS window," not "add THIS as a clause to an
+        existing rule."
         """
-        filled_any = False
-        for row in self._matcher_rows:
-            if self._autofill_row(row, window):
-                filled_any = True
+        for row in list(self._matcher_rows):
+            self._matchers_listbox.remove(row.widget)
+        self._matcher_rows.clear()
 
-        if not filled_any:
-            # If we couldn't fill anything (e.g., they only had a class row but
-            # the window had no class, or they had a custom row), fall back
-            # to the default behavior: clear and add class or title.
-            for row in list(self._matcher_rows):
-                self._matchers_listbox.remove(row.widget)
-            self._matcher_rows.clear()
-
-            if window.class_name:
-                self._add_matcher_row(
-                    MATCHER_KINDS_BY_KEY["class"],
-                    value=_escape_regex(window.class_name),
-                )
-            elif window.title:
-                self._add_matcher_row(
-                    MATCHER_KINDS_BY_KEY["title"],
-                    value=_escape_regex(window.title),
-                )
-            else:
-                self._add_matcher_row(MATCHER_KINDS[0])
+        if window.class_name:
+            self._add_matcher_row(
+                MATCHER_KINDS_BY_KEY["class"],
+                value=_escape_regex(window.class_name),
+            )
+        # Title is usually too volatile to be useful as an exact match
+        # (browser tab changes change the whole title), so we only
+        # add it when class is empty — better to give the user one
+        # solid hook and let them add more if they want.
+        elif window.title:
+            self._add_matcher_row(
+                MATCHER_KINDS_BY_KEY["title"],
+                value=_escape_regex(window.title),
+            )
+        else:
+            self._add_matcher_row(MATCHER_KINDS[0])
 
         self._refresh()
 
