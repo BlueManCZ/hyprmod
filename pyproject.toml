@@ -1,6 +1,6 @@
 [project]
 name = "hyprmod"
-version = "0.3.0"
+version = "0.4.0"
 description = "A native GTK4/libadwaita settings app for Hyprland"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12"

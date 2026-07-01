@@ -70,6 +70,19 @@
   </keywords>
 
   <releases>
+    <release version="0.4.0" date="2026-07-01">
+      <description>
+        <p>New input options, command-line profiles, and Lua migration fixes:</p>
+        <ul>
+          <li>Command-line profile switching: hyprmod profile apply/next/previous/list for keybinds and scripts</li>
+          <li>Multiple keyboard layouts: add, reorder, and edit input sources (layout plus variant)</li>
+          <li>Gestures page hides itself when there's no touchpad or touchscreen to drive it</li>
+          <li>Lua migration fixes for keybind modifiers, the global dispatcher, and workspace layoutopt rules</li>
+          <li>Monitor fixes: disabled outputs stay listed, re-enabling no longer overlaps or crashes the page</li>
+          <li>Refresh monitors no longer discards unsaved changes</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-05-25">
       <description>
         <p>Lua config support, new pages, and major fixes:</p>
