@@ -88,6 +88,7 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         super().__init__()
         self._is_new = rule is None
         self._on_apply_callback = on_apply
+        self._picked_window: Window | None = None
 
         # Matcher rows are tracked imperatively so Add/Remove and the
         # preview rebuild can find each row's current values. Each row
@@ -353,15 +354,23 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
             original_key=original_key or kind.key,
             on_remove=self._on_remove_matcher,
             on_changed=self._refresh,
+            on_kind_changed=self._on_matcher_kind_changed,
         )
         self._matcher_rows.append(row)
         self._matchers_listbox.append(row.widget)
+
+        if self._picked_window and not value:
+            self._autofill_row(row, self._picked_window)
 
     def _on_add_matcher(self) -> None:
         # Default new rows to "Class" — overwhelmingly the most common
         # matcher people reach for.
         self._add_matcher_row(MATCHER_KINDS[0])
         self._refresh()
+
+    def _on_matcher_kind_changed(self, row: "_MatcherRow") -> None:
+        if self._picked_window:
+            self._autofill_row(row, self._picked_window)
 
     def _on_remove_matcher(self, row: "_MatcherRow") -> None:
         # Always keep at least one matcher row — Hyprland rejects
@@ -506,39 +515,79 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _on_pick_window(self) -> None:
         def on_pick(window: Window) -> None:
+            self._picked_window = window
             self._apply_picked_window(window)
 
         WindowPickerDialog.present_singleton(self, on_pick=on_pick)
 
+    def _autofill_row(self, row: "_MatcherRow", window: Window) -> bool:
+        """Autofill a single row from the picked window. Returns True if filled."""
+        key = row._kind.key
+        filled = False
+        if key == "class" and window.class_name:
+            row.set_value(_escape_regex(window.class_name))
+            filled = True
+        elif key == "title" and window.title:
+            row.set_value(_escape_regex(window.title))
+            filled = True
+        elif key == "initial_class" and window.initial_class:
+            row.set_value(_escape_regex(window.initial_class))
+            filled = True
+        elif key == "initial_title" and window.initial_title:
+            row.set_value(_escape_regex(window.initial_title))
+            filled = True
+        elif key == "xwayland":
+            row.set_value("1" if window.xwayland else "0")
+            filled = True
+        elif key == "float":
+            row.set_value("1" if window.floating else "0")
+            filled = True
+        elif key == "fullscreen":
+            row.set_value("1" if window.fullscreen else "0")
+            filled = True
+        elif key == "pin":
+            row.set_value("1" if window.pinned else "0")
+            filled = True
+        elif key == "workspace" and window.workspace_id:
+            row.set_value(str(window.workspace_id))
+            filled = True
+        return filled
+
     def _apply_picked_window(self, window: Window) -> None:
-        """Replace the current matcher rows with class+title from the picked window.
+        """Update existing matcher rows with values from the picked window.
 
-        Picking is treated as a "start over" gesture — anything the
-        user typed before is replaced. This is less surprising than
-        appending: the most common picker flow is "I want to make a
-        rule for THIS window," not "add THIS as a clause to an
-        existing rule."
+        Previously, picking was treated as a "start over" gesture that
+        wiped the rows and only filled class/title. This was frustrating
+        if the user already added an `initialTitle` or `xwayland` row
+        and just wanted to populate them. Now, we fill whatever rows
+        the user has added, falling back to adding a `class` row if
+        none of the existing rows could be filled (e.g. empty state).
         """
-        for row in list(self._matcher_rows):
-            self._matchers_listbox.remove(row.widget)
-        self._matcher_rows.clear()
+        filled_any = False
+        for row in self._matcher_rows:
+            if self._autofill_row(row, window):
+                filled_any = True
 
-        if window.class_name:
-            self._add_matcher_row(
-                MATCHER_KINDS_BY_KEY["class"],
-                value=_escape_regex(window.class_name),
-            )
-        # Title is usually too volatile to be useful as an exact match
-        # (browser tab changes change the whole title), so we only
-        # add it when class is empty — better to give the user one
-        # solid hook and let them add more if they want.
-        elif window.title:
-            self._add_matcher_row(
-                MATCHER_KINDS_BY_KEY["title"],
-                value=_escape_regex(window.title),
-            )
-        else:
-            self._add_matcher_row(MATCHER_KINDS[0])
+        if not filled_any:
+            # If we couldn't fill anything (e.g., they only had a class row but
+            # the window had no class, or they had a custom row), fall back
+            # to the default behavior: clear and add class or title.
+            for row in list(self._matcher_rows):
+                self._matchers_listbox.remove(row.widget)
+            self._matcher_rows.clear()
+
+            if window.class_name:
+                self._add_matcher_row(
+                    MATCHER_KINDS_BY_KEY["class"],
+                    value=_escape_regex(window.class_name),
+                )
+            elif window.title:
+                self._add_matcher_row(
+                    MATCHER_KINDS_BY_KEY["title"],
+                    value=_escape_regex(window.title),
+                )
+            else:
+                self._add_matcher_row(MATCHER_KINDS[0])
 
         self._refresh()
 
@@ -646,9 +695,11 @@ class _MatcherRow:
         original_key: str,
         on_remove: Callable[["_MatcherRow"], None],
         on_changed: Callable[[], None],
+        on_kind_changed: Callable[["_MatcherRow"], None] | None = None,
     ):
         self._on_remove = on_remove
         self._on_changed = on_changed
+        self._on_kind_changed_callback = on_kind_changed
         # ``_original_key`` only matters for matchers we couldn't
         # parse: when the user is editing a token like
         # ``plugin:foo:bar:baz`` (which is RAW because the parser
@@ -768,6 +819,8 @@ class _MatcherRow:
         elif isinstance(self._value_widget, Gtk.Switch):
             carry = "true" if self._value_widget.get_active() else "false"
         self._swap_value_widget(new_kind, carry)
+        if self._on_kind_changed_callback:
+            self._on_kind_changed_callback(self)
         self._on_changed()
 
     def _swap_value_widget(self, kind: MatcherKind, initial_value: str) -> None:
