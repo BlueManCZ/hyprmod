@@ -1,42 +1,40 @@
 bldit_version = "0.1.3"
-package_name = "hyprmod"
-package_version = "0.4.0"
-global_dependencies = {}
 dependencies = {}
 
 targets = {
     default = {
+        -- install.sh builds + installs; pkgit still needs a build step to exist.
         build = function()
-            os.execute("rm -rf dist")
-            os.execute("python -m build --wheel")
             return 0
         end,
         install = function()
-            os.execute("sudo python -m installer --overwrite-existing dist/*.whl")
-            os.execute("hyprmod --install")
-            return 0
+            return os.execute(
+                "UV_TOOL_BIN_DIR='" .. prefix .. "/bin' PIPX_BIN_DIR='" .. prefix .. "/bin' "
+                .. "HYPRMOD_SOURCE=. sh install.sh"
+            )
         end,
         uninstall = function()
-            os.execute("hyprmod --uninstall")
-            os.execute("sudo rm -f /usr/local/bin/hyprmod /usr/bin/hyprmod")
-            return 0
-        end
+            return os.execute(
+                "UV_TOOL_BIN_DIR='" .. prefix .. "/bin' PIPX_BIN_DIR='" .. prefix .. "/bin' "
+                .. "sh install.sh --uninstall"
+            )
+        end,
     },
     quiet = {
         build = function()
-            os.execute("rm -rf dist >/dev/null 2>&1")
-            os.execute("python -m build --wheel >/dev/null 2>&1")
             return 0
         end,
         install = function()
-            os.execute("sudo python -m installer --overwrite-existing dist/*.whl >/dev/null 2>&1")
-            os.execute("hyprmod --install >/dev/null 2>&1")
-            return 0
+            return os.execute(
+                "UV_TOOL_BIN_DIR='" .. prefix .. "/bin' PIPX_BIN_DIR='" .. prefix .. "/bin' "
+                .. "HYPRMOD_SOURCE=. sh install.sh >/dev/null 2>&1"
+            )
         end,
         uninstall = function()
-            os.execute("hyprmod --uninstall >/dev/null 2>&1")
-            os.execute("sudo rm -f /usr/local/bin/hyprmod /usr/bin/hyprmod >/dev/null 2>&1")
-            return 0
-        end
-    }
+            return os.execute(
+                "UV_TOOL_BIN_DIR='" .. prefix .. "/bin' PIPX_BIN_DIR='" .. prefix .. "/bin' "
+                .. "sh install.sh --uninstall >/dev/null 2>&1"
+            )
+        end,
+    },
 }
