@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The window rule dialog supports multiple actions per rule: actions are a dynamic list of blocks that can be added and removed individually, instead of a single action per rule (#57)
+
 ### Changed
 
 - The window rule dialog autofills new condition rows from the last picked window: after picking a window, "+ Condition" pre-fills the matching value, and changing a condition's type from the dropdown updates the value to match the picked window (#56)
