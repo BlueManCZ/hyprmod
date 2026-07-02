@@ -78,6 +78,14 @@ To uninstall:
 curl -LsSf https://raw.githubusercontent.com/BlueManCZ/hyprmod/main/install.sh | sh -s -- --uninstall
 ```
 
+### 📦 pkgit
+
+If you use [`pkgit`](https://git.symlinx.net/pkgit/about/), you can install `hyprmod` directly with:
+
+```bash
+pkgit -i https://github.com/BlueManCZ/hyprmod
+```
+
 ### Distribution packages
 
 **Arch Linux** — [`hyprmod`](https://aur.archlinux.org/packages/hyprmod) on the AUR:
