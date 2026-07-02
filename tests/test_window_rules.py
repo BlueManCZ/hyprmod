@@ -277,19 +277,15 @@ class TestRoundTrip:
         )
         assert rule.to_line().endswith(", opacity 0.8 0.95")
 
-    def test_multi_effect_v3_splits_into_separate_rules(self):
+    def test_multi_effect_v3_stays_bundled(self):
         # ``windowrule = match:class kitty, opacity 0.8, no_blur on``
-        # has two effects on one line — Hyprland-valid, but we model
-        # one effect per rule. The list parser splits these so the
-        # round-trip preserves both effects.
+        # has two effects on one line — Hyprland-valid, and we now model
+        # multiple effects per rule in the UI, so it stays bundled.
         out = parse_window_rule_lines(
             ["windowrule = match:class ^(kitty)$, opacity 0.8 0.8, no_blur on"]
         )
-        assert len(out) == 2
-        assert out[0].effect_name == "opacity"
-        assert out[1].effect_name == "no_blur"
-        # Same matchers on both.
-        assert out[0].matchers == out[1].matchers
+        assert len(out) == 1
+        assert [e.name for e in out[0].effects] == ["opacity", "no_blur"]
 
 
 class TestNamedBlockRules:
@@ -346,13 +342,13 @@ class TestNamedBlockRules:
         assert rules[0].name == "off"
         assert rules[0].enabled is False
 
-    def test_anonymous_multi_effect_still_splits(self):
-        # No name → split per effect so each effect lives on its own
-        # row in the UI's one-effect-per-row model.
+    def test_anonymous_multi_effect_stays_bundled(self):
+        # No name → used to split per effect for a one-effect-per-row model.
+        # Now the UI supports multiple actions, so anonymous rules stay bundled.
         rules = parse_window_rule_lines(["windowrule = match:class kitty, opacity 0.8, no_blur on"])
-        assert len(rules) == 2
-        assert all(r.name == "" for r in rules)
-        assert [r.effects[0].name for r in rules] == ["opacity", "no_blur"]
+        assert len(rules) == 1
+        assert rules[0].name == ""
+        assert [e.name for e in rules[0].effects] == ["opacity", "no_blur"]
 
     def test_serialize_named_emits_block(self):
         rule = WindowRule(
