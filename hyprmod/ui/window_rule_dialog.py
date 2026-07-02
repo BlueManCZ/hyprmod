@@ -88,6 +88,7 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         super().__init__()
         self._is_new = rule is None
         self._on_apply_callback = on_apply
+        self._picked_window: Window | None = None
 
         # Matcher rows are tracked imperatively so Add/Remove and the
         # preview rebuild can find each row's current values. Each row
@@ -353,15 +354,30 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
             original_key=original_key or kind.key,
             on_remove=self._on_remove_matcher,
             on_changed=self._refresh,
+            on_kind_changed=self._on_matcher_kind_changed,
         )
         self._matcher_rows.append(row)
         self._matchers_listbox.append(row.widget)
+
+        if self._picked_window and not value:
+            self._autofill_row(row, self._picked_window)
 
     def _on_add_matcher(self) -> None:
         # Default new rows to "Class" — overwhelmingly the most common
         # matcher people reach for.
         self._add_matcher_row(MATCHER_KINDS[0])
         self._refresh()
+
+    def _on_matcher_kind_changed(self, row: "_MatcherRow", old_key: str, old_value: str) -> None:
+        window = self._picked_window
+        if window is None:
+            return
+        # Refill for the new kind only when there is nothing of the
+        # user's to lose: the previous value was empty or still the
+        # untouched autofill, or nothing carried into the new widget.
+        untouched = not old_value or old_value == self._autofill_value_for(old_key, window)
+        if untouched or not row.read_matcher().value:
+            self._autofill_row(row, window)
 
     def _on_remove_matcher(self, row: "_MatcherRow") -> None:
         # Always keep at least one matcher row — Hyprland rejects
@@ -506,9 +522,39 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _on_pick_window(self) -> None:
         def on_pick(window: Window) -> None:
+            self._picked_window = window
             self._apply_picked_window(window)
 
         WindowPickerDialog.present_singleton(self, on_pick=on_pick)
+
+    def _autofill_row(self, row: "_MatcherRow", window: Window) -> None:
+        """Autofill a single row from the picked window."""
+        value = self._autofill_value_for(row.read_matcher().key, window)
+        if value is not None:
+            row.set_value(value)
+
+    def _autofill_value_for(self, key: str, window: Window) -> str | None:
+        """Value the picked window suggests for a matcher *key*, or None."""
+        if key == "class" and window.class_name:
+            return _escape_regex(window.class_name)
+        elif key == "title" and window.title:
+            return _escape_regex(window.title)
+        elif key == "initial_class" and window.initial_class:
+            return _escape_regex(window.initial_class)
+        elif key == "initial_title" and window.initial_title:
+            return _escape_regex(window.initial_title)
+        elif key == "xwayland":
+            return "true" if window.xwayland else "false"
+        elif key == "float":
+            return "true" if window.floating else "false"
+        elif key == "fullscreen":
+            return "true" if window.fullscreen else "false"
+        elif key == "pin":
+            return "true" if window.pinned else "false"
+        elif key == "workspace" and window.workspace_id > 0:
+            # -1 is the model's "unset" sentinel; named workspaces have negative ids.
+            return str(window.workspace_id)
+        return None
 
     def _apply_picked_window(self, window: Window) -> None:
         """Replace the current matcher rows with class+title from the picked window.
@@ -646,9 +692,11 @@ class _MatcherRow:
         original_key: str,
         on_remove: Callable[["_MatcherRow"], None],
         on_changed: Callable[[], None],
+        on_kind_changed: Callable[["_MatcherRow", str, str], None],
     ):
         self._on_remove = on_remove
         self._on_changed = on_changed
+        self._on_kind_changed_callback = on_kind_changed
         # ``_original_key`` only matters for matchers we couldn't
         # parse: when the user is editing a token like
         # ``plugin:foo:bar:baz`` (which is RAW because the parser
@@ -761,13 +809,20 @@ class _MatcherRow:
             return
         # Carry the existing text across kind changes — switching
         # between class/title both keep the regex value, which is
-        # what the user usually wants.
+        # what the user usually wants. Bool values never carry into
+        # a text kind: a literal ``false`` in a regex entry is noise.
+        old_key = self._kind.key
+        old_value = ""
         carry = ""
         if isinstance(self._value_widget, Gtk.Entry):
-            carry = self._value_widget.get_text()
+            old_value = self._value_widget.get_text()
+            carry = old_value
         elif isinstance(self._value_widget, Gtk.Switch):
-            carry = "true" if self._value_widget.get_active() else "false"
+            old_value = "true" if self._value_widget.get_active() else "false"
+            if new_kind.value_kind == "bool":
+                carry = old_value
         self._swap_value_widget(new_kind, carry)
+        self._on_kind_changed_callback(self, old_key, old_value)
         self._on_changed()
 
     def _swap_value_widget(self, kind: MatcherKind, initial_value: str) -> None:
