@@ -605,15 +605,6 @@ def to_managed_text(
     doc = _build_document(values, sections)
     _log_deprecations(doc, hyprland_version=hyprland_version)
     out = serialize_any(doc, managed_path())
-    if is_lua_mode():
-        import re
-
-        def wrap_plugin(match):
-            name = match.group(1)
-            body = match.group(2)
-            return f"-- Plugin: {name}\nif hl.plugin.{name} then\n{body}end\n"
-
-        out = re.sub(r"-- Plugin: ([\w-]+)\n(hl\.config\(\{[\s\S]*?\}\)\n)", wrap_plugin, out)
     return out
 
 

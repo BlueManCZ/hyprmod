@@ -1206,7 +1206,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         assert self._plugins_page is not None
         live_options = self.app_state.get_all_live_values()
         supported_plugins = parse_plugin_options(live_options)
-        custom_plugins = list(self._plugins_page._owned)
+        custom_plugins = self._plugins_page.custom_plugins
         sections.plugins = serialize(supported_plugins + custom_plugins)
 
         return sections

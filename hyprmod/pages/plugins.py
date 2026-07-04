@@ -59,11 +59,16 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         custom_items = []
         for e in items:
             full_key = f"plugin:{e.plugin_name}:{e.key}"
-            if full_key not in self._window._options_flat:
+            if full_key not in self._window.options_flat:
                 custom_items.append(e)
 
         self._owned = SavedList(custom_items, key=lambda e: f"{e.plugin_name}:{e.key}")
         self._external = load_external_plugins(config.user_entry_path(), config.managed_path())
+
+    @property
+    def custom_plugins(self) -> list[PluginSetting]:
+        """Return the list of custom plugin settings managed by this page."""
+        return list(self._owned)
 
     def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:
         self._load()
