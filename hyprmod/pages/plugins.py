@@ -110,10 +110,44 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         if supported:
             supported_group = Adw.PreferencesGroup(title="Supported Plugins")
             for schema_group in supported:
+                plugin_keys = []
+                main_toggle_key = None
+                main_toggle_default = True
+
+                for section in schema_group.get("sections", []):
+                    for option in section.get("options", []):
+                        k = option["key"]
+                        plugin_keys.append(k)
+                        if k.endswith(":enabled") and k.count(":") == 2:
+                            main_toggle_key = k
+                            main_toggle_default = option.get("default", True)
+
+                is_enabled = main_toggle_default
+                if main_toggle_key:
+                    state = self._window.app_state.get(main_toggle_key)
+                    if state:
+                        is_enabled = bool(state.live_value)
+
+                managed_count = sum(
+                    1
+                    for k in plugin_keys
+                    if (state := self._window.app_state.get(k)) and state.managed
+                )
+
+                status_text = "Enabled" if is_enabled else "Disabled"
+                if managed_count > 0:
+                    plural = "s" if managed_count > 1 else ""
+                    status_text += f" • {managed_count} custom setting{plural}"
+
+                desc = schema_group.get("description")
+                subtitle = f"{status_text}\n{desc}" if desc else status_text
+
                 row = Adw.ActionRow(
                     title=schema_group["label"],
-                    subtitle=schema_group.get("description", "Click to configure"),
+                    subtitle=subtitle,
                 )
+                row.set_subtitle_lines(0)
+
                 if "icon" in schema_group:
                     icon = Gtk.Image.new_from_icon_name(schema_group["icon"])
                     row.add_prefix(icon)
@@ -143,6 +177,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             page.add(pref_group)
 
         dialog.add(page)
+        dialog.connect("closed", lambda _d: self._rebuild_list())
         dialog.present(self._window)
 
     def _deleted_row_summary(self, item: PluginSetting) -> tuple[str, str]:
