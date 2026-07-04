@@ -140,11 +140,11 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                 if not status_text:
                     status_text = "Enabled" if is_enabled else "Disabled"
 
-                managed_count = sum(
-                    1
-                    for k in plugin_keys
-                    if (state := self._window.app_state.get(k)) and state.managed
-                )
+                def is_managed(k: str) -> bool:
+                    state = self._window.app_state.get(k)
+                    return state.managed if state else k in self._window.saved_values
+
+                managed_count = sum(1 for k in plugin_keys if is_managed(k))
                 if managed_count > 0:
                     plural = "s" if managed_count > 1 else ""
                     status_text += f" • {managed_count} custom setting{plural}"
