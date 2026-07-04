@@ -577,13 +577,16 @@ class HyprModWindow(Adw.ApplicationWindow):
             result.append(pref_group)
         return result
 
-    def build_schema_group_widgets(self, group_id: str) -> list[Adw.PreferencesGroup]:
-        """Build PreferencesGroup widgets for a schema group by ID.
+    def build_schema_group_widgets(
+        self, group_id_or_dict: str | dict
+    ) -> list[Adw.PreferencesGroup]:
+        """Build PreferencesGroup widgets for a schema group by ID or dictionary."""
+        if isinstance(group_id_or_dict, str):
+            groups = schema.get_groups(self._schema)
+            group = next((g for g in groups if g["id"] == group_id_or_dict), None)
+        else:
+            group = group_id_or_dict
 
-        Used by special pages (e.g. monitors) that embed schema-driven options.
-        """
-        groups = schema.get_groups(self._schema)
-        group = next((g for g in groups if g["id"] == group_id), None)
         if not group:
             return []
         pref_groups = self._build_section_widgets(group)

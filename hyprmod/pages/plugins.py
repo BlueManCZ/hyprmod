@@ -178,7 +178,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         page = Adw.PreferencesPage(title="")
         page.set_icon_name(schema_group.get("icon", ""))
 
-        for pref_group in self._window.build_schema_group_widgets(schema_group["id"]):
+        for pref_group in self._window.build_schema_group_widgets(schema_group):
             page.add(pref_group)
 
         dialog.add(page)
