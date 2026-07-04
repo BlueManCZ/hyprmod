@@ -52,7 +52,8 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
 
     # ── Loading ──
 
-    def _load(self) -> None:
+    def _load(self, saved_sections: dict[str, list[str]] | None = None) -> None:
+        del saved_sections
         saved_values = self._window.saved_values
         items = parse_plugin_options(saved_values)
 
@@ -71,7 +72,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         return list(self._owned)
 
     def reload_from_saved(self, saved_sections: dict[str, list[str]]) -> None:
-        self._load()
+        self._load(saved_sections)
         self._rebuild_list()
 
     # ── Build ──
