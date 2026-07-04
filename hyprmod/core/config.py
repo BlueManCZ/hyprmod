@@ -38,8 +38,6 @@ from hyprland_config import (
 log = logging.getLogger(__name__)
 
 
-
-
 @dataclass(slots=True)
 class ConfigSections:
     """Per-section line buffers for a single :func:`write_all` invocation.
