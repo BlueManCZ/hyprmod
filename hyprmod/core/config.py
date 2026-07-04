@@ -37,51 +37,7 @@ from hyprland_config import (
 
 log = logging.getLogger(__name__)
 
-try:
-    import hyprland_config._lua._read._runner
 
-    _old_wrapper = hyprland_config._lua._read._runner._WRAPPER_SCRIPT
-    _new_wrapper = Path(__file__).parent / "_hyprland_config_wrapper.lua"
-    if not _new_wrapper.exists() or _new_wrapper.stat().st_mtime < _old_wrapper.stat().st_mtime:
-        _src = _old_wrapper.read_text()
-        _injection = """
-    local path = package.searchpath(modname, package.path)
-    if path then
-        local f = _real_loadfile(path)
-        if f then
-            record("__dofile_enter", path)
-            local prev = current_source
-            current_source = path
-            local ok, result = pcall(f)
-            current_source = prev
-            record("__dofile_exit", path)
-            if not ok then
-                record("__error", "require failed: " .. tostring(result))
-                return
-            end
-            return result
-        end
-    end
-    return _real_require(modname)
-"""
-        _src = _src.replace("    return _real_require(modname)", _injection)
-        _plugin_injection = """hl.plugin = {
-    load = function(path) record("plugin_load", path) end,
-}
-setmetatable(hl.plugin, {
-    __index = function(self, key)
-        if key == "load" then return rawget(self, key) end
-        return true
-    end
-})"""
-        _src = _src.replace(
-            'hl.plugin = {\n    load = function(path) record("plugin_load", path) end,\n}',
-            _plugin_injection,
-        )
-        _new_wrapper.write_text(_src)
-    hyprland_config._lua._read._runner._WRAPPER_SCRIPT = _new_wrapper
-except ImportError:
-    pass
 
 
 @dataclass(slots=True)
