@@ -1,0 +1,236 @@
+{
+  "id": "plugin:hypr-dynamic-cursors",
+  "label": "Hypr Dynamic Cursors",
+  "icon": "input-mouse-symbolic",
+  "description": "Cursor behaviour based on velocity",
+  "sections": [
+    {
+      "id": "plugin:dynamic_cursors:general",
+      "label": "General",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:enabled",
+          "label": "Enabled",
+          "description": "Enables the plugin",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "plugin:dynamic_cursors:mode",
+          "label": "Mode",
+          "description": "Cursor behaviour mode",
+          "type": "choice",
+          "values": [
+            {"id": "tilt", "label": "Tilt"},
+            {"id": "rotate", "label": "Rotate"},
+            {"id": "stretch", "label": "Stretch"},
+            {"id": "none", "label": "None"}
+          ],
+          "default": "tilt"
+        },
+        {
+          "key": "plugin:dynamic_cursors:threshold",
+          "label": "Threshold",
+          "description": "Minimum angle difference in degrees after which the shape is changed.",
+          "type": "int",
+          "default": 2
+        }
+      ]
+    },
+    {
+      "id": "plugin:dynamic_cursors:rotate",
+      "label": "Rotate Settings",
+      "depends_on": "plugin:dynamic_cursors:mode=rotate",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:rotate:length",
+          "label": "Simulated Stick Length",
+          "description": "Length in px of the simulated stick used to rotate the cursor.",
+          "type": "int",
+          "default": 20
+        },
+        {
+          "key": "plugin:dynamic_cursors:rotate:offset",
+          "label": "Angle Offset",
+          "description": "Clockwise offset applied to the angle in degrees.",
+          "type": "float",
+          "default": 0.0
+        }
+      ]
+    },
+    {
+      "id": "plugin:dynamic_cursors:tilt",
+      "label": "Tilt Settings",
+      "depends_on": "plugin:dynamic_cursors:mode=tilt",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:tilt:limit",
+          "label": "Tilt Limit",
+          "description": "Controls how powerful the tilt is, the lower, the more power.",
+          "type": "int",
+          "default": 5000
+        },
+        {
+          "key": "plugin:dynamic_cursors:tilt:activation",
+          "label": "Activation Function",
+          "description": "Relationship between speed and tilt.",
+          "type": "choice",
+          "values": [
+            {"id": "linear", "label": "Linear"},
+            {"id": "quadratic", "label": "Quadratic"},
+            {"id": "negative_quadratic", "label": "Negative Quadratic"}
+          ],
+          "default": "negative_quadratic"
+        },
+        {
+          "key": "plugin:dynamic_cursors:tilt:window",
+          "label": "Time Window",
+          "description": "Time window (ms) over which the speed is calculated.",
+          "type": "int",
+          "default": 100
+        },
+        {
+          "key": "plugin:dynamic_cursors:tilt:full",
+          "label": "Full Tilt Angle",
+          "description": "Full tilt for each side (°).",
+          "type": "int",
+          "default": 60
+        }
+      ]
+    },
+    {
+      "id": "plugin:dynamic_cursors:stretch",
+      "label": "Stretch Settings",
+      "depends_on": "plugin:dynamic_cursors:mode=stretch",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:stretch:limit",
+          "label": "Stretch Limit",
+          "description": "Controls how much the cursor is stretched.",
+          "type": "int",
+          "default": 3000
+        },
+        {
+          "key": "plugin:dynamic_cursors:stretch:activation",
+          "label": "Activation Function",
+          "description": "Relationship between speed and stretch amount.",
+          "type": "choice",
+          "values": [
+            {"id": "linear", "label": "Linear"},
+            {"id": "quadratic", "label": "Quadratic"},
+            {"id": "negative_quadratic", "label": "Negative Quadratic"}
+          ],
+          "default": "quadratic"
+        },
+        {
+          "key": "plugin:dynamic_cursors:stretch:window",
+          "label": "Time Window",
+          "description": "Time window (ms) over which the speed is calculated.",
+          "type": "int",
+          "default": 100
+        }
+      ]
+    },
+    {
+      "id": "plugin:dynamic_cursors:shake",
+      "label": "Shake to Find",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:shake:enabled",
+          "label": "Enable Shake to Find",
+          "description": "Magnifies the cursor if it is being shaken.",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:threshold",
+          "label": "Threshold",
+          "description": "Controls how soon a shake is detected.",
+          "type": "float",
+          "default": 6.0
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:base",
+          "label": "Base Magnification",
+          "type": "float",
+          "default": 4.0
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:speed",
+          "label": "Magnification Speed",
+          "type": "float",
+          "default": 4.0
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:influence",
+          "label": "Shake Influence",
+          "type": "float",
+          "default": 0.0
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:limit",
+          "label": "Magnification Limit",
+          "type": "float",
+          "default": 0.0
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:timeout",
+          "label": "Timeout (ms)",
+          "type": "int",
+          "default": 2000
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:effects",
+          "label": "Show Effects During Shake",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "key": "plugin:dynamic_cursors:shake:ipc",
+          "label": "Enable IPC Events",
+          "type": "bool",
+          "default": false
+        }
+      ]
+    },
+    {
+      "id": "plugin:dynamic_cursors:hyprcursor",
+      "label": "Hyprcursor",
+      "options": [
+        {
+          "key": "plugin:dynamic_cursors:hyprcursor:nearest",
+          "label": "Pixelated Scaling",
+          "type": "choice",
+          "values": [
+            {"id": "0", "label": "None"},
+            {"id": "1", "label": "Standard"},
+            {"id": "2", "label": "Full"}
+          ],
+          "default": "1"
+        },
+        {
+          "key": "plugin:dynamic_cursors:hyprcursor:enabled",
+          "label": "Enable Hyprcursor Support",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "plugin:dynamic_cursors:hyprcursor:resolution",
+          "label": "Resolution",
+          "type": "int",
+          "default": -1
+        },
+        {
+          "key": "plugin:dynamic_cursors:hyprcursor:fallback",
+          "label": "Fallback Shape",
+          "type": "choice",
+          "values": [
+            {"id": "clientside", "label": "Clientside"},
+            {"id": "none", "label": "None"}
+          ],
+          "default": "clientside"
+        }
+      ]
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from hyprmod.pages.layer_rules import LayerRulesPage
 from hyprmod.pages.layouts import LayoutsPage
 from hyprmod.pages.monitors import MonitorsPage
 from hyprmod.pages.pending import PendingChangesPage
+from hyprmod.pages.plugins import PluginsPage
 from hyprmod.pages.profiles import ProfilesPage
 from hyprmod.pages.section import SectionPage
 from hyprmod.pages.settings import SettingsPage
@@ -92,6 +93,12 @@ class HyprModWindow(Adw.ApplicationWindow):
             self._schema["groups"] = [
                 g for g in schema.get_groups(self._schema) if g["id"] != GESTURES
             ]
+
+        # Append plugin schemas (hidden from main sidebar so they only show in PluginsPage)
+        for plugin_group in schema.load_plugin_schemas():
+            plugin_group["hidden"] = True
+            self._schema["groups"].append(plugin_group)
+
         self.app_state = AppState(self.hypr)
         self._option_rows: dict[str, OptionRow] = {}
         # Track the PreferencesGroup that owns each option row so we can hide
@@ -118,6 +125,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._layouts_page: LayoutsPage | None = None
         self._profiles_page: ProfilesPage | None = None
         self._settings_page: SettingsPage | None = None
+        self._plugins_page: PluginsPage | None = None
         self._pending_page: PendingChangesPage | None = None
         self._pre_search_page_id: str | None = None
         self._search_results: list | None = None
@@ -308,6 +316,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self._env_vars_page,
                 self._window_rules_page,
                 self._layer_rules_page,
+                self._plugins_page,
             )
             if p is not None
         ]
@@ -375,6 +384,7 @@ class HyprModWindow(Adw.ApplicationWindow):
             (EnvVarsPage, "_env_vars_page", "env_vars", "Env Variables"),
             (WindowRulesPage, "_window_rules_page", "window_rules", "Window Rules"),
             (LayerRulesPage, "_layer_rules_page", "layer_rules", "Layer Rules"),
+            (PluginsPage, "_plugins_page", "plugins", "Plugin Settings"),
         ]
         for cls, attr, slug, title in section_page_specs:
             page = cls(
@@ -1191,10 +1201,23 @@ class HyprModWindow(Adw.ApplicationWindow):
             lambda _p: has_owned_layer_rules,
             lambda p: p.get_layer_rule_lines(),
         )
+        from hyprmod.core.plugins import parse_plugin_options, serialize
+
+        assert self._plugins_page is not None
+        live_options = self.app_state.get_all_live_values()
+        supported_plugins = parse_plugin_options(live_options)
+        custom_plugins = list(self._plugins_page._owned)
+        sections.plugins = serialize(supported_plugins + custom_plugins)
 
         return sections
 
     def _perform_save(self, *, update_active_profile: bool = True):
+        assert self._plugins_page is not None
+        plugins_changed = (
+            any(k.startswith("plugin:") for k in self.app_state.get_dirty_values())
+            or self._plugins_page.is_dirty()
+        )
+
         # ``write_all`` invalidates ``config.read_cached`` internally, so any
         # subsequent ``saved_sections`` access reflects what we just wrote.
         config.write_all(
@@ -1203,6 +1226,10 @@ class HyprModWindow(Adw.ApplicationWindow):
             hyprland_version=self.hypr.version,
         )
         self.app_state.mark_saved()
+
+        if plugins_changed:
+            self.hypr.reload_compositor()
+
         self.hypr.clear_pending()
         for section in self._section_pages:
             section.mark_saved()
@@ -1271,8 +1298,10 @@ class HyprModWindow(Adw.ApplicationWindow):
         if self._layer_rules_page is not None:
             self._layer_rules_page.reload_from_saved(sections)
 
-        if self._workspaces_page is not None:
+        if self._workspaces_page:
             self._workspaces_page.reload_from_saved(sections)
+        if self._plugins_page:
+            self._plugins_page.reload_from_saved(sections)
 
         self._undo.clear()
         self._banner.hide()

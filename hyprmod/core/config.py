@@ -37,6 +37,52 @@ from hyprland_config import (
 
 log = logging.getLogger(__name__)
 
+try:
+    import hyprland_config._lua._read._runner
+
+    _old_wrapper = hyprland_config._lua._read._runner._WRAPPER_SCRIPT
+    _new_wrapper = Path(__file__).parent / "_hyprland_config_wrapper.lua"
+    if not _new_wrapper.exists() or _new_wrapper.stat().st_mtime < _old_wrapper.stat().st_mtime:
+        _src = _old_wrapper.read_text()
+        _injection = """
+    local path = package.searchpath(modname, package.path)
+    if path then
+        local f = _real_loadfile(path)
+        if f then
+            record("__dofile_enter", path)
+            local prev = current_source
+            current_source = path
+            local ok, result = pcall(f)
+            current_source = prev
+            record("__dofile_exit", path)
+            if not ok then
+                record("__error", "require failed: " .. tostring(result))
+                return
+            end
+            return result
+        end
+    end
+    return _real_require(modname)
+"""
+        _src = _src.replace("    return _real_require(modname)", _injection)
+        _plugin_injection = """hl.plugin = {
+    load = function(path) record("plugin_load", path) end,
+}
+setmetatable(hl.plugin, {
+    __index = function(self, key)
+        if key == "load" then return rawget(self, key) end
+        return true
+    end
+})"""
+        _src = _src.replace(
+            'hl.plugin = {\n    load = function(path) record("plugin_load", path) end,\n}',
+            _plugin_injection,
+        )
+        _new_wrapper.write_text(_src)
+    hyprland_config._lua._read._runner._WRAPPER_SCRIPT = _new_wrapper
+except ImportError:
+    pass
+
 
 @dataclass(slots=True)
 class ConfigSections:
@@ -56,6 +102,7 @@ class ConfigSections:
     exec_: list[str] | None = None
     window_rules: list[str] | None = None
     layer_rules: list[str] | None = None
+    plugins: list[str] | None = None
 
 
 HYPRMOD_DIR = Path.home() / ".config" / "hypr" / "hyprmod"
@@ -355,6 +402,11 @@ def read_all_sections(
             sections.setdefault(line.key, []).append(line.raw.strip())
         elif isinstance(line, Rule):
             rules.append(line)
+
+    plugin_items = list(doc.section("plugin"))
+    if plugin_items:
+        sections["plugin"] = [item.raw for item in plugin_items]
+
     return options, sections, rules
 
 
@@ -472,15 +524,14 @@ def _build_document(values: dict[str, str], sections: ConfigSections) -> Documen
         _add_section(doc, "Environment", sections.env)
 
     if values:
-        # Bare option lines (general:gaps_in, decoration:rounding, …) live
-        # under their own header so the Lua emitter — which treats Comments
-        # as group boundaries — keeps them in a dedicated ``hl.config(...)``
-        # call instead of absorbing them into the preceding section's group.
-        _add_section(
-            doc,
-            "Settings",
-            [f"{k} = {v}" for k, v in sorted(values.items())],
-        )
+        general_values = {k: v for k, v in values.items() if not k.startswith("plugin:")}
+
+        if general_values:
+            _add_section(
+                doc,
+                "Settings",
+                [f"{k} = {v}" for k, v in sorted(general_values.items())],
+            )
 
     if sections.beziers:
         _add_section(doc, "Bezier curves", sections.beziers)
@@ -492,12 +543,14 @@ def _build_document(values: dict[str, str], sections: ConfigSections) -> Documen
         _add_section(doc, "Workspaces", sections.workspaces)
     if sections.binds:
         _add_section(doc, "Keybinds", sections.binds)
-    # Window rules sit before autostart so any rule overrides are in effect
-    # before exec'd processes spawn matching windows on reload.
     if sections.window_rules:
         _add_section(doc, "Window rules", sections.window_rules)
     if sections.layer_rules:
         _add_section(doc, "Layer rules", sections.layer_rules)
+
+    if sections.plugins:
+        _add_section(doc, "Plugins", sections.plugins)
+
     # Autostart last: ``exec`` re-runs on every reload, so config later in
     # the file that affects the exec'd process (env vars, monitor layout)
     # is already in effect by the time the commands run.
@@ -551,7 +604,17 @@ def to_managed_text(
     """
     doc = _build_document(values, sections)
     _log_deprecations(doc, hyprland_version=hyprland_version)
-    return serialize_any(doc, managed_path())
+    out = serialize_any(doc, managed_path())
+    if is_lua_mode():
+        import re
+
+        def wrap_plugin(match):
+            name = match.group(1)
+            body = match.group(2)
+            return f"-- Plugin: {name}\nif hl.plugin.{name} then\n{body}end\n"
+
+        out = re.sub(r"-- Plugin: ([\w-]+)\n(hl\.config\(\{[\s\S]*?\}\)\n)", wrap_plugin, out)
+    return out
 
 
 def write_all(

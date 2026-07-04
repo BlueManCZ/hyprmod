@@ -30,6 +30,29 @@ def load_schema(version: str | None = None, path: Path | None = None) -> dict:
     return overlay
 
 
+def load_plugin_schemas(plugins_dir: Path | None = None) -> list[dict]:
+    """Load and return all plugin schema groups."""
+    if plugins_dir is None:
+        plugins_dir = Path(__file__).parent.parent / "data" / "schema" / "plugins"
+
+    if not plugins_dir.exists():
+        return []
+
+    plugins = []
+    for path in plugins_dir.glob("*.json"):
+        with open(path, encoding="utf-8") as f:
+            plugin_group = json.load(f)
+            plugins.append(plugin_group)
+
+    # Remove any options that lack a type, similar to _drop_unavailable
+    for group in plugins:
+        for section in group.get("sections", []):
+            kept_options = [opt for opt in section.get("options", []) if "type" in opt]
+            section["options"] = kept_options
+
+    return plugins
+
+
 def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
     """Resolve the version-matched option catalog, falling back to the bundle."""
     if version is None:

@@ -21,6 +21,7 @@ LAYER_RULES_ICON = "overlapping-windows-symbolic"
 LAYOUTS_ICON = "view-grid-symbolic"
 ANIMATIONS_ICON = "bounce-symbolic"
 CURSOR_ICON = "hyprmod-cursor-symbolic"
+PLUGINS_ICON = "application-x-addon-symbolic"
 
 PENDING_ICON = "view-list-symbolic"
 PROFILES_ICON = "user-bookmarks-symbolic"

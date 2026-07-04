@@ -11,6 +11,7 @@ from hyprmod.ui.icons import (
     LAYER_RULES_ICON,
     LAYOUTS_ICON,
     MONITORS_ICON,
+    PLUGINS_ICON,
     PROFILES_ICON,
     SETTINGS_ICON,
     WINDOW_RULES_ICON,
@@ -223,6 +224,7 @@ class Sidebar:
         add_schema_row(advanced, "xwayland")
         add_schema_row(advanced, "ecosystem")
         add_schema_row(advanced, "misc")
+        add_row(advanced, "plugins", "Plugin Settings", PLUGINS_ICON)
 
         # Pinned list goes last so select_first() picks schema rows
         self._lists.append(self._pinned_list)
