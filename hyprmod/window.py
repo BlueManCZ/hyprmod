@@ -11,6 +11,7 @@ from hyprland_state import ANIM_LOOKUP, HyprlandState
 
 from hyprmod.core import config, profiles, schema
 from hyprmod.core.bug_report import build_bug_report_url
+from hyprmod.core.plugins import parse_plugin_options, serialize
 from hyprmod.core.settings import apply_saved_config_path, open_settings
 from hyprmod.core.state import AppState
 from hyprmod.core.undo import OptionChange, PairedOptionChange, UndoManager
@@ -391,7 +392,6 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self,
                 on_dirty_changed=self._on_section_dirty,
                 push_undo=self._undo.push,
-                saved_sections=self.saved_sections,
             )
             setattr(self, attr, page)
             self._page_stack.add_named(page.build(header=self._make_page_header(title)), slug)
@@ -1204,12 +1204,12 @@ class HyprModWindow(Adw.ApplicationWindow):
             lambda _p: has_owned_layer_rules,
             lambda p: p.get_layer_rule_lines(),
         )
-        from hyprmod.core.plugins import parse_plugin_options, serialize
-
-        assert self._plugins_page is not None
+        if self._plugins_page is not None:
+            custom_plugins = self._plugins_page.custom_plugins
+        else:
+            custom_plugins = []
         live_options = self.app_state.get_all_live_values()
         supported_plugins = parse_plugin_options(live_options)
-        custom_plugins = self._plugins_page.custom_plugins
         sections.plugins = serialize(supported_plugins + custom_plugins)
 
         return sections
@@ -1292,9 +1292,9 @@ class HyprModWindow(Adw.ApplicationWindow):
         if self._layer_rules_page is not None:
             self._layer_rules_page.reload_from_saved(sections)
 
-        if self._workspaces_page is not None:
+        if self._workspaces_page:
             self._workspaces_page.reload_from_saved(sections)
-        if self._plugins_page is not None:
+        if self._plugins_page:
             self._plugins_page.reload_from_saved(sections)
 
         self._undo.clear()

@@ -41,7 +41,6 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         window,
         on_dirty_changed=None,
         push_undo=None,
-        **kwargs,
     ):
         super().__init__(window, on_dirty_changed, push_undo)
         self._content_box: Gtk.Box
