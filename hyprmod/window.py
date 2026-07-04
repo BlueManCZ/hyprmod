@@ -1215,12 +1215,6 @@ class HyprModWindow(Adw.ApplicationWindow):
         return sections
 
     def _perform_save(self, *, update_active_profile: bool = True):
-        assert self._plugins_page is not None
-        plugins_changed = (
-            any(k.startswith("plugin:") for k in self.app_state.get_dirty_values())
-            or self._plugins_page.is_dirty()
-        )
-
         # ``write_all`` invalidates ``config.read_cached`` internally, so any
         # subsequent ``saved_sections`` access reflects what we just wrote.
         config.write_all(
@@ -1229,9 +1223,6 @@ class HyprModWindow(Adw.ApplicationWindow):
             hyprland_version=self.hypr.version,
         )
         self.app_state.mark_saved()
-
-        if plugins_changed:
-            self.hypr.reload_compositor()
 
         self.hypr.clear_pending()
         for section in self._section_pages:
@@ -1301,9 +1292,9 @@ class HyprModWindow(Adw.ApplicationWindow):
         if self._layer_rules_page is not None:
             self._layer_rules_page.reload_from_saved(sections)
 
-        if self._workspaces_page:
+        if self._workspaces_page is not None:
             self._workspaces_page.reload_from_saved(sections)
-        if self._plugins_page:
+        if self._plugins_page is not None:
             self._plugins_page.reload_from_saved(sections)
 
         self._undo.clear()

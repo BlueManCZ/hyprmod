@@ -41,7 +41,6 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         window,
         on_dirty_changed=None,
         push_undo=None,
-        saved_sections=None,
     ):
         super().__init__(window, on_dirty_changed, push_undo)
         self._content_box: Gtk.Box
@@ -52,7 +51,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
 
     # ── Loading ──
 
-    def _load(self, saved_sections: dict[str, list[str]] | None = None) -> None:
+    def _load(self) -> None:
         saved_values = self._window.saved_values
         items = parse_plugin_options(saved_values)
 
@@ -128,18 +127,23 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                             main_toggle_default = option.get("default", True)
 
                 is_enabled = main_toggle_default
+                status_text = ""
                 if main_toggle_key:
                     state = self._window.app_state.get(main_toggle_key)
                     if state:
-                        is_enabled = bool(state.live_value)
+                        if not state.available:
+                            status_text = "Not installed"
+                        else:
+                            is_enabled = bool(state.live_value)
+
+                if not status_text:
+                    status_text = "Enabled" if is_enabled else "Disabled"
 
                 managed_count = sum(
                     1
                     for k in plugin_keys
                     if (state := self._window.app_state.get(k)) and state.managed
                 )
-
-                status_text = "Enabled" if is_enabled else "Disabled"
                 if managed_count > 0:
                     plural = "s" if managed_count > 1 else ""
                     status_text += f" • {managed_count} custom setting{plural}"
@@ -323,5 +327,29 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             entry=current,
             on_apply=on_apply,
         )
+
+    def _commit_appended(self, item: PluginSetting) -> None:
+        super()._commit_appended(item)
+        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
+
+    def _commit_replaced(self, idx: int, item: PluginSetting) -> None:
+        super()._commit_replaced(idx, item)
+        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
+
+    def _on_delete_at(self, idx: int) -> None:
+        item = self._owned[idx]
+        super()._on_delete_at(idx)
+        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", "")
+
+    def _discard_at(self, idx: int) -> None:
+        item = self._owned[idx]
+        baseline = self._owned.get_baseline(idx)
+        super()._discard_at(idx)
+        value = baseline.value if baseline else ""
+        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", value)
+
+    def _on_restore_deleted(self, item: PluginSetting) -> None:
+        super()._on_restore_deleted(item)
+        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
 
     # ── Save Integration ──

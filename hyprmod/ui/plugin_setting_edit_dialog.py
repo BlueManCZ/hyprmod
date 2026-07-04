@@ -118,7 +118,7 @@ class PluginSettingEditDialog(SingletonDialogMixin, Adw.Dialog):
         elif not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", plugin_name):
             is_valid = False
             err_msg = "Plugin name must be a valid identifier."
-        elif not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+        elif not re.match(r"^[A-Za-z0-9_:-]+$", key):
             is_valid = False
             err_msg = "Setting key must be a valid identifier."
 
