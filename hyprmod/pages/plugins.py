@@ -348,16 +348,14 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         self._apply_live(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
 
     def _on_delete_at(self, idx: int) -> None:
-        item = self._owned[idx]
         super()._on_delete_at(idx)
-        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", "")
 
     def _discard_at(self, idx: int) -> None:
         item = self._owned[idx]
         baseline = self._owned.get_baseline(idx)
         super()._discard_at(idx)
-        value = baseline.value if baseline else ""
-        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", value)
+        if baseline:
+            self._apply_live(f"plugin:{item.plugin_name}:{item.key}", baseline.value or "")
 
     def _on_restore_deleted(self, item: PluginSetting) -> None:
         super()._on_restore_deleted(item)
