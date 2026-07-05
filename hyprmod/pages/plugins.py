@@ -8,6 +8,8 @@ from html import escape as html_escape
 
 from gi.repository import Adw, Gtk
 
+from hyprland_socket import HyprlandError
+
 from hyprmod.core import config, schema
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.plugins import (
@@ -17,7 +19,7 @@ from hyprmod.core.plugins import (
     parse_plugin_options,
 )
 from hyprmod.pages.section import SavedListSectionPage
-from hyprmod.ui import make_page_layout
+from hyprmod.ui import make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.icons import PLUGINS_ICON
 from hyprmod.ui.plugin_setting_edit_dialog import PluginSettingEditDialog
@@ -329,28 +331,36 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             on_apply=on_apply,
         )
 
+    def _apply_live(self, key: str, value: str) -> None:
+        try_with_toast(
+            self._window.show_bug_toast,
+            "Plugin setting failed",
+            lambda: self._window.hypr.keyword(key, value),
+            catch=HyprlandError,
+        )
+
     def _commit_appended(self, item: PluginSetting) -> None:
         super()._commit_appended(item)
-        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
+        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
 
     def _commit_replaced(self, idx: int, item: PluginSetting) -> None:
         super()._commit_replaced(idx, item)
-        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
+        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
 
     def _on_delete_at(self, idx: int) -> None:
         item = self._owned[idx]
         super()._on_delete_at(idx)
-        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", "")
+        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", "")
 
     def _discard_at(self, idx: int) -> None:
         item = self._owned[idx]
         baseline = self._owned.get_baseline(idx)
         super()._discard_at(idx)
         value = baseline.value if baseline else ""
-        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", value)
+        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", value)
 
     def _on_restore_deleted(self, item: PluginSetting) -> None:
         super()._on_restore_deleted(item)
-        self._window.hypr.keyword(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
+        self._apply_live(f"plugin:{item.plugin_name}:{item.key}", item.value or "")
 
     # ── Save Integration ──
