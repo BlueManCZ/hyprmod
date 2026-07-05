@@ -110,5 +110,3 @@ def load_external_plugins(root_path: Path, managed_path: Path) -> list[ExternalP
                 )
 
     return external
-
-

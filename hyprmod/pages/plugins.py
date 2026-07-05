@@ -172,6 +172,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             groups.append(supported_group)
 
         import shutil
+
         has_hyprpm = shutil.which("hyprpm") is not None
 
         def has_hyprpm_autostart() -> bool:
@@ -188,6 +189,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             return False
 
         if any_not_loaded and has_hyprpm and not has_hyprpm_autostart():
+
             def on_add_autostart(_btn) -> None:
                 autostart_page = getattr(self._window, "_autostart_page", None)
                 if autostart_page:
