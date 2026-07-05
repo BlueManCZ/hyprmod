@@ -112,13 +112,3 @@ def load_external_plugins(root_path: Path, managed_path: Path) -> list[ExternalP
     return external
 
 
-def overridden_external_plugins(
-    external: list[ExternalPluginSetting],
-    owned: list[PluginSetting],
-) -> set[str]:
-    owned_keys = {f"{e.plugin_name}:{e.key}" for e in owned}
-    return {
-        f"{ext.setting.plugin_name}:{ext.setting.key}"
-        for ext in external
-        if f"{ext.setting.plugin_name}:{ext.setting.key}" in owned_keys
-    }

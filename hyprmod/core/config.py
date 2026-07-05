@@ -357,10 +357,6 @@ def read_all_sections(
         elif isinstance(line, Rule):
             rules.append(line)
 
-    plugin_items = list(doc.section("plugin"))
-    if plugin_items:
-        sections["plugin"] = [item.raw for item in plugin_items]
-
     return options, sections, rules
 
 
@@ -558,8 +554,7 @@ def to_managed_text(
     """
     doc = _build_document(values, sections)
     _log_deprecations(doc, hyprland_version=hyprland_version)
-    out = serialize_any(doc, managed_path())
-    return out
+    return serialize_any(doc, managed_path())
 
 
 def write_all(
