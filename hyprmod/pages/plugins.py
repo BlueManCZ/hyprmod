@@ -112,6 +112,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
     def _build_managed_groups(self) -> list[Gtk.Widget]:
         groups = []
         supported = schema.load_plugin_schemas()
+        any_not_loaded = False
 
         if supported:
             supported_group = Adw.PreferencesGroup(title="Supported Plugins")
@@ -134,7 +135,8 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                     state = self._window.app_state.get(main_toggle_key)
                     if state:
                         if not state.available:
-                            status_text = "Not installed"
+                            status_text = "Not loaded"
+                            any_not_loaded = True
                         else:
                             is_enabled = bool(state.live_value)
 
@@ -168,6 +170,38 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                 )
                 supported_group.add(row)
             groups.append(supported_group)
+
+        import shutil
+        has_hyprpm = shutil.which("hyprpm") is not None
+
+        def has_hyprpm_autostart() -> bool:
+            autostart_page = getattr(self._window, "_autostart_page", None)
+            if not autostart_page:
+                return True
+            for entry in autostart_page._owned:
+                if entry.keyword == "exec-once" and "hyprpm reload" in (entry.command or ""):
+                    return True
+            for ext in autostart_page._external:
+                if ext.setting.keyword == "exec-once" and "hyprpm reload" in (ext.setting.command or ""):
+                    return True
+            return False
+
+        if any_not_loaded and has_hyprpm and not has_hyprpm_autostart():
+            def on_add_autostart(_btn) -> None:
+                autostart_page = getattr(self._window, "_autostart_page", None)
+                if autostart_page:
+                    from hyprmod.core.autostart import ExecData
+                    autostart_page._commit_appended(ExecData(keyword="exec-once", command="hyprpm reload -n"))
+                    self._rebuild_list()
+
+            from hyprmod.ui import make_inline_hint
+            
+            hint = make_inline_hint(
+                "Plugins must be loaded to configure them. Add <code>hyprpm reload</code> to autostart?",
+                button_label="Add to Autostart",
+                button_callback=on_add_autostart,
+            )
+            groups.insert(0, hint)
 
         if len(self._owned) > 0:
             custom = self._build_managed_group("Custom Plugins", range(len(self._owned)))

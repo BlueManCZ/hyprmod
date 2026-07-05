@@ -216,6 +216,8 @@ def make_inline_hint(
     text: str,
     *,
     icon_name: str = "dialog-information-symbolic",
+    button_label: str | None = None,
+    button_callback: Callable[[Gtk.Button], object] | None = None,
 ) -> Gtk.Widget:
     """Build the dim-icon + dim-caption hint row used at the top of list pages.
 
@@ -240,4 +242,13 @@ def make_inline_hint(
     label.add_css_class("dim-label")
     label.add_css_class("caption")
     box.append(label)
+
+    if button_label and button_callback:
+        btn = Gtk.Button(label=button_label)
+        btn.set_valign(Gtk.Align.CENTER)
+        btn.add_css_class("suggested-action")
+        btn.add_css_class("pill")
+        btn.connect("clicked", button_callback)
+        box.append(btn)
+
     return box
