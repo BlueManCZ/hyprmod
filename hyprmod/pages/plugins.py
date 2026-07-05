@@ -7,7 +7,6 @@ This page provides a list editor to add, edit, and remove those settings.
 from html import escape as html_escape
 
 from gi.repository import Adw, Gtk
-
 from hyprland_socket import HyprlandError
 
 from hyprmod.core import config, schema
