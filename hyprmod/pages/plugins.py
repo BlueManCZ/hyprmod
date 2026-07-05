@@ -182,7 +182,8 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                 if entry.keyword == "exec-once" and "hyprpm reload" in (entry.command or ""):
                     return True
             for ext in autostart_page._external:
-                if ext.setting.keyword == "exec-once" and "hyprpm reload" in (ext.setting.command or ""):
+                ext_cmd = ext.setting.command or ""
+                if ext.setting.keyword == "exec-once" and "hyprpm reload" in ext_cmd:
                     return True
             return False
 
@@ -191,13 +192,16 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                 autostart_page = getattr(self._window, "_autostart_page", None)
                 if autostart_page:
                     from hyprmod.core.autostart import ExecData
-                    autostart_page._commit_appended(ExecData(keyword="exec-once", command="hyprpm reload -n"))
+
+                    data = ExecData(keyword="exec-once", command="hyprpm reload -n")
+                    autostart_page._commit_appended(data)
                     self._rebuild_list()
 
             from hyprmod.ui import make_inline_hint
-            
+
             hint = make_inline_hint(
-                "Plugins must be loaded to configure them. Add <code>hyprpm reload</code> to autostart?",
+                "Plugins must be loaded to configure them. "
+                "Add <code>hyprpm reload</code> to autostart?",
                 button_label="Add to Autostart",
                 button_callback=on_add_autostart,
             )
