@@ -34,6 +34,7 @@ from hyprland_config import (
     serialize_any,
     serialize_hyprlang,
 )
+from hyprland_config._migrate._windowrule import normalize_rules
 
 log = logging.getLogger(__name__)
 
@@ -507,6 +508,7 @@ def _build_document(values: dict[str, str], sections: ConfigSections) -> Documen
     if sections.exec_:
         _add_section(doc, "Autostart", sections.exec_)
 
+    normalize_rules(doc)
     return doc
 
 
