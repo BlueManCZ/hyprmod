@@ -137,7 +137,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._load_css()
         self._build_ui()
         self._register_state()
-        if hasattr(self, "_plugins_page"):
+        if self._plugins_page:
             self._plugins_page._rebuild_list()
         self._refresh_all_modified_indicators()
 
