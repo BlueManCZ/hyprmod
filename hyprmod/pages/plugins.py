@@ -131,14 +131,15 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
 
                 is_enabled = main_toggle_default
                 status_text = ""
+                is_loaded = True
                 if main_toggle_key:
                     state = self._window.app_state.get(main_toggle_key)
-                    if state:
-                        if not state.available:
-                            status_text = "Not loaded"
-                            any_not_loaded = True
-                        else:
-                            is_enabled = bool(state.live_value)
+                    if state is None or not state.available:
+                        status_text = "Not loaded"
+                        is_loaded = False
+                        any_not_loaded = True
+                    else:
+                        is_enabled = bool(state.live_value)
 
                 if not status_text:
                     status_text = "Enabled" if is_enabled else "Disabled"
@@ -164,10 +165,13 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
                 if "icon" in schema_group:
                     icon = Gtk.Image.new_from_icon_name(schema_group["icon"])
                     row.add_prefix(icon)
-                row.set_activatable(True)
-                row.connect(
-                    "activated", lambda _r, g=schema_group: self._show_supported_plugin_dialog(g)
-                )
+
+                row.set_activatable(is_loaded)
+                if is_loaded:
+                    row.connect(
+                        "activated",
+                        lambda _r, g=schema_group: self._show_supported_plugin_dialog(g),
+                    )
                 supported_group.add(row)
             groups.append(supported_group)
 
@@ -179,31 +183,20 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             autostart_page = getattr(self._window, "_autostart_page", None)
             if not autostart_page:
                 return True
-            for entry in autostart_page._owned:
-                if entry.keyword == "exec-once" and "hyprpm reload" in (entry.command or ""):
-                    return True
-            for ext in autostart_page._external:
-                ext_cmd = ext.setting.command or ""
-                if ext.setting.keyword == "exec-once" and "hyprpm reload" in ext_cmd:
-                    return True
-            return False
+            return autostart_page.has_command("exec-once", "hyprpm reload")
 
         if any_not_loaded and has_hyprpm and not has_hyprpm_autostart():
-
             def on_add_autostart(_btn) -> None:
                 autostart_page = getattr(self._window, "_autostart_page", None)
                 if autostart_page:
-                    from hyprmod.core.autostart import ExecData
-
-                    data = ExecData(keyword="exec-once", command="hyprpm reload -n")
-                    autostart_page._commit_appended(data)
+                    autostart_page.add_command("exec-once", "hyprpm reload -n")
                     self._rebuild_list()
 
             from hyprmod.ui import make_inline_hint
 
             hint = make_inline_hint(
                 "Plugins must be loaded to configure them. "
-                "Add <code>hyprpm reload</code> to autostart?",
+                "Add hyprpm reload to autostart?",
                 button_label="Add to Autostart",
                 button_callback=on_add_autostart,
             )

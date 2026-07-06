@@ -79,6 +79,22 @@ class AutostartPage(SavedListSectionPage[ExecData]):
         self._installed_apps: list[DesktopApp] = list_apps()
         self._load(saved_sections)
 
+    # ── Public API ──
+
+    def has_command(self, keyword: str, substring: str) -> bool:
+        """Return True if any entry matches the keyword and contains the substring."""
+        for entry in self._owned:
+            if entry.keyword == keyword and substring in (entry.command or ""):
+                return True
+        for ext in self._external:
+            if ext.entry.keyword == keyword and substring in (ext.entry.command or ""):
+                return True
+        return False
+
+    def add_command(self, keyword: str, command: str) -> None:
+        """Append a new command entry."""
+        self._commit_appended(ExecData(keyword=keyword, command=command))
+
     # ── Loading ──
 
     def _load(self, saved_sections: dict[str, list[str]] | None) -> None:
