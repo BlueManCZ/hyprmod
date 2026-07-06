@@ -42,7 +42,6 @@ def serialize(settings: list[PluginSetting]) -> list[str]:
 
     lines = []
     for plugin_name, plugin_settings in by_plugin.items():
-        lines.append(f"# Plugin: {plugin_name}\n")
         lines.append("plugin {\n")
         lines.append(f"  {plugin_name} {{\n")
         for setting in plugin_settings:
