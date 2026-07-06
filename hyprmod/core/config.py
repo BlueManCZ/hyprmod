@@ -29,12 +29,12 @@ from hyprland_config import (
     is_bind_keyword,
     load_any,
     migrate,
+    normalize_rules,
     parse_string,
     parse_version,
     serialize_any,
     serialize_hyprlang,
 )
-from hyprland_config._migrate._windowrule import normalize_rules
 
 log = logging.getLogger(__name__)
 
