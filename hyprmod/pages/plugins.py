@@ -186,6 +186,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             return autostart_page.has_command("exec-once", "hyprpm reload")
 
         if any_not_loaded and has_hyprpm and not has_hyprpm_autostart():
+
             def on_add_autostart(_btn) -> None:
                 autostart_page = getattr(self._window, "_autostart_page", None)
                 if autostart_page:
@@ -195,8 +196,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
             from hyprmod.ui import make_inline_hint
 
             hint = make_inline_hint(
-                "Plugins must be loaded to configure them. "
-                "Add hyprpm reload to autostart?",
+                "Plugins must be loaded to configure them. Add hyprpm reload to autostart?",
                 button_label="Add to Autostart",
                 button_callback=on_add_autostart,
             )
