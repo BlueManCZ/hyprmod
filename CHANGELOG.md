@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Plugins page for configuring Hyprland plugins: a schema-driven UI for natively supported plugins (starting with Hypr Dynamic Cursors) plus a list editor for arbitrary `plugin { … }` settings, with live-apply, detection of plugin settings from your existing config, and a prompt to add `hyprpm reload` to autostart when a supported plugin is not loaded (#60)
 - The window rule dialog supports multiple actions per rule: actions are a dynamic list of blocks that can be added and removed individually, instead of a single action per rule; anonymous rules with multiple effects now also load as one rule instead of splitting into separate entries (#57, #58)
+- The keybind dialog's "Run command" action can pick from installed apps: a search button next to the Command field opens the same app picker used by autostart entries, filling the field with the selected app's command
 
 ### Changed
 

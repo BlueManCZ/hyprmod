@@ -24,7 +24,9 @@ from hyprmod.binds.gdk_modifiers import (
     keysyms_to_mods,
     unshifted_keyval,
 )
+from hyprmod.core.desktop_apps import DesktopApp
 from hyprmod.ui import clear_children, confirm
+from hyprmod.ui.app_picker import AppPickerDialog
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +126,22 @@ def _build_arg_widget(arg_type: str, current_value: str):
     if arg_type == "command":
         row = Adw.EntryRow(title="Command")
         row.set_text(current_value)
+
+        def on_pick(app: DesktopApp) -> None:
+            row.set_text(app.command)
+            # Restore focus to the entry so the auto-filled command can be
+            # edited (e.g. to add args) without an extra click.
+            row.grab_focus()
+
+        pick_btn = Gtk.Button.new_from_icon_name("system-search-symbolic")
+        pick_btn.set_valign(Gtk.Align.CENTER)
+        pick_btn.add_css_class("flat")
+        pick_btn.set_tooltip_text("Pick from installed apps")
+        pick_btn.connect(
+            "clicked", lambda _b: AppPickerDialog.present_singleton(row, on_pick=on_pick)
+        )
+        row.add_suffix(pick_btn)
+
         return row, lambda: row.get_text().strip()
 
     if arg_type == "workspace":
