@@ -100,6 +100,16 @@ yay -S hyprmod
 emerge -a hyprmod
 ```
 
+**NixOS / home-manager** — via the flake:
+
+```nix
+inputs.hyprmod.url = "github:BlueManCZ/hyprmod";
+```
+
+Then add `inputs.hyprmod.packages.${system}.default` to `home.packages` or
+`environment.systemPackages`. See [NIX.md](NIX.md) for the full setup guide,
+overlay usage, and the step-by-step release update procedure.
+
 <details>
 <summary>Drive the install yourself</summary>
 
