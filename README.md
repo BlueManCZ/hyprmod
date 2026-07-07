@@ -109,7 +109,7 @@ inputs = {
   nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
 
   hyprmod = {
-    url = "github:vitorf7/hyprmod/nix-flake";
+    url = "github:BlueManCZ/hyprmod";
     inputs.nixpkgs.follows = "nixpkgs-unstable";
   };
 };
@@ -165,7 +165,8 @@ Make sure `inputs` reaches your module via `specialArgs` (NixOS) or
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
     hyprmod = {
-      url = "github:vitorf7/hyprmod/nix-flake";
+    url = "github:BlueManCZ/hyprmod";
+
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };
@@ -194,7 +195,7 @@ Make sure `inputs` reaches your module via `specialArgs` (NixOS) or
 <summary>Build or run from a local checkout</summary>
 
 ```bash
-git clone https://github.com/vitorf7/hyprmod.git
+git clone https://github.com/BlueManCZ/hyprmod.git
 cd hyprmod
 
 nix build .#hyprmod        # build
