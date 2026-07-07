@@ -105,6 +105,14 @@ do_install() {
     echo '>> Registering desktop entry and icon...'
     hyprmod --install
 
+    # Fix Exec path to be absolute so it works in GUI environments that don't source ~/.local/bin
+    if have hyprmod; then
+        DESKTOP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.github.bluemancz.hyprmod.desktop"
+        if [ -f "$DESKTOP_FILE" ]; then
+            sed -i "s|^Exec=hyprmod$|Exec=$(command -v hyprmod)|" "$DESKTOP_FILE"
+        fi
+    fi
+
     echo
     echo '>> Done. Launch HyprMod from your app menu or run: hyprmod'
 }
