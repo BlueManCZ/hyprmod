@@ -1,5 +1,9 @@
 # Nix — maintenance guide
 
+> **nixpkgs status** — a PR to land HyprMod directly in nixpkgs is tracked at
+> [NixOS/nixpkgs#505419](https://github.com/NixOS/nixpkgs/pull/505419). Once
+> merged you can replace everything here with a plain `pkgs.hyprmod`.
+
 For installation and usage instructions see the [README](README.md#-nix--nixos-1).
 
 ---
