@@ -1,8 +1,10 @@
 # Nix — maintenance guide
 
-> **nixpkgs status** — a PR to land HyprMod directly in nixpkgs is tracked at
-> [NixOS/nixpkgs#505419](https://github.com/NixOS/nixpkgs/pull/505419). Once
-> merged you can replace everything here with a plain `pkgs.hyprmod`.
+> **nixpkgs status** — this is a temporary in-repo flake until
+> [NixOS/nixpkgs#505419](https://github.com/NixOS/nixpkgs/pull/505419) lands.
+> Once that PR merges, the five inline `hyprland-*` derivations can be replaced
+> with upstream nixpkgs attrs and this flake can be thinned to a re-export or
+> removed entirely.
 
 For installation and usage instructions see the [README](README.md#-nix--nixos-1).
 
@@ -10,117 +12,88 @@ For installation and usage instructions see the [README](README.md#-nix--nixos-1
 
 ## Updating to a new release
 
-Work through the steps below in order after a new HyprMod release is tagged.
+The five `hyprland-*` deps are exposed via `passthru` and are independently
+addressable for `nix-update` as `hyprmod.<dep>`. Each dep uses
+`buildPythonPackage rec` with `tag = "v${version}"` so `nix-update` rewrites
+both the version string and the hash in one step.
 
-### Step 1 — Check which deps changed
-
-Compare `pyproject.toml` at the new tag against the previous one:
-
-```bash
-git diff v0.4.0 v0.5.0 -- pyproject.toml
-```
-
-Look for version bumps in the `dependencies` list:
-
-```
-hyprland-config>=X.Y.Z
-hyprland-schema>=X.Y.Z
-hyprland-state>=X.Y.Z
-hyprland-monitors>=X.Y.Z
-hyprland-socket>=X.Y.Z
-```
-
-Each `hyprland-*` library that changed needs a new hash in `nix/hyprmod.nix`.
-
-### Step 2 — Regenerate hashes for changed `hyprland-*` deps
-
-For each library whose version changed, fetch its new hash. Replace `REPO` and
-`TAG` accordingly. Three equivalent methods — pick whichever suits you:
-
-**Method A — `nix-prefetch-github`:**
+### Option A — automated (via passthru.updateScript)
 
 ```bash
-nix run nixpkgs#nix-prefetch-github -- BlueManCZ hyprland-socket --rev v0.13.0
+NIX_PATH=nixpkgs=flake:nixpkgs \
+  nix-update --use-update-script --flake hyprmod
 ```
 
-The output includes a `sha256` field. Use that value.
+> **NIX_PATH caveat.** In flake mode `nix-update --use-update-script` uses
+> `with import <nixpkgs> {}` internally (confirmed in
+> [`nix_update/update.py`](https://github.com/Mic92/nix-update/blob/main/nix_update/update.py)).
+> On flakes-only NixOS systems where `NIX_PATH` is unset this fails with:
+> `error: file 'nixpkgs' was not found in the Nix search path`
+> Setting `NIX_PATH=nixpkgs=flake:nixpkgs` as shown above pins it to the
+> flake registry entry and avoids the error. If you prefer not to set
+> `NIX_PATH`, use Option B instead.
 
-**Method B — `nix store prefetch-file` (Nix 2.19+):**
+### Option B — manual (reliable on all setups)
+
+**1. Check which dep versions changed at the new tag:**
 
 ```bash
-nix store prefetch-file \
-  --hash-type sha256 \
-  --unpack \
-  "https://github.com/BlueManCZ/hyprland-socket/archive/refs/tags/v0.13.0.tar.gz"
+git diff vOLD vNEW -- pyproject.toml
 ```
 
-**Method C — let Nix tell you (quickest):**
+Look for bumps in the `>=X.Y.Z` floors of the five `hyprland-*` entries.
 
-Set the hash to an empty string, run `nix build`, and copy the `got:` value
-from the error message:
+**2. For each dep whose floor changed, run (substitute the real version):**
 
-```
-error: hash mismatch in fixed-output derivation ...
-  specified: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-  got:       sha256-<correct hash here>
-```
-
-### Step 3 — Update version strings in `nix/hyprmod.nix`
-
-For each changed `hyprland-*` library update both fields:
-
-```nix
-version = "X.Y.Z";   # ← new version
-tag = "vX.Y.Z";      # ← new git tag
-hash = "sha256-..."; # ← hash from step 2
+```bash
+nix-update --flake --version 0.9.15  hyprmod.hyprland-config
+nix-update --flake --version 0.12.3  hyprmod.hyprland-socket
+nix-update --flake --version 0.6.4   hyprmod.hyprland-schema
+nix-update --flake --version 0.8.1   hyprmod.hyprland-monitors
+nix-update --flake --version 0.4.4   hyprmod.hyprland-state
 ```
 
-Then update the main `hyprmod` derivation version:
+Each command rewrites both `version` and `hash` in `nix/hyprmod.nix` for that
+dep. Deps whose floor did not change need no update.
 
-```nix
-version = "0.5.0";
+**3. Bump the hyprmod version itself** (no hash — `src = self`):**
+
+```bash
+nix-update --flake --version 0.5.0 hyprmod
 ```
 
-The `src` for hyprmod itself is supplied by the flake as `self`, so no hash
-change is needed for the main package — downstream users just run
-`nix flake update hyprmod` to pull the new revision.
+### After updating (both options)
 
-Also update the `# Last updated for hyprmod vX.Y.Z` comment at the top of
-`nix/hyprmod.nix`.
-
-### Step 4 — Update `flake.lock`
+**Update `flake.lock`:**
 
 ```bash
 nix flake update
 ```
 
-Commit the updated `flake.lock` alongside the changes to `nix/hyprmod.nix`.
-
-### Step 5 — Verify the build
+**Verify the build:**
 
 ```bash
 nix build .#hyprmod
 ./result/bin/hyprmod --version
 ```
 
-### Step 6 — Check the overlay output
+**Verify the overlay:**
 
 ```bash
-nix build --expr '
+nix build --impure --expr '
   let
-    pkgs = import <nixpkgs> {};
-    overlay = (builtins.getFlake (toString ./.)).overlays.default;
-    pkgs2 = pkgs.extend overlay;
-  in pkgs2.hyprmod
+    flake = builtins.getFlake (builtins.toString ./.);
+    pkgs = flake.inputs.nixpkgs.legacyPackages.x86_64-linux;
+  in (pkgs.extend flake.overlays.default).hyprmod
 '
 ```
 
-### Step 7 — Commit
+**Commit:**
 
 ```
 nix: update to vX.Y.Z
 
-Bump hyprmod to vX.Y.Z and update all hyprland-* dependency hashes.
+Bump hyprmod to vX.Y.Z and update hashes for <changed deps>.
 Regenerate flake.lock.
 ```
 
@@ -155,7 +128,8 @@ before the module that references `pkgs.hyprmod`.
 
 **`error: hash mismatch in fixed-output derivation`**
 A `hyprland-*` dep was bumped but its hash in `nix/hyprmod.nix` was not updated.
-Follow Step 2 above to regenerate it.
+Run the relevant `nix-update --flake --version X.Y.Z hyprmod.<dep>` command from
+Option B above.
 
 **App launches but Lua config support is broken**
 `lua5_4` should be on PATH automatically via the wrapper — if you are running a

@@ -1,6 +1,7 @@
 { lib
 , src
 , fetchFromGitHub
+, writeShellScript
 , glib
 , gnome-desktop
 , gobject-introspection
@@ -17,14 +18,14 @@
 # Last updated for hyprmod v0.4.0.
 
 let
-  hyprland-socket = python3Packages.buildPythonPackage {
+  hyprland-socket = python3Packages.buildPythonPackage rec {
     pname = "hyprland-socket";
     version = "0.12.2";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-socket";
-      tag = "v0.12.2";
+      tag = "v${version}";
       hash = "sha256-XPVhHnIwq4Plkuk3uf/IUcg9L0OsZT76cr60x7EG1lc=";
     };
     build-system = [ python3Packages.hatchling ];
@@ -32,14 +33,14 @@ let
     meta.description = "Typed Python library for Hyprland IPC via Unix sockets";
   };
 
-  hyprland-config = python3Packages.buildPythonPackage {
+  hyprland-config = python3Packages.buildPythonPackage rec {
     pname = "hyprland-config";
     version = "0.9.12";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-config";
-      tag = "v0.9.12";
+      tag = "v${version}";
       hash = "sha256-TTh5UnFdRaGvYNlx/qkSWnDEnj101tmi+jDuXU/jCnI=";
     };
     build-system = [ python3Packages.hatchling ];
@@ -47,14 +48,14 @@ let
     meta.description = "Round-trip parser and editor for Hyprland configuration files";
   };
 
-  hyprland-schema = python3Packages.buildPythonPackage {
+  hyprland-schema = python3Packages.buildPythonPackage rec {
     pname = "hyprland-schema";
     version = "0.6.3";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-schema";
-      tag = "v0.6.3";
+      tag = "v${version}";
       hash = "sha256-yAhzzv08vK19M0ypOH8LvmXUDFE92LoQi3QW134q1Ao=";
     };
     build-system = [ python3Packages.hatchling ];
@@ -62,14 +63,14 @@ let
     meta.description = "Typed Python schema for every Hyprland configuration option";
   };
 
-  hyprland-monitors = python3Packages.buildPythonPackage {
+  hyprland-monitors = python3Packages.buildPythonPackage rec {
     pname = "hyprland-monitors";
     version = "0.8.0";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-monitors";
-      tag = "v0.8.0";
+      tag = "v${version}";
       hash = "sha256-a7fEDPPN9XYsrpE99C9c9MZGpqg24ZlY6vvHzgvNtzc=";
     };
     build-system = [ python3Packages.hatchling ];
@@ -78,14 +79,14 @@ let
     meta.description = "Monitor management utilities for Hyprland";
   };
 
-  hyprland-state = python3Packages.buildPythonPackage {
+  hyprland-state = python3Packages.buildPythonPackage rec {
     pname = "hyprland-state";
     version = "0.4.3";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-state";
-      tag = "v0.4.3";
+      tag = "v${version}";
       hash = "sha256-gFmACUjLwkBV0LGdSkoxE8viV1Jr7DDM9obpfPuP+A0=";
     };
     build-system = [ python3Packages.hatchling ];
@@ -152,6 +153,32 @@ python3Packages.buildPythonApplication {
   '';
 
   doCheck = false;
+
+  # Expose the five inline deps so nix-update can address each one via the
+  # full attribute path: nix-update --flake --version X.Y.Z hyprmod.<dep>
+  # The updateScript automates this by reading version floors from pyproject.toml.
+  passthru = {
+    inherit
+      hyprland-config
+      hyprland-monitors
+      hyprland-schema
+      hyprland-socket
+      hyprland-state;
+
+    updateScript = writeShellScript "update-hyprmod-deps" ''
+      set -euo pipefail
+      deps=(hyprland-config hyprland-socket hyprland-schema hyprland-monitors hyprland-state)
+      for dep in "''${deps[@]}"; do
+        ver=$(python3 -c "
+import tomllib
+with open('pyproject.toml', 'rb') as f:
+    d = tomllib.load(f)
+print(next(v.split('>=')[1] for v in d['project']['dependencies'] if v.split('>=')[0].strip() == '$dep'))
+")
+        nix-update --flake --version "$ver" "hyprmod.$dep"
+      done
+    '';
+  };
 
   meta = with lib; {
     description = "Native GTK4/libadwaita settings application for Hyprland";
