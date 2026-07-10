@@ -100,6 +100,113 @@ yay -S hyprmod
 emerge -a hyprmod
 ```
 
+**NixOS / home-manager** — via the flake:
+
+Add the input to your `flake.nix`:
+
+```nix
+inputs = {
+  nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  hyprmod = {
+    url = "github:BlueManCZ/hyprmod";
+    inputs.nixpkgs.follows = "nixpkgs-unstable";
+  };
+};
+```
+
+Then add the package to `home.packages` or `environment.systemPackages`:
+
+```nix
+# home-manager module
+{ inputs, pkgs, ... }: {
+  home.packages = [
+    inputs.hyprmod.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+
+# NixOS module
+{ inputs, pkgs, ... }: {
+  environment.systemPackages = [
+    inputs.hyprmod.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+```
+
+Make sure `inputs` reaches your module via `specialArgs` (NixOS) or
+`extraSpecialArgs` (home-manager).
+
+<details>
+<summary>Overlay usage (makes <code>pkgs.hyprmod</code> available everywhere)</summary>
+
+```nix
+# Once, where you configure nixpkgs:
+{ inputs, ... }: {
+  nixpkgs.overlays = [ inputs.hyprmod.overlays.default ];
+}
+
+# Then anywhere pkgs is in scope:
+{ pkgs, ... }: {
+  home.packages = [ pkgs.hyprmod ];
+}
+```
+
+</details>
+
+<details>
+<summary>Minimal full flake example</summary>
+
+```nix
+{
+  inputs = {
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+    hyprmod = {
+    url = "github:BlueManCZ/hyprmod";
+
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+  };
+
+  outputs = { self, nixpkgs-unstable, home-manager, hyprmod, ... }: {
+    nixosConfigurations.mymachine = nixpkgs-unstable.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        { nixpkgs.overlays = [ hyprmod.overlays.default ]; }
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.users.alice = { pkgs, ... }: {
+            home.packages = [ pkgs.hyprmod ];
+          };
+        }
+        ./configuration.nix
+      ];
+    };
+  };
+}
+```
+
+</details>
+
+<details>
+<summary>Build or run from a local checkout</summary>
+
+```bash
+git clone https://github.com/BlueManCZ/hyprmod.git
+cd hyprmod
+
+nix build .#hyprmod        # build
+nix run   .#hyprmod        # run without installing
+nix shell .#hyprmod        # shell with hyprmod on PATH
+```
+
+</details>
+
+For the step-by-step release update procedure and hash regeneration reference, see [NIX.md](NIX.md).
+
 <details>
 <summary>Drive the install yourself</summary>
 
