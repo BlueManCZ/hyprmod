@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recording a media, brightness, or other `XF86` key in the keybind dialog no longer produces a bind Hyprland rejects with "Unknown keysym"; GDK reports these keysyms without their `XF86` prefix (`AudioRaiseVolume`), which is not a name xkb resolves, so the prefix is now restored before the key reaches the config (#69)
+- Recording a shortcut whose key sits on a shifted or AltGr level no longer produces a bind that never fires; Hyprland matches binds against the base-level keysym, so the captured key is now resolved with every modifier cleared instead of only `SHIFT`, fixing AltGr+Q on a Czech layout being recorded as `MOD5, backslash` where Hyprland only ever looks for `q` (#69)
+- Recording a shortcut while a secondary keyboard layout is active no longer produces a bind that never fires; unless `resolve_binds_by_sym` is set, Hyprland resolves binds through the first layout in `input:kb_layout` regardless of which one is active, so on `cz,us` the number row key recorded as `2` from the us layout is now recorded as `ecaron` (#73)
 - Window rules with multiple effects no longer lose every effect after the first when saved in Lua mode; rule lines are now normalized so the Lua serializer emits all effects (#60)
 - Changing a condition from a boolean type (like `xwayland`) to a text type (like `initial_class`) no longer leaves the literal string `"false"` in the value field (#56)
 

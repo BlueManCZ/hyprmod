@@ -22,6 +22,7 @@ from hyprmod.binds import (
     format_bind_action,
     live_bind_to_data,
 )
+from hyprmod.binds.gdk_modifiers import keysym_name
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -797,3 +798,39 @@ class TestBindEditDialog:
         )
         d = self._dialog(bind=existing)
         assert d.get_bind().key == "mouse:280"
+
+
+# ---------------------------------------------------------------------------
+
+
+class TestKeysymName:
+    """Captured keysyms must be spelled the way Hyprland's xkb lookup expects.
+
+    ``Gdk.keyval_name`` drops the ``XF86`` prefix from every vendor keysym,
+    and Hyprland rejects the whole bind with "Unknown keysym" when it gets
+    the GDK spelling.
+    """
+
+    def test_media_keys_keep_their_xf86_prefix(self):
+        assert keysym_name(0x1008FF13) == "XF86AudioRaiseVolume"
+        assert keysym_name(0x1008FF02) == "XF86MonBrightnessUp"
+
+    def test_vt_switch_keeps_its_xf86_prefix(self):
+        # The keysym from issue #69: Ctrl+Alt+F12 resolves to the VT switch.
+        assert keysym_name(0x1008FE0C) == "XF86Switch_VT_12"
+
+    def test_legacy_gdk_names_map_to_their_xkb_spelling(self):
+        # GDK names these two after their pre-xkb spelling (``WindowClear``,
+        # ``SelectButton``), so restoring the prefix alone would still leave
+        # xkb without a match.
+        assert keysym_name(0x1008FF55) == "XF86Clear"
+        assert keysym_name(0x1008FFA0) == "XF86Select"
+
+    def test_unnamed_vendor_keysyms_stay_hex(self):
+        # GDK falls back to a "0x..." literal, which xkb parses as-is.
+        assert keysym_name(0x1008FFFE) == "0x1008fffe"
+
+    def test_ordinary_keysyms_are_untouched(self):
+        assert keysym_name(0xFFC9) == "F12"
+        assert keysym_name(0xFF0D) == "Return"
+        assert keysym_name(0x0061) == "a"
