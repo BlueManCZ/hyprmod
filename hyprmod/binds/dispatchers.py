@@ -158,7 +158,7 @@ DISPATCHER_CATEGORIES: list[DispatcherCategory] = [
                 "label": "Move window or group",
                 "arg_type": "direction",
             },
-            "resizeactive": {"label": "Resize window", "arg_type": "text"},
+            "resizeactive": {"label": "Resize window", "arg_type": "resize"},
             "cyclenext": {"label": "Cycle focus next", "arg_type": "none"},
             "swapnext": {"label": "Swap with next", "arg_type": "none"},
             "focuscurrentorlast": {"label": "Focus last window", "arg_type": "none"},

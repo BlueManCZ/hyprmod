@@ -101,6 +101,11 @@ _GROUP_DIR_CHOICES = [("f", "Forward"), ("b", "Back")]
 
 _DPMS_CHOICES = [("on", "On"), ("off", "Off"), ("toggle", "Toggle")]
 
+_RESIZE_MODES = [("relative", "By amount"), ("exact", "To exact size")]
+
+# Wide enough for any real display; keeps the spin buttons from running away.
+_RESIZE_LIMIT = 10000
+
 
 def _build_combo_arg(title: str, choices: list[tuple[str, str]], current_value: str, fallback: str):
     """Build a ComboRow from a list of (value, label) pairs. Returns (widget, getter)."""
@@ -117,6 +122,74 @@ def _build_combo_arg(title: str, choices: list[tuple[str, str]], current_value: 
             values[combo.get_selected()] if 0 <= combo.get_selected() < len(values) else fallback
         ),
     )
+
+
+def _parse_resize_arg(value: str) -> tuple[bool, int, int] | None:
+    """Split ``resizeactive``'s ``[exact] W H`` into ``(exact, w, h)``.
+
+    ``None`` when the value isn't that shape, which includes the percentage
+    form (``10% 0``) the spin rows can't express.
+    """
+    tokens = value.strip().split()
+    exact = bool(tokens) and tokens[0].lower() == "exact"
+    if exact:
+        tokens = tokens[1:]
+    if len(tokens) != 2:
+        return None
+    try:
+        return exact, int(tokens[0]), int(tokens[1])
+    except ValueError:
+        return None
+
+
+def _build_resize_arg(current_value: str):
+    """Build the ``resizeactive`` editor: a mode picker plus width and height.
+
+    ``resizeactive`` sits among direction-picker dispatchers, so a plain text
+    field invited a direction letter that Hyprland can't resize by.
+    """
+    parsed = _parse_resize_arg(current_value)
+    if parsed is None and "%" in current_value:
+        # Percentages are valid but have no spin-row form, so they stay
+        # editable as text. Anything else unparseable is not a resize value
+        # at all (the direction letter this widget exists to prevent), and
+        # opens on the editor's defaults rather than being carried forward.
+        row = Adw.EntryRow(title="Argument")
+        row.set_text(current_value)
+        return row, lambda: row.get_text().strip()
+
+    exact, width_value, height_value = parsed or (False, 0, 0)
+    mode_row, mode_value = _build_combo_arg(
+        "Mode", _RESIZE_MODES, "exact" if exact else "relative", "relative"
+    )
+    width = Adw.SpinRow.new_with_range(-_RESIZE_LIMIT, _RESIZE_LIMIT, 10)
+    width.set_title("Width")
+    height = Adw.SpinRow.new_with_range(-_RESIZE_LIMIT, _RESIZE_LIMIT, 10)
+    height.set_title("Height")
+
+    def sync_lower_bound(*_args):
+        # A target size can't be negative; a delta can.
+        lower = 0 if mode_value() == "exact" else -_RESIZE_LIMIT
+        width.get_adjustment().set_lower(lower)
+        height.get_adjustment().set_lower(lower)
+
+    mode_row.connect("notify::selected", sync_lower_bound)
+    sync_lower_bound()
+    width.set_value(width_value)
+    height.set_value(height_value)
+
+    # Returned as a bare group so the caller adds it as *the* Parameters
+    # group. Wrapping it in a row would nest one boxed list inside another
+    # and the stacked card backgrounds render visibly lighter.
+    group = Adw.PreferencesGroup()
+    for row in (mode_row, width, height):
+        group.add(row)
+
+    def getter() -> str:
+        prefix = "exact " if mode_value() == "exact" else ""
+        return f"{prefix}{int(width.get_value())} {int(height.get_value())}"
+
+    return group, getter
 
 
 def _build_arg_widget(arg_type: str, current_value: str):
@@ -146,7 +219,6 @@ def _build_arg_widget(arg_type: str, current_value: str):
         return row, lambda: row.get_text().strip()
 
     if arg_type == "workspace":
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         preset_labels = [p[1] for p in _WORKSPACE_PRESETS]
         preset_values = [p[0] for p in _WORKSPACE_PRESETS]
         group = Adw.PreferencesGroup()
@@ -165,7 +237,6 @@ def _build_arg_widget(arg_type: str, current_value: str):
             custom_row.set_text(current_value)
         group.add(combo)
         group.add(custom_row)
-        box.append(group)
 
         def getter():
             custom = custom_row.get_text().strip()
@@ -176,7 +247,7 @@ def _build_arg_widget(arg_type: str, current_value: str):
                 return preset_values[idx]
             return current_value
 
-        return box, getter
+        return group, getter
 
     if arg_type == "fullscreen_mode":
         return _build_combo_arg("Mode", _FULLSCREEN_MODES, current_value, "0")
@@ -204,6 +275,9 @@ def _build_arg_widget(arg_type: str, current_value: str):
 
     if arg_type == "dpms":
         return _build_combo_arg("Action", _DPMS_CHOICES, current_value, "toggle")
+
+    if arg_type == "resize":
+        return _build_resize_arg(current_value)
 
     if arg_type == "optional_text":
         row = Adw.EntryRow(title="Name (optional)")
@@ -872,13 +946,20 @@ class BindEditDialog(Adw.Dialog):
         widget, getter = _build_arg_widget(arg_type, current_arg)
         self._arg_getter = getter
         if widget is not None:
-            arg_group = Adw.PreferencesGroup(title="Parameters")
-            if isinstance(widget, Adw.PreferencesRow):
-                arg_group.add(widget)
+            if isinstance(widget, Adw.PreferencesGroup):
+                # A builder that needs several rows supplies the whole group,
+                # so it lands as the Parameters group rather than as a boxed
+                # list nested inside one.
+                widget.set_title("Parameters")
+                arg_group = widget
             else:
-                wrapper = Adw.ActionRow(title="")
-                wrapper.set_child(widget)
-                arg_group.add(wrapper)
+                arg_group = Adw.PreferencesGroup(title="Parameters")
+                if isinstance(widget, Adw.PreferencesRow):
+                    arg_group.add(widget)
+                else:
+                    wrapper = Adw.ActionRow(title="")
+                    wrapper.set_child(widget)
+                    arg_group.add(wrapper)
             self._arg_container.append(arg_group)
             self._arg_container.set_visible(True)
         else:

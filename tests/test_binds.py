@@ -1,5 +1,6 @@
 """Tests for keybind override tracking and dispatcher presentation data."""
 
+from gi.repository import Adw
 from hyprland_config import BindData, Document, parse_string
 from hyprland_socket import MOD_BITS, Bind
 
@@ -22,6 +23,7 @@ from hyprmod.binds import (
     format_bind_action,
     live_bind_to_data,
 )
+from hyprmod.binds.dialog import _build_resize_arg, _parse_resize_arg
 from hyprmod.binds.gdk_modifiers import keysym_name
 
 # ---------------------------------------------------------------------------
@@ -834,3 +836,51 @@ class TestKeysymName:
         assert keysym_name(0xFFC9) == "F12"
         assert keysym_name(0xFF0D) == "Return"
         assert keysym_name(0x0061) == "a"
+
+
+# ---------------------------------------------------------------------------
+
+
+class TestResizeArgWidget:
+    """``resizeactive`` takes ``[exact] W H``, not a direction.
+
+    It sits among direction-picker dispatchers in the same category, so the
+    old free-text field invited the ``l`` from issue #70.
+    """
+
+    @staticmethod
+    def _build(current_value: str):
+        Adw.init()
+        return _build_resize_arg(current_value)
+
+    def test_parses_relative_and_exact(self):
+        assert _parse_resize_arg("10 0") == (False, 10, 0)
+        assert _parse_resize_arg("-10 0") == (False, -10, 0)
+        assert _parse_resize_arg("exact 800 600") == (True, 800, 600)
+
+    def test_rejects_values_it_cannot_render(self):
+        assert _parse_resize_arg("l") is None
+        assert _parse_resize_arg("10% 0") is None
+        assert _parse_resize_arg("10") is None
+        assert _parse_resize_arg("") is None
+
+    def test_existing_values_round_trip(self):
+        for value in ("10 0", "-30 0", "exact 800 600"):
+            _widget, getter = self._build(value)
+            assert getter() == value
+
+    def test_new_bind_starts_at_zero(self):
+        _widget, getter = self._build("")
+        assert getter() == "0 0"
+
+    def test_percentage_stays_editable_as_text(self):
+        # Valid for Hyprland but with no spin-row form, so it must survive.
+        widget, getter = self._build("10% 0")
+        assert isinstance(widget, Adw.EntryRow)
+        assert getter() == "10% 0"
+
+    def test_direction_letter_does_not_survive(self):
+        # The issue #70 value. Not a resize argument at all, so the editor
+        # opens on its defaults rather than carrying it forward.
+        _widget, getter = self._build("l")
+        assert getter() == "0 0"
