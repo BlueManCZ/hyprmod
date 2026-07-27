@@ -21,8 +21,9 @@ from hyprmod.binds.dispatchers import (
 )
 from hyprmod.binds.gdk_modifiers import (
     MODIFIER_KEYVALS,
+    base_keyval,
+    keysym_name,
     keysyms_to_mods,
-    unshifted_keyval,
 )
 from hyprmod.core.desktop_apps import DesktopApp
 from hyprmod.ui import clear_children, confirm
@@ -615,8 +616,8 @@ class BindEditDialog(Adw.Dialog):
             except HyprlandError as e:
                 log.error("could not reset Hyprland submap after capture; user may be stuck: %s", e)
 
-    def _on_key_captured(self, controller, keyval, keycode, state):
-        key_name = Gdk.keyval_name(keyval)
+    def _on_key_captured(self, controller, keyval, keycode, _state):
+        key_name = keysym_name(keyval)
         if not key_name:
             return True
         if key_name == "Escape":
@@ -635,14 +636,16 @@ class BindEditDialog(Adw.Dialog):
             # via Shift+letter combos without losing capture.
             return True
         mods = keysyms_to_mods(self._held_modifiers)
-        if state & Gdk.ModifierType.SHIFT_MASK:
-            widget = controller.get_widget()
-            display = widget.get_display() if widget is not None else None
-            if display is not None:
-                kv = unshifted_keyval(display, keycode, state, controller.get_group(), keyval)
-                resolved = Gdk.keyval_name(kv)
-                if resolved and resolved not in MODIFIER_KEYVALS:
-                    key_name = resolved
+        widget = controller.get_widget()
+        display = widget.get_display() if widget is not None else None
+        if display is not None:
+            kv = base_keyval(display, keycode, self._bind_layout_group(controller), keyval)
+            resolved = keysym_name(kv)
+            # A key whose base level is itself a modifier (a layout where
+            # AltGr+X reaches a real symbol over an ISO_Level3_Shift) would
+            # otherwise be recorded as a bind key Hyprland can't trigger.
+            if resolved and resolved not in MODIFIER_KEYVALS:
+                key_name = resolved
         display_key = key_name.upper() if len(key_name) == 1 else key_name
         for mod_name, switch in self._mod_checks.items():
             switch.set_active(mod_name in mods)
@@ -650,6 +653,19 @@ class BindEditDialog(Adw.Dialog):
         self._update_capture_display()
         self._stop_capture()
         return True
+
+    def _bind_layout_group(self, controller) -> int:
+        """Return the keymap group Hyprland will resolve this bind through.
+
+        By default Hyprland translates key events for bind lookup through a
+        state built from ``input:kb_layout`` that never gets a group update,
+        so the first layout wins whatever the user has active: on ``cz,us``
+        the number row is ``ecaron``, ``scaron``, … even while typing in us.
+        Only ``resolve_binds_by_sym`` follows the active group.
+        """
+        if self._window.hypr.get("input:resolve_binds_by_sym", False):
+            return controller.get_group()
+        return 0
 
     def _on_key_released(self, _controller, keyval, _keycode, _state):
         key_name = Gdk.keyval_name(keyval)

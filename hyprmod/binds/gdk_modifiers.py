@@ -26,6 +26,40 @@ MODIFIER_KEYVALS: frozenset[str] = frozenset(
 )
 
 
+# Bounds of the vendor keysym block (``XF86XK_*`` in X11's keysymdef), the
+# only range where GDK's spelling of a keysym differs from xkb's.
+_XF86_KEYVAL_MIN = 0x10080000
+_XF86_KEYVAL_MAX = 0x1008FFFF
+
+# The two vendor keysyms GDK names after their pre-xkb spelling, where
+# restoring the prefix alone would not reach a name xkb knows.
+_GDK_LEGACY_KEYSYM_NAMES = {
+    "WindowClear": "XF86Clear",
+    "SelectButton": "XF86Select",
+}
+
+
+def keysym_name(keyval: int) -> str | None:
+    """Return *keyval*'s keysym name in the spelling Hyprland parses.
+
+    GDK's generator strips the ``XF86`` prefix off the vendor block, so
+    ``Gdk.keyval_name`` answers ``AudioRaiseVolume`` where xkb (and with it
+    Hyprland's ``xkb_keysym_from_name``) resolves only
+    ``XF86AudioRaiseVolume``. Handing Hyprland the GDK spelling gets the
+    whole bind rejected with "Unknown keysym".
+
+    ``None`` for a keyval GDK cannot name at all.
+    """
+    name = Gdk.keyval_name(keyval)
+    if name is None or not _XF86_KEYVAL_MIN <= keyval <= _XF86_KEYVAL_MAX:
+        return name
+    # Vendor keysyms GDK has no name for come back as a "0x..." literal,
+    # which xkb accepts verbatim. Prefixing one would break it.
+    if name.startswith("0x"):
+        return name
+    return _GDK_LEGACY_KEYSYM_NAMES.get(name, f"XF86{name}")
+
+
 def keysyms_to_mods(held: set[str]) -> list[str]:
     """Return canonical Hyprland modifier names for the held modifier keysyms.
 
@@ -35,21 +69,21 @@ def keysyms_to_mods(held: set[str]) -> list[str]:
     return [name for name, ks in MOD_NAME_TO_KEYSYMS.items() if held & ks]
 
 
-def unshifted_keyval(
+def base_keyval(
     display: Gdk.Display,
     keycode: int,
-    state: Gdk.ModifierType,
     group: int,
     fallback: int,
 ) -> int:
-    """Resolve the keyval the keycode would produce without SHIFT.
+    """Resolve the keyval the keycode produces with no modifier applied.
 
-    Hyprland binds use the unshifted keysym when ``SHIFT`` is in the modifier
-    mask (e.g. ``SUPER SHIFT, 1`` rather than ``SUPER SHIFT, exclam`` on US,
-    or ``SUPER SHIFT, plus`` on Czech). GDK already applied shift to give us
-    the level-1+ symbol, so re-translate the keycode with shift cleared.
-    Other modifiers (AltGr/level3) are preserved so layered layouts still get
-    the right keysym.
+    Hyprland matches binds against the base-level keysym: the xkb state it
+    translates key events through for bind lookup is created fresh and never
+    receives a modifier mask, so Shift, AltGr and every other level chooser
+    are ignored. A bind recorded from the modified keysym (``SUPER SHIFT,
+    exclam`` on US, ``MOD5, backslash`` for AltGr+Q on Czech) can never fire.
+    GDK hands us the modified keyval, so re-translate the keycode from
+    scratch.
     """
-    ok, kv, *_ = display.translate_key(keycode, state & ~Gdk.ModifierType.SHIFT_MASK, group)
+    ok, kv, *_ = display.translate_key(keycode, Gdk.ModifierType(0), group)
     return kv if ok and kv else fallback
