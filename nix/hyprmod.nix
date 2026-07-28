@@ -35,13 +35,13 @@ let
 
   hyprland-config = python3Packages.buildPythonPackage rec {
     pname = "hyprland-config";
-    version = "0.9.12";
+    version = "0.9.13";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-config";
       tag = "v${version}";
-      hash = "sha256-TTh5UnFdRaGvYNlx/qkSWnDEnj101tmi+jDuXU/jCnI=";
+      hash = "sha256-rk2Wu21i+nZuEk1bla22GYcTIrl6MQK6Hp/ZBF3ftpw=";
     };
     build-system = [ python3Packages.hatchling ];
     doCheck = false;
