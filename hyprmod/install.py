@@ -15,6 +15,7 @@ update with a new release).
 """
 
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -27,6 +28,10 @@ from hyprmod.data import bundled_data_dir
 DESKTOP_FILE = f"{APPLICATION_ID}.desktop"
 METAINFO_FILE = f"{APPLICATION_ID}.metainfo.xml"
 APP_ICON_FILE = f"{APPLICATION_ID}.svg"
+
+_EXEC_LINE = re.compile(r"^Exec=.*$", re.MULTILINE)
+# Characters the desktop entry spec reserves inside an Exec argument.
+_EXEC_RESERVED = " \t\"'\\<>~|&;$*?#()`"
 
 
 def _xdg_data_home() -> Path:
@@ -65,6 +70,35 @@ def is_registered() -> bool:
         return False
 
 
+def _exec_value(binary: str) -> str:
+    """Quote a binary path for an ``Exec`` line, per the desktop entry spec.
+
+    Reserved characters force the whole argument into double quotes. The
+    backslashes that quoting introduces then get doubled, because key file
+    values are un-escaped before the ``Exec`` line is split into arguments,
+    and a lone backslash there makes the entire entry unreadable.
+    """
+    if not any(char in binary for char in _EXEC_RESERVED):
+        return binary
+    quoted = re.sub(r'(["`$\\])', r"\\\1", binary)
+    return '"{}"'.format(quoted.replace("\\", "\\\\"))
+
+
+def _pin_exec_to_binary(desktop_file: Path) -> None:
+    """Point ``Exec`` at the resolved hyprmod path instead of a bare name.
+
+    App menus and dock launchers often start without ``~/.local/bin`` on
+    ``$PATH``, so the bundled ``Exec=hyprmod`` silently fails to launch a
+    pipx or uv install (#67). Distro packages ship their own copy under
+    ``/usr/share`` and never reach this code.
+    """
+    binary = shutil.which("hyprmod")
+    if binary is None:
+        return
+    rewritten = _EXEC_LINE.sub(lambda _: f"Exec={_exec_value(binary)}", desktop_file.read_text())
+    desktop_file.write_text(rewritten)
+
+
 def install_user_files(*, quiet: bool = False) -> list[Path]:
     """Copy bundled XDG assets into the user's data home."""
     placed: list[Path] = []
@@ -75,6 +109,8 @@ def install_user_files(*, quiet: bool = False) -> list[Path]:
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
+        if dest.name == DESKTOP_FILE:
+            _pin_exec_to_binary(dest)
         placed.append(dest)
         if not quiet:
             print(f" + {display_path(dest)}")
