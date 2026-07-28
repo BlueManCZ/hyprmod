@@ -17,6 +17,10 @@ addressable for `nix-update` as `hyprmod.<dep>`. Each dep uses
 `buildPythonPackage rec` with `tag = "v${version}"` so `nix-update` rewrites
 both the version string and the hash in one step.
 
+`tests/test_nix_pins.py` fails if a pin here drifts from the matching `>=`
+floor in `pyproject.toml`, so a forgotten bump surfaces in CI instead of at
+build time.
+
 ### Option A — automated (via passthru.updateScript)
 
 ```bash
