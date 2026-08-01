@@ -18,8 +18,11 @@ addressable for `nix-update` as `hyprmod.<dep>`. Each dep uses
 both the version string and the hash in one step.
 
 `tests/test_nix_pins.py` fails if a pin here drifts from the matching `>=`
-floor in `pyproject.toml`, so a forgotten bump surfaces in CI instead of at
-build time.
+floor in `pyproject.toml`, or if a pinned hash does not match the tag it
+claims: it downloads each tag from GitHub and recomputes the NAR hash that
+`fetchFromGitHub` records. Either mistake surfaces in CI instead of at build
+time. The hash checks skip themselves when the downloads fail, so the suite
+still runs offline.
 
 ### Option A — automated (via passthru.updateScript)
 
