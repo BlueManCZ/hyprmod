@@ -58,11 +58,8 @@ def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
     if version is None:
         return hyprland_schema.OPTIONS_BY_KEY
 
-    # hyprland_schema.load() keys versions by the GitHub tag (``vX.Y.Z``),
-    # while HyprlandState.version drops the prefix (``X.Y.Z``). Normalise.
-    tag = version if version.startswith("v") else f"v{version}"
     try:
-        return hyprland_schema.load(tag).options_by_key
+        return hyprland_schema.load(version).options_by_key
     except hyprland_schema.MigrationError as exc:
         log.warning(
             "Could not load schema for Hyprland %s (%s); using bundled %s",
