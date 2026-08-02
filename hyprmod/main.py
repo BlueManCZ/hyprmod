@@ -10,9 +10,16 @@ from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core.setup import needs_setup, run_setup
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
-from hyprmod.ui import try_with_toast
+from hyprmod.ui import has_cairo_support, try_with_toast
 from hyprmod.ui.onboarding_dialog import OnboardingDialog
 from hyprmod.window import HyprModWindow
+
+CAIRO_MISSING_BODY = (
+    "PyGObject's Cairo bindings are missing, so the monitor layout, the bezier "
+    "curve editor, and the animation preview will show up as empty boxes.\n\n"
+    "Install them with your package manager: python-cairo on Arch, "
+    "python3-gi-cairo on Debian and Ubuntu."
+)
 
 
 class HyprModApp(Adw.Application):
@@ -41,7 +48,13 @@ class HyprModApp(Adw.Application):
         if not isinstance(win, HyprModWindow):
             win = HyprModWindow(application=self)
 
-        if needs_setup():
+        # A broken install takes precedence over onboarding: stacking two
+        # dialogs hides one behind the other, and setup can wait a launch.
+        if not has_cairo_support():
+            dialog = Adw.AlertDialog(heading="Missing Cairo Bindings", body=CAIRO_MISSING_BODY)
+            dialog.add_response("close", "Close")
+            dialog.present(win)
+        elif needs_setup():
             window = win  # locally typed for the closure below
 
             def _on_setup() -> None:

@@ -75,6 +75,7 @@ dependencies = [
     { name = "hyprland-schema" },
     { name = "hyprland-socket" },
     { name = "hyprland-state" },
+    { name = "pycairo" },
     { name = "pygobject" },
 ]
 
@@ -93,6 +94,7 @@ requires-dist = [
     { name = "hyprland-schema", specifier = ">=0.7.1" },
     { name = "hyprland-socket", specifier = ">=0.12.2" },
     { name = "hyprland-state", specifier = ">=0.4.5" },
+    { name = "pycairo", specifier = ">=1.16" },
     { name = "pygobject", specifier = ">=3.56.2" },
 ]
 

@@ -126,6 +126,7 @@ python3Packages.buildPythonApplication {
     hyprland-schema
     hyprland-socket
     hyprland-state
+    pycairo
     pygobject3
     pygobject-stubs
   ];
