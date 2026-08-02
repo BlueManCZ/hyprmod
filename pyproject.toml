@@ -5,6 +5,10 @@ description = "A native GTK4/libadwaita settings app for Hyprland"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
+    # PyGObject on PyPI already requires pycairo, but distro packages of it list
+    # pycairo as optional. Every DrawingArea silently draws nothing without it,
+    # so declare it here for packagers to see (#78).
+    "pycairo>=1.16",
     "pygobject>=3.56.2",
     "hyprland-config>=0.9.14",
     "hyprland-schema>=0.7.1",

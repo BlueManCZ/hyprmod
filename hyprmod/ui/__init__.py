@@ -4,6 +4,7 @@ import functools
 from collections.abc import Callable
 from typing import Protocol, cast
 
+import gi
 from gi.repository import Adw, Gdk, Gtk, Pango
 from hyprland_config import keyword_to_lua
 
@@ -42,6 +43,24 @@ class ShowBugToast(Protocol):
 # These are used when the widget can't resolve the GTK accent color from CSS.
 ACCENT_RGB = (0.34, 0.54, 0.93)
 ACTIVE_RGB = (0.93, 0.55, 0.14)
+
+
+@functools.cache
+def has_cairo_support() -> bool:
+    """Report whether PyGObject can hand a Cairo context to Python.
+
+    Drawing needs pycairo plus PyGObject's cairo bridge, and distros ship
+    both separately from PyGObject itself (``python-cairo`` on Arch,
+    ``python3-gi-cairo`` on Debian), so an install can be missing them.
+    Without the foreign-struct converter every ``set_draw_func`` callback
+    raises before it draws anything and GTK renders an empty widget, which
+    reads as a hyprmod bug rather than a broken install (#78).
+    """
+    try:
+        gi.require_foreign("cairo")
+    except ImportError:
+        return False
+    return True
 
 
 @functools.cache
