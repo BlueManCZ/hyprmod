@@ -36,14 +36,6 @@ log = logging.getLogger(__name__)
 KEY_BIND_TYPE_KEYS = list(KEY_BIND_TYPES.keys())
 KEY_BIND_TYPE_LABELS = [v["label"] for v in KEY_BIND_TYPES.values()]
 
-# UI-specific filtered views: exclude the catch-all "advanced" group AND the
-# bindm-only "mouse_button" group — the latter has its own trigger mode and
-# isn't selectable from the keyboard-action category combo.
-DIALOG_CATEGORIES = [
-    c for c in DISPATCHER_CATEGORIES if c["id"] not in ("advanced", "mouse_button")
-]
-DIALOG_CATEGORY_LABELS = [c["label"] for c in DIALOG_CATEGORIES]
-
 # bindm dispatcher list ordered by definition in BINDM_DISPATCHERS.
 _BINDM_DISPATCHER_KEYS = list(BINDM_DISPATCHERS.keys())
 _BINDM_DISPATCHER_LABELS = list(BINDM_DISPATCHERS.values())
@@ -342,6 +334,19 @@ class BindEditDialog(Adw.Dialog):
             self._is_mouse_mode = True
         else:
             self._is_mouse_mode = False
+
+        self._dialog_categories = []
+        for c in DISPATCHER_CATEGORIES:
+            if c["id"] in ("advanced", "mouse_button"):
+                continue
+            if c["id"] == "plugins":
+                app_state = getattr(self._window, "app_state", {})
+                state = app_state.get("plugin:dynamic_cursors:enabled")
+                if state is None or not state.available or not bool(state.live_value):
+                    continue
+            self._dialog_categories.append(c)
+
+        self._dialog_category_labels = [c["label"] for c in self._dialog_categories]
 
         self.connect("closed", self._on_dialog_closed)
 
@@ -836,15 +841,15 @@ class BindEditDialog(Adw.Dialog):
         if self._is_new and self._initial_category:
             current_cat_id = self._initial_category
         self._category_combo = Adw.ComboRow(
-            title="Category", model=Gtk.StringList.new(DIALOG_CATEGORY_LABELS)
+            title="Category", model=Gtk.StringList.new(self._dialog_category_labels)
         )
-        dialog_cat_ids = [c["id"] for c in DIALOG_CATEGORIES]
+        dialog_cat_ids = [c["id"] for c in self._dialog_categories]
         if current_cat_id in dialog_cat_ids:
             self._category_combo.set_selected(dialog_cat_ids.index(current_cat_id))
             effective_cat_id = current_cat_id
         else:
             self._category_combo.set_selected(0)
-            effective_cat_id = DIALOG_CATEGORIES[0]["id"]
+            effective_cat_id = self._dialog_categories[0]["id"]
         self._sig_category = self._category_combo.connect(
             "notify::selected", self._on_category_changed
         )
@@ -881,9 +886,9 @@ class BindEditDialog(Adw.Dialog):
 
     def _get_selected_category(self) -> DispatcherCategory:
         idx = self._category_combo.get_selected()
-        if 0 <= idx < len(DIALOG_CATEGORIES):
-            return DIALOG_CATEGORIES[idx]
-        return DIALOG_CATEGORIES[0]
+        if 0 <= idx < len(self._dialog_categories):
+            return self._dialog_categories[idx]
+        return self._dialog_categories[0]
 
     def _update_action_model(self, category_id: str, select_dispatcher: str = ""):
         self._action_combo.handler_block(self._sig_action)
