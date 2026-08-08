@@ -12,8 +12,8 @@ dependencies = [
     "pygobject>=3.56.2",
     "hyprland-config>=0.9.14",
     "hyprland-schema>=0.7.1",
-    "hyprland-state>=0.4.5",
-    "hyprland-monitors>=0.8.0",
+    "hyprland-state>=0.4.6",
+    "hyprland-monitors>=0.9.0",
     "hyprland-socket>=0.12.2",
 ]
 

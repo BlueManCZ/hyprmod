@@ -217,7 +217,7 @@ def _format_hdr_value(
     default so the line gets omitted from the saved config.
 
     The live ``hl.monitor()`` apply emits explicit defaults for the
-    ``auto_default=False`` fields via ``explicit_hdr_defaults=True`` in
+    ``auto_default=False`` fields via ``for_live_apply=True`` in
     hyprland-state, which handles the additive-omission reset there.
     """
     if not auto_default and abs(value - default) < 1e-3:
