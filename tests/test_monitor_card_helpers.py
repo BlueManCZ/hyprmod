@@ -105,8 +105,8 @@ class TestHdrSliderValues:
         # spec.default is a real value to write to disk explicitly (panel EDID
         # for luminance, the HDR-mode 0.5 starting point for sdr_brightness);
         # False means spec.default is Hyprland's own correct no-override, so
-        # omit from disk and let hyprland-state's explicit_hdr_defaults=True
-        # handle the live-apply reset.
+        # omit from disk and let hyprland-state's for_live_apply=True handle
+        # the live-apply reset.
         for field in (
             "sdr_brightness",
             "sdr_min_luminance",
