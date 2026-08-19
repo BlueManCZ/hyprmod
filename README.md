@@ -241,10 +241,10 @@ Running from a checkout? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the checks CI runs, and scope notes. For larger changes, please open an issue first so we can discuss the approach.
 
-<a href="https://www.star-history.com/?repos=BlueManCZ%2Fhyprmod&type=date&legend=top-left">
+<a href="https://star-history.dera.page/#BlueManCZ/hyprmod&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=BlueManCZ/hyprmod&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=BlueManCZ/hyprmod&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=BlueManCZ/hyprmod&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=BlueManCZ/hyprmod&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=BlueManCZ/hyprmod&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=BlueManCZ/hyprmod&type=date&legend=top-left" />
  </picture>
 </a>
