@@ -84,21 +84,23 @@ do_install() {
     case "$INSTALLER" in
         uv)
             if is_installed_uv; then
-                echo ">> Upgrading $PACKAGE via uv tool..."
-                uv tool upgrade "$PACKAGE"
+                echo ">> Reinstalling $PACKAGE via uv tool ($SOURCE)..."
             else
                 echo ">> Installing $PACKAGE via uv tool ($SOURCE)..."
-                uv tool install "$SOURCE"
             fi
+            # Reinstall from SOURCE rather than `uv tool upgrade`: upgrade
+            # re-resolves the dependencies but can leave hyprmod itself at the
+            # commit already installed, so re-running this script would bump
+            # the hyprland-* libraries and nothing else.
+            uv tool install --force "$SOURCE"
             ;;
         pipx)
             if is_installed_pipx; then
-                echo ">> Upgrading $PACKAGE via pipx..."
-                pipx upgrade "$PACKAGE"
+                echo ">> Reinstalling $PACKAGE via pipx ($SOURCE)..."
             else
                 echo ">> Installing $PACKAGE via pipx ($SOURCE)..."
-                pipx install "$SOURCE"
             fi
+            pipx install --force "$SOURCE"
             ;;
     esac
 
