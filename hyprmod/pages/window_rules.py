@@ -14,19 +14,22 @@ flow:
   ``hypr.keyword("windowrule", …)`` so users get the same
   immediate-feedback flow as the keybinds page. Rules are still
   written to hyprmod's managed config on global save for persistence.
-- The ``keyword`` push only registers the rule for *future* windows.
-  Hyprland resolves windowrules to per-window state at map time —
-  for both static and dynamic effects — and never re-evaluates them
-  when a new rule arrives via IPC. To make "Apply Live" feel right
-  we also walk the running windows, find ones the rule's matchers
-  cover, and dispatch the equivalent per-window action: mutating
-  dispatchers for static effects (``togglefloating address:0x…``,
-  ``movetoworkspacesilent W,address:0x…``, …) and ``setprop`` for
-  dynamic effects (``setprop address:0x… opacity 0.5``,
-  ``setprop address:0x… no_blur on``, …). Hyprland 0.54+ keeps the
-  setprop override at ``PRIORITY_SET_PROP`` until the next config
-  reload, so the live preview survives window moves and resizes
-  without needing the legacy ``lock`` flag.
+- What the push does to *existing* windows depends on the config mode.
+  In Lua mode ``hl.window_rule`` schedules a window-state refresh, so
+  Hyprland re-resolves every mapped window against the rule list on
+  its own and dynamic effects (opacity, blur, rounding, …) land
+  without our help. In Hyprlang mode nothing re-evaluates, so we walk
+  the running windows and ``setprop`` the dynamic effects ourselves.
+  Static effects (float, workspace, size, …) are a map-time decision
+  in both modes and always need the equivalent per-window dispatcher
+  (``togglefloating address:0x…``, ``movetoworkspacesilent
+  W,address:0x…``, …).
+- We deliberately don't ``setprop`` in Lua mode. Props land at
+  ``PRIORITY_SET_PROP``, above the ``PRIORITY_WINDOW_RULE`` a rule
+  resolves to, and a config reload doesn't clear them. Re-pushing the
+  rule with a new value overwrites the prop, so a plain value edit
+  looks fine, but anything the rule stops asking for stays applied to
+  that window until it closes.
 - When the new rule's matchers would also match HyprMod's own window
   (e.g. a wildcard ``class`` regex, or a literal class match), we gate
   the live apply behind a confirmation dialog — applying a self-targeted
@@ -37,13 +40,12 @@ flow:
 
 Two limitations follow from Hyprland's IPC surface:
 
-- There's no "remove a single windowrule" command (only a full
-  ``hyprctl reload``), so deleting, reordering, or discarding a rule
-  doesn't take effect on the running compositor until save (which
-  rewrites the config and triggers a reload). The retroactive
-  dispatch we do on Apply is also one-way: changing a rule from
-  ``float`` to ``tile`` won't un-float windows that the prior rule
-  already floated.
+- There's no "remove a single windowrule" command, so deleting,
+  reordering, or discarding a rule doesn't take effect on the running
+  compositor until save, which rewrites the config and reloads the
+  compositor to match. The retroactive dispatch we do on Apply is also
+  one-way: changing a rule from ``float`` to ``tile`` won't un-float
+  windows that the prior rule already floated.
 - Editing an existing rule appends the new version on top of the old
   one in the compositor's runtime list. New windows see the new rule
   win (later wins), but the stale rule is still there until reload.
@@ -69,6 +71,7 @@ insufficient.
 """
 
 import re
+from functools import partial
 from html import escape as html_escape
 
 from gi.repository import Adw, Gtk
@@ -81,6 +84,7 @@ from hyprmod.core.window_rules import (
     ACTION_PRESETS,
     HYPRMOD_APP_ID,
     RETROACTIVE_EFFECTS,
+    STATIC_RETROACTIVE_EFFECTS,
     Effect,
     ExternalWindowRule,
     Matcher,
@@ -356,12 +360,15 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
     ) -> tuple[int, HyprlandError | None]:
         """Iterate mapped matches and run *get_dispatchers* per window.
 
-        Returns ``(success_count, first_error_or_None)``. Errors don't
-        abort the loop — one window failing shouldn't stop us mutating
-        the rest — but we capture the first one for the caller's
-        toast. If a window's dispatcher set raises mid-way we skip
-        the remaining dispatchers for *that* window, since the set is
-        usually atomic (e.g. opacity emits ``opacity`` +
+        Returns ``(mutated_count, first_error_or_None)``. Windows whose
+        dispatcher set is empty aren't counted: in Lua mode a rule of
+        purely dynamic effects produces none, and reporting those as
+        "applied" would claim work we left to the compositor. Errors
+        don't abort the loop, since one window failing shouldn't stop
+        us mutating the rest, but we capture the first one for the
+        caller's toast. If a window's dispatcher set raises mid-way we
+        skip the remaining dispatchers for *that* window, since the set
+        is usually atomic (e.g. opacity emits ``opacity`` +
         ``opacity_inactive``) and partial application is worse than
         none.
         """
@@ -377,8 +384,9 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
                 continue
             if not matches_window(rule, window):
                 continue
-            window_ok = True
-            for dispatcher, arg in get_dispatchers(rule, window):
+            dispatchers = get_dispatchers(rule, window)
+            window_ok = bool(dispatchers)
+            for dispatcher, arg in dispatchers:
                 try:
                     self._window.hypr.dispatch(dispatcher, arg)
                 except HyprlandError as e:
@@ -390,17 +398,34 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
                 applied += 1
         return applied, first_error
 
+    def _retroactive_effects(self) -> frozenset[str]:
+        """The effects that still need a per-window dispatch from us.
+
+        In Lua mode the compositor re-resolves the dynamic half itself,
+        leaving only the static effects. Gating on the right set keeps a
+        rule that needs nothing from us (a ``stay_focused``-only tweak,
+        or an opacity rule in Lua mode) from paying for a ``get_windows``
+        round-trip to dispatch nothing.
+        """
+        if self._window.hypr.is_live_lua_mode():
+            return STATIC_RETROACTIVE_EFFECTS
+        return RETROACTIVE_EFFECTS
+
     def _apply_to_existing(self, rule: WindowRule) -> None:
         """Replicate *rule*'s effects on each already-mapped match.
 
-        Bails immediately when no effect in the rule has a per-window
-        mapping, so we don't pay for an IPC ``get_windows`` round-trip
-        on (e.g.) a ``stay_focused``-only tweak. Multi-effect rules
-        run if *any* effect is retroactive.
+        Multi-effect rules run if *any* effect still needs us; see
+        :meth:`_retroactive_effects` for which those are.
         """
-        if not any(e.name in RETROACTIVE_EFFECTS for e in rule.effects):
+        if not any(e.name in self._retroactive_effects() for e in rule.effects):
             return
-        applied, error = self._foreach_matching_window(rule, existing_window_dispatchers)
+        applied, error = self._foreach_matching_window(
+            rule,
+            partial(
+                existing_window_dispatchers,
+                compositor_reapplies_dynamic=self._window.hypr.is_live_lua_mode(),
+            ),
+        )
         if error is not None:
             self._window.show_bug_toast(
                 f"Couldn't apply to existing windows — {error}",
@@ -418,16 +443,23 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
 
         Mirror of :meth:`_apply_to_existing` for delete / discard /
         undo. Emits ``setprop NAME unset`` per matching window for
-        dynamic effects; static effects no-op (see
-        :func:`existing_window_revert_dispatchers` for why).
+        dynamic effects and the inverse toggle for the static ones that
+        have one (see :func:`existing_window_revert_dispatchers`); in
+        Lua mode only the latter, since we set no props there.
 
         No success toast — the visible feedback is the window snapping
         back to its prior opacity/blur/etc. Errors are surfaced because
         a silent failure here is the bug we're fixing.
         """
-        if not any(e.name in RETROACTIVE_EFFECTS for e in rule.effects):
+        if not any(e.name in self._retroactive_effects() for e in rule.effects):
             return
-        _applied, error = self._foreach_matching_window(rule, existing_window_revert_dispatchers)
+        _applied, error = self._foreach_matching_window(
+            rule,
+            partial(
+                existing_window_revert_dispatchers,
+                compositor_reapplies_dynamic=self._window.hypr.is_live_lua_mode(),
+            ),
+        )
         if error is not None:
             self._window.show_bug_toast(
                 f"Couldn't revert on existing windows — {error}",

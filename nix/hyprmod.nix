@@ -35,13 +35,13 @@ let
 
   hyprland-config = python3Packages.buildPythonPackage rec {
     pname = "hyprland-config";
-    version = "0.9.14";
+    version = "0.9.15";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-config";
       tag = "v${version}";
-      hash = "sha256-Jgh/X7M+hdp0NPuA0YnfdYU/sxY9hfl/OCihnzobvm8=";
+      hash = "sha256-Gf9txE6eB1TdNOSr5IjxmdE4qRgvR14IlcaJXZycxr4=";
     };
     build-system = [ python3Packages.hatchling ];
     doCheck = false;
@@ -81,13 +81,13 @@ let
 
   hyprland-state = python3Packages.buildPythonPackage rec {
     pname = "hyprland-state";
-    version = "0.4.6";
+    version = "0.4.7";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-state";
       tag = "v${version}";
-      hash = "sha256-IBkD4piipWNci4WR5ZCyPtNCFABqIcT6LhAu3pC96So=";
+      hash = "sha256-XeD01ER5PDGFqdYerx0OlWXtn0WEUVwspwObWscz6W8=";
     };
     build-system = [ python3Packages.hatchling ];
     dependencies = [ hyprland-config hyprland-monitors hyprland-schema hyprland-socket ];
