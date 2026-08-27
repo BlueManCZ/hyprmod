@@ -1136,6 +1136,23 @@ class TestExistingWindowDispatchers:
         for _, arg in existing_window_dispatchers(rule, _window()):
             assert " lock" not in arg, f"unexpected lock in {arg!r}"
 
+    def test_compositor_reapplies_dynamic_drops_setprop(self):
+        # Lua mode: ``hl.window_rule`` re-resolves mapped windows against
+        # the rule list itself, and a setprop of ours would outrank the
+        # rule from then on. Only the static half is left to us.
+        rule = WindowRule(
+            [Matcher("class", "^(x)$")],
+            [Effect(name="float", args="on"), Effect(name="opacity", args="0.5")],
+        )
+        win = _window(floating=False)
+        assert existing_window_dispatchers(rule, win, compositor_reapplies_dynamic=True) == [
+            ("togglefloating", _addr(win))
+        ]
+
+    def test_compositor_reapplies_dynamic_leaves_nothing_for_dynamic_only_rule(self):
+        rule = WindowRule([Matcher("class", "^(x)$")], [Effect(name="opacity", args="0.5")])
+        assert existing_window_dispatchers(rule, _window(), compositor_reapplies_dynamic=True) == []
+
     def test_unhandled_effect_returns_empty(self):
         # Effects we deliberately don't translate (no per-window
         # mutation, or expression-parsed args we'd have to mirror)
@@ -1297,6 +1314,19 @@ class TestExistingWindowRevertDispatchers:
             assert existing_window_revert_dispatchers(rule, win) == expected, (
                 f"{effect} produced unexpected revert"
             )
+
+    def test_compositor_reapplies_dynamic_keeps_only_the_inverse_toggles(self):
+        # Deleting a rule in Lua mode: there's no prop of ours to clear,
+        # so only the static undo survives. The dynamic effect stays
+        # visible until the save-triggered reload drops the rule.
+        rule = WindowRule(
+            [Matcher("class", "^(x)$")],
+            [Effect(name="float", args="on"), Effect(name="rounding", args="8")],
+        )
+        win = _window(floating=True)
+        assert existing_window_revert_dispatchers(rule, win, compositor_reapplies_dynamic=True) == [
+            ("togglefloating", _addr(win))
+        ]
 
     def test_unrevertable_static_effects_stay_noop(self):
         # ``size``/``move``/``workspace``/``monitor`` mutate layout state

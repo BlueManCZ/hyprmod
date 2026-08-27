@@ -33,6 +33,7 @@ from hyprland_config import V3_BOOL_MATCHERS
 from hyprland_state import (
     RETROACTIVE_EFFECTS,
     SETPROP_PASSTHROUGH_EFFECTS,
+    STATIC_RETROACTIVE_EFFECTS,
     dispatchers_for_effect,
     revert_dispatchers_for_effect,
 )
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
 __all__ = [
     "RETROACTIVE_EFFECTS",
     "SETPROP_PASSTHROUGH_EFFECTS",
+    "STATIC_RETROACTIVE_EFFECTS",
     "existing_window_dispatchers",
     "existing_window_revert_dispatchers",
     "matches_hyprmod",
@@ -317,24 +319,35 @@ def matches_window(rule: WindowRule, window: "Window") -> bool:
 # ---------------------------------------------------------------------------
 
 
-def existing_window_dispatchers(rule: WindowRule, window: "Window") -> list[tuple[str, str]]:
+def existing_window_dispatchers(
+    rule: WindowRule, window: "Window", *, compositor_reapplies_dynamic: bool = False
+) -> list[tuple[str, str]]:
     """Dispatchers that retroactively apply *rule*'s effects to *window*.
 
     Adapts the page-level :class:`WindowRule` data shape to the
     library's effect-string-based interface. See
     :func:`hyprland_state.dispatchers_for_effect` for the full
-    per-effect behaviour and the rationale behind the dispatcher
-    choices. Multi-effect rules (block-form / named bundles) emit
-    dispatchers in declaration order so the visual result matches the
-    user's authored sequence.
+    per-effect behaviour, *compositor_reapplies_dynamic* included, and
+    the rationale behind the dispatcher choices. Multi-effect rules
+    (block-form / named bundles) emit dispatchers in declaration order
+    so the visual result matches the user's authored sequence.
     """
     result: list[tuple[str, str]] = []
     for effect in rule.effects:
-        result.extend(dispatchers_for_effect(effect.name, effect.args, window))
+        result.extend(
+            dispatchers_for_effect(
+                effect.name,
+                effect.args,
+                window,
+                compositor_reapplies_dynamic=compositor_reapplies_dynamic,
+            )
+        )
     return result
 
 
-def existing_window_revert_dispatchers(rule: WindowRule, window: "Window") -> list[tuple[str, str]]:
+def existing_window_revert_dispatchers(
+    rule: WindowRule, window: "Window", *, compositor_reapplies_dynamic: bool = False
+) -> list[tuple[str, str]]:
     """Dispatchers that revert *rule*'s runtime effects on *window*.
 
     Adapter around :func:`hyprland_state.revert_dispatchers_for_effect`;
@@ -343,5 +356,12 @@ def existing_window_revert_dispatchers(rule: WindowRule, window: "Window") -> li
     """
     result: list[tuple[str, str]] = []
     for effect in rule.effects:
-        result.extend(revert_dispatchers_for_effect(effect.name, effect.args, window))
+        result.extend(
+            revert_dispatchers_for_effect(
+                effect.name,
+                effect.args,
+                window,
+                compositor_reapplies_dynamic=compositor_reapplies_dynamic,
+            )
+        )
     return result

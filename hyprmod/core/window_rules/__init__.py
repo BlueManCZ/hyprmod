@@ -62,6 +62,7 @@ from hyprmod.core.window_rules._parse import (
 from hyprmod.core.window_rules._runtime import (
     RETROACTIVE_EFFECTS,
     SETPROP_PASSTHROUGH_EFFECTS,
+    STATIC_RETROACTIVE_EFFECTS,
     existing_window_dispatchers,
     existing_window_revert_dispatchers,
     matches_hyprmod,
@@ -79,6 +80,7 @@ __all__ = [
     "MATCHER_KINDS_BY_KEY",
     "RAW_KEY",
     "RETROACTIVE_EFFECTS",
+    "STATIC_RETROACTIVE_EFFECTS",
     "SETPROP_PASSTHROUGH_EFFECTS",
     "WINDOW_RULE_KEYWORDS",
     "ActionField",
