@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Mode picked for a "Toggle fullscreen" keybind is saved again in Lua mode. Every mode emitted `hl.dsp.window.fullscreen()`, so a bind set to Maximize toggled full screen instead. The "No gaps" mode is gone from the picker: Hyprland has read every mode but Maximize as full screen since 0.43, so it never did anything. Requires hyprland-config 0.9.16 (#86)
 - Editing a window rule to drop an action, or narrowing its conditions so a window no longer matches, now releases the windows it was applied to. HyprMod also set each effect as a per-window property in Lua mode, and those outrank the rule and survive a config reload. Requires hyprland-state 0.4.7 (#79)
 - A window rule with more than one action now applies all of them when pushed to the running compositor, instead of only the first. Requires hyprland-config 0.9.15 (#79)
 - Saving now reloads the compositor when window or layer rules changed, so deleting, reordering, or discarding a rule takes effect instead of waiting for the next HyprMod launch. Hyprland's autoreload never saw the write: it watches the config file's inode, and an atomic save replaces it (#79)

@@ -10,7 +10,7 @@ dependencies = [
     # so declare it here for packagers to see (#78).
     "pycairo>=1.16",
     "pygobject>=3.56.2",
-    "hyprland-config>=0.9.15",
+    "hyprland-config>=0.9.16",
     "hyprland-schema>=0.7.1",
     "hyprland-state>=0.4.7",
     "hyprland-monitors>=0.9.0",
