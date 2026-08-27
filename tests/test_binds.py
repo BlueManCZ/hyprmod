@@ -1,5 +1,7 @@
 """Tests for keybind override tracking and dispatcher presentation data."""
 
+from unittest.mock import Mock
+
 from gi.repository import Adw
 from hyprland_config import BindData, Document, parse_string
 from hyprland_socket import MOD_BITS, Bind
@@ -25,6 +27,7 @@ from hyprmod.binds import (
 )
 from hyprmod.binds.dialog import _build_resize_arg, _parse_resize_arg
 from hyprmod.binds.gdk_modifiers import keysym_name
+from hyprmod.pages.binds import BindsPage, _is_bind_edit_supported
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -588,6 +591,59 @@ class TestEnrichLuaBinds:
         live = [_mkbind(["SUPER"], "X", "__lua", arg="99")]
         out = enrich_lua_binds(live, Document())
         assert out == live
+
+
+class TestUnsupportedBindOverrides:
+    def test_only_bind_shapes_the_dialog_can_round_trip_are_supported(self):
+        assert _is_bind_edit_supported(_mkbind(["SUPER"], "B", "exec"))
+        assert _is_bind_edit_supported(
+            _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindm")
+        )
+
+        unsupported = (
+            _mkbind(["SUPER"], "B", "exec", bind_type="bindd"),
+            _mkbind(["SUPER"], "B", "exec", bind_type="binded"),
+            _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindmd"),
+            _mkbind(["SUPER"], "B", "exec", bind_type="bindt"),
+        )
+        assert all(not _is_bind_edit_supported(bind) for bind in unsupported)
+
+    def test_does_not_open_editor_when_action_cannot_be_recovered(self, monkeypatch):
+        page = Mock()
+        dialog = Mock()
+        monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
+
+        BindsPage._on_override(page, _mkbind(["SUPER"], "B", "__lua", arg="42"))
+
+        dialog.assert_not_called()
+
+    def test_does_not_open_editor_for_unknown_dispatcher(self, monkeypatch):
+        page = Mock()
+        dialog = Mock()
+        monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
+
+        BindsPage._on_override(
+            page,
+            _mkbind(
+                ["SUPER"],
+                "B",
+                "Browser",
+                arg="exec, omarchy-launch-browser",
+                bind_type="bindd",
+            ),
+        )
+
+        dialog.assert_not_called()
+
+    def test_does_not_edit_owned_bind_with_unknown_dispatcher(self, monkeypatch):
+        page = Mock()
+        page._owned_binds = [_mkbind(["SUPER"], "B", "custom_callback", arg="opaque payload")]
+        dialog = Mock()
+        monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
+
+        BindsPage._on_edit_at(page, 0)
+
+        dialog.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
