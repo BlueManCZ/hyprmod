@@ -33,8 +33,9 @@ Differences from :mod:`hyprmod.pages.window_rules`:
   not a layer surface — a layer rule can never match its own window.
 - **No ``unlayerrule`` IPC.** Same caveat as window rules: deleting,
   reordering, or discarding a rule doesn't take effect on the running
-  compositor until save (which rewrites the config and triggers a
-  reload). Adding new rules works live; removal needs the reload.
+  compositor until save, which rewrites the config and reloads the
+  compositor to match. Adding new rules works live; removal needs the
+  reload.
 
 Reorder is keyboard-only (Alt+↑/↓ on a focused row) for the initial
 release. Layer rule order is less critical than window rule order

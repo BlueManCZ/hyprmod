@@ -38,6 +38,7 @@ from hyprmod.ui import (
     confirm,
     create_option_row,
     make_page_layout,
+    try_with_toast,
 )
 from hyprmod.ui.about import build_about_dialog
 from hyprmod.ui.banner import DirtyBanner
@@ -1217,6 +1218,13 @@ class HyprModWindow(Adw.ApplicationWindow):
         return sections
 
     def _perform_save(self, *, update_active_profile: bool = True):
+        # Rules are the one thing live-apply can't fully express: there is
+        # no IPC that removes or reorders a registered rule, so the runtime
+        # list only tracks the file again after a reload. Sampled before
+        # ``mark_saved`` below clears the dirty flags.
+        rules_changed = any(
+            page and page.is_dirty() for page in (self._window_rules_page, self._layer_rules_page)
+        )
         # ``write_all`` invalidates ``config.read_cached`` internally, so any
         # subsequent ``saved_sections`` access reflects what we just wrote.
         config.write_all(
@@ -1241,6 +1249,18 @@ class HyprModWindow(Adw.ApplicationWindow):
                 profiles.update(active_id)
         if self._profiles_page is not None:
             self._profiles_page.rebuild()
+        if rules_changed:
+            # Don't wait for Hyprland's config watcher to notice: it holds an
+            # inotify watch on the config file's inode with IN_CLOSE_WRITE, and
+            # our atomic save replaces that inode by rename. The watch fires on
+            # neither the rename nor any later write, and only a reload re-arms
+            # it, so without this the rules we just wrote would sit unread.
+            try_with_toast(
+                self.show_bug_toast,
+                "Couldn't reload Hyprland after saving",
+                self.hypr.reload_compositor,
+                catch=HyprlandError,
+            )
 
     def save(self, *, update_active_profile: bool = True):
         """Public save API — performs save and shows banner animation."""

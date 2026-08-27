@@ -37,13 +37,12 @@ flow:
 
 Two limitations follow from Hyprland's IPC surface:
 
-- There's no "remove a single windowrule" command (only a full
-  ``hyprctl reload``), so deleting, reordering, or discarding a rule
-  doesn't take effect on the running compositor until save (which
-  rewrites the config and triggers a reload). The retroactive
-  dispatch we do on Apply is also one-way: changing a rule from
-  ``float`` to ``tile`` won't un-float windows that the prior rule
-  already floated.
+- There's no "remove a single windowrule" command, so deleting,
+  reordering, or discarding a rule doesn't take effect on the running
+  compositor until save, which rewrites the config and reloads the
+  compositor to match. The retroactive dispatch we do on Apply is also
+  one-way: changing a rule from ``float`` to ``tile`` won't un-float
+  windows that the prior rule already floated.
 - Editing an existing rule appends the new version on top of the old
   one in the compositor's runtime list. New windows see the new rule
   win (later wins), but the stale rule is still there until reload.
