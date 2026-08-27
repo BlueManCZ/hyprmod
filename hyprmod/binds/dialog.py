@@ -88,7 +88,10 @@ _WORKSPACE_PRESETS = [
     ("special", "Special (scratchpad)"),
 ]
 
-_FULLSCREEN_MODES = [("0", "Full"), ("1", "Maximize"), ("2", "No gaps")]
+# Hyprland reads mode 1 as maximize and every other value as full screen,
+# so the third mode the dispatcher used to take is gone: offering it only
+# promised a state no Hyprland since 0.43 can enter.
+_FULLSCREEN_MODES = [("0", "Full"), ("1", "Maximize")]
 
 _DIRECTION_CHOICES = [
     ("l", "go-previous-symbolic", "Left"),
