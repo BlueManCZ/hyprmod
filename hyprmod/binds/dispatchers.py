@@ -234,6 +234,17 @@ DISPATCHER_CATEGORIES: list[DispatcherCategory] = [
         },
     },
     {
+        "id": "plugins",
+        "label": "Plugins",
+        "icon": "application-x-addon-symbolic",
+        "dispatchers": {
+            "plugin:dynamic-cursors:magnify": {
+                "label": "Magnify Cursor (Hypr Dynamic Cursors)",
+                "arg_type": "optional_text",
+            },
+        },
+    },
+    {
         "id": "advanced",
         "label": "Other",
         "icon": "terminal-symbolic",
