@@ -11,6 +11,7 @@ from hyprland_socket import HyprlandError
 from hyprmod.binds import (
     CATEGORY_BY_ID,
     DISPATCHER_CATEGORIES,
+    OPAQUE_LUA_DISPATCHER,
     OverrideTracker,
     categorize_bind,
     enrich_lua_binds,
@@ -27,6 +28,15 @@ from hyprmod.ui import clear_children, make_inline_hint, make_page_layout, try_w
 from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.icons import BINDS_ICON
 from hyprmod.ui.row_actions import RowActions
+
+
+def _bind_action_text(bind: BindData) -> str:
+    if bind.dispatcher == OPAQUE_LUA_DISPATCHER:
+        return "Lua callback (read-only)"
+    action = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg)
+    if not BindEditDialog.can_represent(bind):
+        return f"{action} (read-only)"
+    return action
 
 
 class BindsPage(SectionPage):
@@ -223,7 +233,7 @@ class BindsPage(SectionPage):
             self._content_box.append(
                 make_inline_hint(
                     "Locked keybinds come from your hyprland.conf. "
-                    "Click the edit button to override them."
+                    "Supported keybinds can be overridden with the edit button."
                 )
             )
 
@@ -274,7 +284,8 @@ class BindsPage(SectionPage):
         self, bind: BindData, editable: bool, index: int = -1, icon: str = ""
     ) -> Adw.ActionRow:
         shortcut = bind.format_shortcut()
-        action_str = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg)
+        edit_supported = BindEditDialog.can_represent(bind)
+        action_str = _bind_action_text(bind)
 
         row = Adw.ActionRow(
             title=html_escape(shortcut),
@@ -289,20 +300,24 @@ class BindsPage(SectionPage):
         if not editable:
             row.add_css_class("option-default")
 
-            override_btn = Gtk.Button(icon_name="document-edit-symbolic")
-            override_btn.set_valign(Gtk.Align.CENTER)
-            override_btn.add_css_class("flat")
-            override_btn.set_tooltip_text("Override this keybind")
-            override_btn.connect("clicked", lambda _btn, b=bind: self._on_override(b))
-            row.add_suffix(override_btn)
+            if edit_supported:
+                override_btn = Gtk.Button(icon_name="document-edit-symbolic")
+                override_btn.set_valign(Gtk.Align.CENTER)
+                override_btn.add_css_class("flat")
+                override_btn.set_tooltip_text("Override this keybind")
+                override_btn.connect("clicked", lambda _btn, b=bind: self._on_override(b))
+                row.add_suffix(override_btn)
 
             lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
+            if not edit_supported:
+                lock_icon.set_tooltip_text("HyprMod cannot safely edit this keybind")
             lock_icon.set_opacity(0.4)
             row.add_suffix(lock_icon)
             row.set_opacity(0.65)
         else:
-            row.set_activatable(True)
-            row.connect("activated", lambda _row, idx=index: self._on_edit_at(idx))
+            if edit_supported:
+                row.set_activatable(True)
+                row.connect("activated", lambda _row, idx=index: self._on_edit_at(idx))
 
             is_dirty = self._owned_binds.is_item_dirty(index)
             is_saved = self._owned_binds.get_baseline(index) is not None
@@ -320,7 +335,13 @@ class BindsPage(SectionPage):
                 is_saved=is_saved,
             )
 
-            row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+            if edit_supported:
+                row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+            else:
+                lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
+                lock_icon.set_tooltip_text("HyprMod cannot safely edit this keybind")
+                lock_icon.set_opacity(0.4)
+                row.add_suffix(lock_icon)
 
         return row
 
@@ -352,7 +373,7 @@ class BindsPage(SectionPage):
                     visible_count += 1
                 else:
                     shortcut = bind.format_shortcut().lower()
-                    action = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg).lower()
+                    action = _bind_action_text(bind).lower()
                     cat_label = CATEGORY_BY_ID.get(cat_id, {}).get("label", "").lower()
                     if term in shortcut or term in action or term in cat_label:
                         row.set_visible(True)
@@ -401,6 +422,8 @@ class BindsPage(SectionPage):
         if idx < 0 or idx >= len(owned_binds):
             return
         bind = owned_binds[idx]
+        if not BindEditDialog.can_represent(bind):
+            return
 
         def on_apply(new_bind):
             with self._undo_track():
@@ -419,6 +442,8 @@ class BindsPage(SectionPage):
         dialog.present(self._window)
 
     def _on_override(self, hypr_bind):
+        if not BindEditDialog.can_represent(hypr_bind):
+            return
         owned_binds = self._owned_binds
         overrides = self._overrides
         owned = copy.deepcopy(hypr_bind)

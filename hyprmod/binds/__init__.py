@@ -17,5 +17,9 @@ from hyprmod.binds.dispatchers import (  # noqa: F401
     format_action,
     format_bind_action,
 )
-from hyprmod.binds.live import enrich_lua_binds, live_bind_to_data  # noqa: F401
+from hyprmod.binds.live import (  # noqa: F401
+    OPAQUE_LUA_DISPATCHER,
+    enrich_lua_binds,
+    live_bind_to_data,
+)
 from hyprmod.binds.override_state import OverrideTracker  # noqa: F401
