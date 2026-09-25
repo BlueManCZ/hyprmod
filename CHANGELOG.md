@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A Lua config that prints something no longer stops HyprMod from starting. The reader took the config's stdout output as part of its own data and failed to parse it, so the first launch showed nothing and every launch after that showed an empty window. A config HyprMod genuinely cannot read now gets a window saying what the parser rejected, with a retry, instead of a traceback in the terminal. Requires hyprland-config 0.9.17 (#87)
 - The Mode picked for a "Toggle fullscreen" keybind is saved again in Lua mode. Every mode emitted `hl.dsp.window.fullscreen()`, so a bind set to Maximize toggled full screen instead. The "No gaps" mode is gone from the picker: Hyprland has read every mode but Maximize as full screen since 0.43, so it never did anything. Requires hyprland-config 0.9.16 (#86)
 - Editing a window rule to drop an action, or narrowing its conditions so a window no longer matches, now releases the windows it was applied to. HyprMod also set each effect as a per-window property in Lua mode, and those outrank the rule and survive a config reload. Requires hyprland-state 0.4.7 (#79)
 - A window rule with more than one action now applies all of them when pushed to the running compositor, instead of only the first. Requires hyprland-config 0.9.15 (#79)
