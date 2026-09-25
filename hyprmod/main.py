@@ -5,12 +5,14 @@ import sys
 from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+from hyprland_config import ParseError
 
 from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core.setup import needs_setup, run_setup
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import has_cairo_support, try_with_toast
+from hyprmod.ui.config_error import build_config_error_window
 from hyprmod.ui.onboarding_dialog import OnboardingDialog
 from hyprmod.window import HyprModWindow
 
@@ -28,6 +30,7 @@ class HyprModApp(Adw.Application):
             application_id=APPLICATION_ID,
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
+        self._config_error_window: Adw.ApplicationWindow | None = None
 
     def do_startup(self):
         Adw.Application.do_startup(self)
@@ -46,7 +49,20 @@ class HyprModApp(Adw.Application):
     def do_activate(self):
         win = self.props.active_window
         if not isinstance(win, HyprModWindow):
-            win = HyprModWindow(application=self)
+            existing = set(self.get_windows())
+            try:
+                win = HyprModWindow(application=self)
+            except (OSError, ParseError) as exc:
+                # ``application=self`` registers the window with the app
+                # before ``__init__`` reaches the config read, so a failed
+                # one is already in the window list. Left there it answers
+                # ``active_window`` on the next activation and presents as
+                # an empty window over a swallowed traceback.
+                for window in set(self.get_windows()) - existing:
+                    window.destroy()
+                self._show_config_error(str(exc))
+                return
+        self._dismiss_config_error()
 
         # A broken install takes precedence over onboarding: stacking two
         # dialogs hides one behind the other, and setup can wait a launch.
@@ -63,6 +79,22 @@ class HyprModApp(Adw.Application):
             OnboardingDialog(on_setup=_on_setup).present(win)
 
         win.present()
+
+    def _show_config_error(self, message: str) -> None:
+        """Put the config-error window up in place of the main window.
+
+        Built before the previous one goes so the app never drops to zero
+        windows, which would quit it mid-retry.
+        """
+        error_window = build_config_error_window(self, message=message, on_retry=self.activate)
+        self._dismiss_config_error()
+        self._config_error_window = error_window
+        error_window.present()
+
+    def _dismiss_config_error(self) -> None:
+        if self._config_error_window is not None:
+            self._config_error_window.destroy()
+            self._config_error_window = None
 
 
 def main():
