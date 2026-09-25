@@ -25,9 +25,9 @@ from hyprmod.binds import (
     format_bind_action,
     live_bind_to_data,
 )
-from hyprmod.binds.dialog import _build_resize_arg, _parse_resize_arg
+from hyprmod.binds.dialog import BindEditDialog, _build_resize_arg, _parse_resize_arg
 from hyprmod.binds.gdk_modifiers import keysym_name
-from hyprmod.pages.binds import BindsPage, _is_bind_edit_supported
+from hyprmod.pages.binds import BindsPage
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -595,22 +595,18 @@ class TestEnrichLuaBinds:
 
 class TestUnsupportedBindOverrides:
     def test_only_bind_shapes_the_dialog_can_round_trip_are_supported(self):
-        assert _is_bind_edit_supported(_mkbind(["SUPER"], "B", "exec"))
-        assert _is_bind_edit_supported(
+        assert BindEditDialog.can_represent(_mkbind(["SUPER"], "B", "exec"))
+        assert BindEditDialog.can_represent(
             _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindm")
         )
 
-        unsupported = (
-            _mkbind(["SUPER"], "B", "exec", bind_type="bindd"),
-            _mkbind(["SUPER"], "B", "exec", bind_type="binded"),
-            _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindmd"),
-            _mkbind(["SUPER"], "B", "exec", bind_type="bindt"),
-        )
-        assert all(not _is_bind_edit_supported(bind) for bind in unsupported)
+    def test_hand_edited_bindd_is_read_only(self):
+        assert not BindEditDialog.can_represent(_mkbind(["SUPER"], "B", "exec", bind_type="bindd"))
 
     def test_does_not_open_editor_when_action_cannot_be_recovered(self, monkeypatch):
         page = Mock()
         dialog = Mock()
+        dialog.can_represent = BindEditDialog.can_represent
         monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
 
         BindsPage._on_override(page, _mkbind(["SUPER"], "B", "__lua", arg="42"))
@@ -620,6 +616,7 @@ class TestUnsupportedBindOverrides:
     def test_does_not_open_editor_for_unknown_dispatcher(self, monkeypatch):
         page = Mock()
         dialog = Mock()
+        dialog.can_represent = BindEditDialog.can_represent
         monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
 
         BindsPage._on_override(
@@ -639,6 +636,7 @@ class TestUnsupportedBindOverrides:
         page = Mock()
         page._owned_binds = [_mkbind(["SUPER"], "B", "custom_callback", arg="opaque payload")]
         dialog = Mock()
+        dialog.can_represent = BindEditDialog.can_represent
         monkeypatch.setattr("hyprmod.pages.binds.BindEditDialog", dialog)
 
         BindsPage._on_edit_at(page, 0)

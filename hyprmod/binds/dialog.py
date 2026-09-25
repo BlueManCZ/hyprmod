@@ -309,6 +309,14 @@ def _on_direction_toggled(active_btn, active_val, buttons):
 class BindEditDialog(Adw.Dialog):
     """Dialog for adding/editing a keybind with trigger mode + action cascade."""
 
+    @staticmethod
+    def can_represent(bind: BindData) -> bool:
+        """Return whether this dialog can round-trip the parsed bind shape."""
+        if bind.bind_type == "bindm":
+            return bind.dispatcher in BINDM_DISPATCHERS
+        # Other bind types can still arrive from a hand-edited managed config.
+        return bind.bind_type in KEY_BIND_TYPES and bind.dispatcher in DISPATCHER_INFO
+
     def __init__(
         self,
         bind: BindData | None = None,

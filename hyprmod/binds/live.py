@@ -14,6 +14,8 @@ test in isolation without instantiating any GTK widgets.
 from hyprland_config import BindData, Document, is_bind_keyword, parse_bind_line
 from hyprland_socket import Bind, modmask_to_str
 
+OPAQUE_LUA_DISPATCHER = "__lua"
+
 
 def live_bind_to_data(b: Bind) -> BindData:
     """Convert a Hyprland live :class:`Bind` to a :class:`BindData`.
@@ -70,11 +72,11 @@ def enrich_lua_binds(live: list[BindData], document: Document) -> list[BindData]
     Live binds without a ``__lua`` dispatcher pass through unchanged.
     Combos that aren't in *document* (handler defined directly via
     ``hl.bind`` with a closure the reader can't unwrap) also pass through
-    so the user at least sees that the bind exists — they'll land in
-    "Advanced" and read as ``__lua: <line>``, which is an acceptable
-    degradation for an inherently opaque setup.
+    so the user at least sees that the bind exists. They'll land in
+    "Advanced" and read as "Lua callback (read-only)", which is an
+    acceptable degradation for an inherently opaque setup.
     """
-    if not any(b.dispatcher == "__lua" for b in live):
+    if not any(b.dispatcher == OPAQUE_LUA_DISPATCHER for b in live):
         return live
     by_combo: dict[tuple, BindData] = {}
     for kw in document.find_all("bind*"):
@@ -88,7 +90,7 @@ def enrich_lua_binds(live: list[BindData], document: Document) -> list[BindData]
 
     enriched: list[BindData] = []
     for b in live:
-        if b.dispatcher != "__lua":
+        if b.dispatcher != OPAQUE_LUA_DISPATCHER:
             enriched.append(b)
             continue
         match = by_combo.get(b.combo)

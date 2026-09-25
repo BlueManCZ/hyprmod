@@ -9,11 +9,9 @@ from hyprland_config import BindData, parse_bind_line
 from hyprland_socket import HyprlandError
 
 from hyprmod.binds import (
-    BINDM_DISPATCHERS,
     CATEGORY_BY_ID,
     DISPATCHER_CATEGORIES,
-    DISPATCHER_INFO,
-    KEY_BIND_TYPES,
+    OPAQUE_LUA_DISPATCHER,
     OverrideTracker,
     categorize_bind,
     enrich_lua_binds,
@@ -31,14 +29,14 @@ from hyprmod.ui.empty_state import EmptyState
 from hyprmod.ui.icons import BINDS_ICON
 from hyprmod.ui.row_actions import RowActions
 
-_OPAQUE_LUA_DISPATCHER = "__lua"
 
-
-def _is_bind_edit_supported(bind: BindData) -> bool:
-    """Whether the edit dialog supports this parsed bind shape."""
-    if bind.bind_type == "bindm":
-        return bind.dispatcher in BINDM_DISPATCHERS
-    return bind.bind_type in KEY_BIND_TYPES and bind.dispatcher in DISPATCHER_INFO
+def _bind_action_text(bind: BindData) -> str:
+    if bind.dispatcher == OPAQUE_LUA_DISPATCHER:
+        return "Lua callback (read-only)"
+    action = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg)
+    if not BindEditDialog.can_represent(bind):
+        return f"{action} (read-only)"
+    return action
 
 
 class BindsPage(SectionPage):
@@ -286,15 +284,8 @@ class BindsPage(SectionPage):
         self, bind: BindData, editable: bool, index: int = -1, icon: str = ""
     ) -> Adw.ActionRow:
         shortcut = bind.format_shortcut()
-        opaque_lua = bind.dispatcher == _OPAQUE_LUA_DISPATCHER
-        edit_supported = _is_bind_edit_supported(bind)
-        action_str = (
-            "Lua callback (read-only)"
-            if opaque_lua
-            else format_bind_action(bind.bind_type, bind.dispatcher, bind.arg)
-        )
-        if not edit_supported and not opaque_lua:
-            action_str = f"{action_str} (read-only)"
+        edit_supported = BindEditDialog.can_represent(bind)
+        action_str = _bind_action_text(bind)
 
         row = Adw.ActionRow(
             title=html_escape(shortcut),
@@ -346,6 +337,11 @@ class BindsPage(SectionPage):
 
             if edit_supported:
                 row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
+            else:
+                lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
+                lock_icon.set_tooltip_text("HyprMod cannot safely edit this keybind")
+                lock_icon.set_opacity(0.4)
+                row.add_suffix(lock_icon)
 
         return row
 
@@ -377,7 +373,7 @@ class BindsPage(SectionPage):
                     visible_count += 1
                 else:
                     shortcut = bind.format_shortcut().lower()
-                    action = format_bind_action(bind.bind_type, bind.dispatcher, bind.arg).lower()
+                    action = _bind_action_text(bind).lower()
                     cat_label = CATEGORY_BY_ID.get(cat_id, {}).get("label", "").lower()
                     if term in shortcut or term in action or term in cat_label:
                         row.set_visible(True)
@@ -426,7 +422,7 @@ class BindsPage(SectionPage):
         if idx < 0 or idx >= len(owned_binds):
             return
         bind = owned_binds[idx]
-        if not _is_bind_edit_supported(bind):
+        if not BindEditDialog.can_represent(bind):
             return
 
         def on_apply(new_bind):
@@ -446,7 +442,7 @@ class BindsPage(SectionPage):
         dialog.present(self._window)
 
     def _on_override(self, hypr_bind):
-        if not _is_bind_edit_supported(hypr_bind):
+        if not BindEditDialog.can_represent(hypr_bind):
             return
         owned_binds = self._owned_binds
         overrides = self._overrides
