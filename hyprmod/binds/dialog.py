@@ -314,7 +314,10 @@ class BindEditDialog(Adw.Dialog):
         """Return whether this dialog can round-trip the parsed bind shape."""
         if bind.bind_type == "bindm":
             return bind.dispatcher in BINDM_DISPATCHERS
-        # Other bind types can still arrive from a hand-edited managed config.
+        # A described bind keeps its ``bindd`` type on the way in: the override
+        # tracker restores originals from the config document, not from live
+        # IPC, which reports every variant as a plain ``bind``. The dialog has
+        # no description field, so it can't round-trip one.
         return bind.bind_type in KEY_BIND_TYPES and bind.dispatcher in DISPATCHER_INFO
 
     def __init__(

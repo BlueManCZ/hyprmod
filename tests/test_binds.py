@@ -600,8 +600,14 @@ class TestUnsupportedBindOverrides:
             _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindm")
         )
 
-    def test_hand_edited_bindd_is_read_only(self):
-        assert not BindEditDialog.can_represent(_mkbind(["SUPER"], "B", "exec", bind_type="bindd"))
+    def test_variants_the_dialog_cannot_round_trip_are_read_only(self):
+        unsupported = (
+            _mkbind(["SUPER"], "B", "exec", bind_type="bindd"),
+            _mkbind(["SUPER"], "B", "exec", bind_type="binded"),
+            _mkbind(["SUPER"], "mouse:272", "movewindow", bind_type="bindmd"),
+            _mkbind(["SUPER"], "B", "exec", bind_type="bindt"),
+        )
+        assert all(not BindEditDialog.can_represent(bind) for bind in unsupported)
 
     def test_does_not_open_editor_when_action_cannot_be_recovered(self, monkeypatch):
         page = Mock()
