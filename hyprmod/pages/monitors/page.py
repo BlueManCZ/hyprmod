@@ -27,6 +27,7 @@ from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
+from hyprmod.pages.monitors.switch import MonitorSwitch
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
@@ -291,7 +292,7 @@ class MonitorsPage(SectionPage):
             self._content_box.append(
                 EmptyState(
                     title="No Monitors Detected",
-                    description="Could not read monitor information from Hyprland.",
+                    description="Could not read monitor information fPyright must pass clean. Don't use assert for type narrowing; restructure the code instead.rom Hyprland.",
                     icon_name="computer-symbolic",
                 )
             )
@@ -328,6 +329,10 @@ class MonitorsPage(SectionPage):
             gap_frame.set_child(self._gap_banner)
             self._content_box.append(gap_frame)
             self._update_gap_warning()
+
+        # Preset dropdown
+        dropdown_switch = MonitorSwitch(self._monitors)
+        self._content_box.append(dropdown_switch)
 
         self._cards = []
         for idx, mon in enumerate(self._monitors):
