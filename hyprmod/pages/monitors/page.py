@@ -292,7 +292,7 @@ class MonitorsPage(SectionPage):
             self._content_box.append(
                 EmptyState(
                     title="No Monitors Detected",
-                    description="Could not read monitor information fPyright must pass clean. Don't use assert for type narrowing; restructure the code instead.rom Hyprland.",
+                    description="Could not read monitor information from Hyprland.",
                     icon_name="computer-symbolic",
                 )
             )
