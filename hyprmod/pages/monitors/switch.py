@@ -1,17 +1,47 @@
+import json
 from typing import Callable, cast, final
 
 from gi.repository import Gio, GObject, Gtk
+from hyprland_config import atomic_write
 from hyprland_monitors.monitors import MonitorState
+
+from hyprmod.core.config import HYPRMOD_DIR
+
+_ACTIVE_PRESET_FILE = HYPRMOD_DIR / "active_projection_preset"
+_DEFAULT_PRESET_KEY = "mirror"
+
+
+def _read_active_preset() -> dict[str, object]:
+    """Return the saved active preset, or ``{}`` if missing or unreadable."""
+    try:
+        data: object = json.loads(_ACTIVE_PRESET_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return cast(dict[str, object], data) if isinstance(data, dict) else {}
+
+
+def _write_active_preset(key: str, monitors: list[MonitorState]) -> None:
+    """Persist *key* with each monitor's position so the layout can be restored."""
+    data: dict[str, object] = {"key": key}
+    for mon in monitors:
+        data[mon.name] = {"position": [mon.x, mon.y]}
+    _ACTIVE_PRESET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(_ACTIVE_PRESET_FILE, json.dumps(data, indent=2) + "\n")
 
 
 @final
 class Preset(GObject.Object):
     __gtype_name__: str = "Preset"
 
-    def __init__(self, name: str, description: str):
+    def __init__(self, key: str, name: str, description: str):
         super().__init__()
+        self._key: str = key
         self._name: str = name
         self._description: str = description
+
+    @GObject.Property(type=str)
+    def preset_key(self) -> str:
+        return self._key
 
     @GObject.Property(type=str)
     def preset_name(self) -> str:
@@ -40,6 +70,15 @@ class MonitorSwitch(Gtk.Box):
         _ = _factory.connect("setup", self._setup_item)
         _ = _factory.connect("bind", self._bind_item)
         drop_down.set_factory(_factory)
+
+        _saved = _read_active_preset().get("key")
+        _saved_key = _saved if isinstance(_saved, str) else _DEFAULT_PRESET_KEY
+        _active_pos = self._position_of(_saved_key)
+        if _active_pos == Gtk.INVALID_LIST_POSITION:
+            _active_pos = self._position_of(_DEFAULT_PRESET_KEY)
+        drop_down.set_selected(_active_pos)
+        # Connect after restoring the selection so it isn't written back as a user change.
+        _ = drop_down.connect("notify::selected", self._on_selected)
 
         label = Gtk.Label(label="Projection Presets", xalign=0)
         label.add_css_class("heading")
@@ -78,12 +117,28 @@ class MonitorSwitch(Gtk.Box):
 
     def _build_presets(self):
         if len(self._monitors) <= 1:
-            self._model.append(Preset("Single Monitor", "Only one monitor is connected."))
+            self._model.append(Preset("single", "Single Monitor", "Only one monitor is connected."))
+
+        self._model.append(Preset("extend", "Extend", "Extend the display across all monitors."))
+        self._model.append(Preset("mirror", "Mirror", "Mirror the display across all monitors."))
 
         for monitor in self._monitors:
             preset_name = f"{monitor.make} {monitor.model}"
             preset_description = f"Display only on {monitor.name}"
-            self._model.append(Preset(preset_name, preset_description))
+            self._model.append(Preset(f"only:{monitor.name}", preset_name, preset_description))
 
-        self._model.append(Preset("Mirror", "Mirror the display across all monitors."))
-        self._model.append(Preset("Extend", "Extend the display across all monitors."))
+    def _on_selected(self, drop_down: Gtk.DropDown, _pspec: GObject.ParamSpec) -> None:
+        preset = cast(Preset | None, drop_down.get_selected_item())
+        if preset is None:
+            return
+        key = cast(str, preset.preset_key)
+        _write_active_preset(key, self._monitors)
+        if self._on_preset_selected:
+            self._on_preset_selected(key, self._monitors)
+
+    def _position_of(self, preset_key: str) -> int:
+        for pos, preset in enumerate(self._model):
+            _key: str = cast(str, preset.preset_key)
+            if _key == preset_key:
+                return pos
+        return Gtk.INVALID_LIST_POSITION
