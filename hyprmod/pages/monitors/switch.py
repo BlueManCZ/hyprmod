@@ -1,32 +1,9 @@
-import json
 from typing import Callable, cast, final
 
 from gi.repository import Gio, GObject, Gtk
-from hyprland_config import atomic_write
 from hyprland_monitors.monitors import MonitorState
 
-from hyprmod.core.config import HYPRMOD_DIR
-
-_ACTIVE_PRESET_FILE = HYPRMOD_DIR / "active_projection_preset"
-_DEFAULT_PRESET_KEY = "mirror"
-
-
-def _read_active_preset() -> dict[str, object]:
-    """Return the saved active preset, or ``{}`` if missing or unreadable."""
-    try:
-        data: object = json.loads(_ACTIVE_PRESET_FILE.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return cast(dict[str, object], data) if isinstance(data, dict) else {}
-
-
-def _write_active_preset(key: str, monitors: list[MonitorState]) -> None:
-    """Persist *key* with each monitor's position so the layout can be restored."""
-    data: dict[str, object] = {"key": key}
-    for mon in monitors:
-        data[mon.name] = {"position": [mon.x, mon.y]}
-    _ACTIVE_PRESET_FILE.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(_ACTIVE_PRESET_FILE, json.dumps(data, indent=2) + "\n")
+from hyprmod.pages.monitors.presets import NO_PRESET
 
 
 @final
@@ -57,7 +34,8 @@ class MonitorSwitch(Gtk.Box):
     def __init__(
         self,
         monitors: list[MonitorState],
-        on_preset_selected: Callable[[str, list[MonitorState]], None] | None = None,
+        active_key: str,
+        on_preset_selected: Callable[[str], None],
     ):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._monitors: list[MonitorState] = monitors
@@ -65,20 +43,19 @@ class MonitorSwitch(Gtk.Box):
         self._model = Gio.ListStore(item_type=Preset)
         self._build_presets()
 
-        drop_down = Gtk.DropDown(model=self._model)
+        self._drop_down = drop_down = Gtk.DropDown(model=self._model)
         _factory = Gtk.SignalListItemFactory()
         _ = _factory.connect("setup", self._setup_item)
         _ = _factory.connect("bind", self._bind_item)
         drop_down.set_factory(_factory)
 
-        _saved = _read_active_preset().get("key")
-        _saved_key = _saved if isinstance(_saved, str) else _DEFAULT_PRESET_KEY
-        _active_pos = self._position_of(_saved_key)
+        _active_pos = self._position_of(active_key)
         if _active_pos == Gtk.INVALID_LIST_POSITION:
-            _active_pos = self._position_of(_DEFAULT_PRESET_KEY)
+            # e.g. "only:<name>" for a monitor that is no longer connected
+            _active_pos = self._position_of(NO_PRESET)
         drop_down.set_selected(_active_pos)
-        # Connect after restoring the selection so it isn't written back as a user change.
-        _ = drop_down.connect("notify::selected", self._on_selected)
+        # Connect after restoring the selection so it isn't reported as a user change.
+        self._selected_handler = drop_down.connect("notify::selected", self._on_selected)
 
         label = Gtk.Label(label="Projection Presets", xalign=0)
         label.add_css_class("heading")
@@ -119,8 +96,9 @@ class MonitorSwitch(Gtk.Box):
         if len(self._monitors) <= 1:
             self._model.append(Preset("single", "Single Monitor", "Only one monitor is connected."))
 
+        self._model.append(Preset(NO_PRESET, "-", "No preset selected."))
         self._model.append(Preset("extend", "Extend", "Extend the display across all monitors."))
-        self._model.append(Preset("mirror", "Mirror", "Mirror the display across all monitors."))
+        # self._model.append(Preset("mirror", "Mirror", "Mirror the display across all monitors."))
 
         for monitor in self._monitors:
             preset_name = f"{monitor.make} {monitor.model}"
@@ -131,10 +109,18 @@ class MonitorSwitch(Gtk.Box):
         preset = cast(Preset | None, drop_down.get_selected_item())
         if preset is None:
             return
-        key = cast(str, preset.preset_key)
-        _write_active_preset(key, self._monitors)
-        if self._on_preset_selected:
-            self._on_preset_selected(key, self._monitors)
+        self._on_preset_selected(cast(str, preset.preset_key))
+
+    def set_active(self, key: str) -> None:
+        """Select *key* without reporting it as a user choice."""
+        pos = self._position_of(key)
+        if pos == Gtk.INVALID_LIST_POSITION:
+            return
+        self._drop_down.handler_block(self._selected_handler)
+        try:
+            self._drop_down.set_selected(pos)
+        finally:
+            self._drop_down.handler_unblock(self._selected_handler)
 
     def _position_of(self, preset_key: str) -> int:
         for pos, preset in enumerate(self._model):

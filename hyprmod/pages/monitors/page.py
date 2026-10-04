@@ -2,7 +2,6 @@
 
 import copy
 from collections.abc import Iterator
-from typing import Any
 
 from gi.repository import Adw, Gtk
 from hyprland_monitors import get_monitor_capabilities
@@ -28,6 +27,7 @@ from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
+from hyprmod.pages.monitors.presets import NO_PRESET, Layout, PresetStore, default_layout
 from hyprmod.pages.monitors.switch import MonitorSwitch
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
@@ -97,6 +97,11 @@ class MonitorsPage(SectionPage):
         self._ownership = OwnershipSet()
         self._last_dragged_idx = -1
         self._drag_undo_state = None
+        self._presets = PresetStore.load()
+        self._active_preset = self._presets.active
+        # Preset in effect when the monitor layout was last confirmed; restored on revert.
+        self._confirmed_preset = self._active_preset
+        self._switch: MonitorSwitch | None = None
 
         self._reload_monitors(saved_sections=saved_sections)
         self._save_snapshot()
@@ -288,6 +293,7 @@ class MonitorsPage(SectionPage):
         self._preview = None
         self._drag_hint = None
         self._gap_banner = None
+        self._switch = None
 
         if not self._monitors:
             self._content_box.append(
@@ -332,8 +338,8 @@ class MonitorsPage(SectionPage):
             self._update_gap_warning()
 
         # Preset dropdown
-        dropdown_switch = MonitorSwitch(self._monitors, self._apply_preset)
-        self._content_box.append(dropdown_switch)
+        self._switch = MonitorSwitch(self._monitors, self._active_preset, self._on_preset_selected)
+        self._content_box.append(self._switch)
 
         self._cards = []
         for idx, mon in enumerate(self._monitors):
@@ -371,6 +377,10 @@ class MonitorsPage(SectionPage):
         # as True and defers the write until the user keeps or reverts.
         if self._confirm:
             self._confirm.maybe_confirm()
+            # A change that matches the saved config never shows the banner, so it
+            # never reaches _on_confirmed; it needs no confirmation to be stored.
+            if not self._confirm.is_pending:
+                self._remember_active_preset()
         self._notify_dirty()
         self._update_gap_warning()
         self._update_preview_draggable()
@@ -433,6 +443,7 @@ class MonitorsPage(SectionPage):
                 mon.mode = None
             if "x" in new_vals or "y" in new_vals:
                 mon.position = None
+                self._pin_auto_positions(mon)
 
         # Calculate side-effects (neighbor offsets / breaking mirror lines)
         if not is_being_enabled and "disabled" not in new_vals and "mirror_of" not in new_vals:
@@ -454,6 +465,23 @@ class MonitorsPage(SectionPage):
             if not has_active_neighbor:
                 mon.position = "auto"
 
+    def _pin_auto_positions(self, moved: MonitorState) -> None:
+        """Freeze other monitors' "auto" placement at their current coordinates.
+        Resolves the ambiguity of "auto" when a monitor is moved, so that restoring a preset
+        puts the monitor back exactly where it was.
+        """
+        for other in self._monitors:
+            if other is moved:
+                continue
+            # A monitor we don't manage is also auto-placed: with no config line,
+            # Hyprland falls back to its default rule, which re-places it on reload.
+            if other.position != "auto" and self._ownership.is_owned(other.name):
+                continue
+            if other.disabled or other.mirror_of:
+                continue
+            other.position = None
+            self._ownership.own(other.name)
+
     def _apply_change_for_card(self, mon: MonitorState, new_vals: dict) -> None:
         if self._applying:
             return
@@ -469,8 +497,36 @@ class MonitorsPage(SectionPage):
             self._mutate_monitor_state(mon, new_vals)
             self._commit_to_hyprland()
 
-    def _apply_preset(self, new_vals: dict[str, dict[str, Any]]) -> None:
-        """Handles a projection preset change."""
+    def _on_preset_selected(self, key: str) -> None:
+        if self._applying:
+            return
+        # Remember the outgoing preset's layout so switching back restores it.
+        self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
+        self._active_preset = self._presets.active = key
+        self._presets.save()
+
+        if key == NO_PRESET:
+            # Leave the current layout as it is; nothing applied, nothing to confirm.
+            self._confirmed_preset = key
+            return
+
+        saved = self._presets.layouts.get(key)
+        if saved is not None:
+            self._apply_preset(
+                {
+                    name: {k: v for k, v in fields.items() if k in self._RESTORABLE_FIELDS}
+                    for name, fields in saved.items()
+                },
+                restore=True,
+            )
+        else:
+            self._apply_preset(default_layout(key, self._monitors))
+        # No confirm countdown means nothing changed or the result matches disk.
+        if not self.is_confirm_pending():
+            self._confirmed_preset = key
+
+    def _apply_preset(self, new_vals: Layout, restore: bool = False) -> None:
+        """Apply a preset layout"""
         if self._applying:
             return
 
@@ -484,11 +540,17 @@ class MonitorsPage(SectionPage):
         if not changes:
             return
 
-        # This is needed to ensure that disabled monitors are applied last, so that they don't override the enabled monitors
+        # This is needed to ensure that disabled monitors are applied last,
+        # so that they don't override the enabled monitors
         changes.sort(key=lambda c: bool(c[1].get("disabled")))
         with self._undo_track():
             for mon, val in changes:
-                self._mutate_monitor_state(mon, val)
+                if restore:
+                    self._ownership.own(mon.name)
+                    for k, v in val.items():
+                        setattr(mon, k, v)
+                else:
+                    self._mutate_monitor_state(mon, val)
             self._commit_to_hyprland()
 
     def _commit_to_hyprland(self):
@@ -646,6 +708,7 @@ class MonitorsPage(SectionPage):
             # Clear positional keywords (like "auto") so that
             # Hyprland respects the explicit numeric x,y coordinates from the drag.
             mon.position = None
+            self._pin_auto_positions(mon)
             self._commit_to_hyprland()
 
         if self._drag_undo_state is not None:
@@ -699,12 +762,19 @@ class MonitorsPage(SectionPage):
 
     def _on_confirmed(self):
         self._save_confirmed_snapshot()
+        self._remember_active_preset()
         # Update UI state without re-triggering the confirm flow —
         # the page is still dirty (unsaved to disk) but the IPC change
         # has been accepted, so the banner should stay hidden.
         self._update_card_states()
         self._notify_dirty()
         self._update_gap_warning()
+
+    def _remember_active_preset(self):
+        """Store the current layout under the active preset once it has been accepted."""
+        self._confirmed_preset = self._active_preset
+        self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
+        self._presets.save()
 
     def _revert_monitors(self):
         if not self._confirmed_monitors:
@@ -718,6 +788,11 @@ class MonitorsPage(SectionPage):
             return
         self._monitors = copy.deepcopy(self._confirmed_monitors)
         self._snap_scales()
+        if self._active_preset != self._confirmed_preset:
+            self._active_preset = self._presets.active = self._confirmed_preset
+            self._presets.save()
+            if self._switch is not None:
+                self._switch.set_active(self._active_preset)
         # Update in place — a full rebuild would collapse the Advanced expander.
         try:
             self._push_to_ui()
@@ -838,6 +913,9 @@ class MonitorsPage(SectionPage):
         self._ownership.mark_saved()
         self._save_snapshot()
         self._save_confirmed_snapshot()
+        # Saving cancels the confirm banner without calling _on_confirmed, but
+        # writing the config is itself a confirmation.
+        self._remember_active_preset()
         if self._confirm:
             self._confirm.cancel()
         if self._content_box is not None:
