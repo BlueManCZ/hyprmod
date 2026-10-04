@@ -28,7 +28,7 @@ from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
 from hyprmod.pages.monitors.presets import NO_PRESET, Layout, PresetStore, default_layout
-from hyprmod.pages.monitors.switch import MonitorSwitch
+from hyprmod.pages.monitors.projection_switch import ProjectionPresetSwitch
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
@@ -101,7 +101,7 @@ class MonitorsPage(SectionPage):
         self._active_preset = self._presets.active
         # Preset in effect when the monitor layout was last confirmed; restored on revert.
         self._confirmed_preset = self._active_preset
-        self._switch: MonitorSwitch | None = None
+        self._switch: ProjectionPresetSwitch | None = None
 
         self._reload_monitors(saved_sections=saved_sections)
         self._save_snapshot()
@@ -338,7 +338,11 @@ class MonitorsPage(SectionPage):
             self._update_gap_warning()
 
         # Preset dropdown
-        self._switch = MonitorSwitch(self._monitors, self._active_preset, self._on_preset_selected)
+        self._switch = ProjectionPresetSwitch(
+            self._monitors,
+            self._active_preset,
+            self._on_preset_selected
+        )
         self._content_box.append(self._switch)
 
         self._cards = []

@@ -30,7 +30,7 @@ class Preset(GObject.Object):
 
 
 @final
-class MonitorSwitch(Gtk.Box):
+class ProjectionPresetSwitch(Gtk.Box):
     def __init__(
         self,
         monitors: list[MonitorState],
