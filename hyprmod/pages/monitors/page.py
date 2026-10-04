@@ -99,6 +99,7 @@ class MonitorsPage(SectionPage):
         self._drag_undo_state = None
         self._presets = PresetStore.load()
         self._active_preset = self._presets.active
+
         # Preset in effect when the monitor layout was last confirmed; restored on revert.
         self._confirmed_preset = self._active_preset
         self._switch: ProjectionPresetSwitch | None = None
@@ -381,8 +382,14 @@ class MonitorsPage(SectionPage):
         # as True and defers the write until the user keeps or reverts.
         if self._confirm:
             self._confirm.maybe_confirm()
-            # A change that matches the saved config never shows the banner, so it
-            # never reaches _on_confirmed; it needs no confirmation to be stored.
+            # Ensures that the persistent preset memory is getting updated even if
+            # no changes are made to the config file.
+            # For example:
+            # 1. Extend is active and the config on disk has DP-2 at -1920x0.
+            # 2. You drag DP-2 to 2560x0 and press Keep. The store now has 2560x0.
+            # 3. You drag DP-2 back to -1920x0.
+            #    That matches the config on disk, so no banner appears.
+            # 4. The store still says 2560x0.
             if not self._confirm.is_pending:
                 self._remember_active_preset()
         self._notify_dirty()
@@ -510,7 +517,7 @@ class MonitorsPage(SectionPage):
         self._presets.save()
 
         if key == NO_PRESET:
-            # Leave the current layout as it is; nothing applied, nothing to confirm.
+            # Leave the current layout as is
             self._confirmed_preset = key
             return
 
@@ -530,7 +537,10 @@ class MonitorsPage(SectionPage):
             self._confirmed_preset = key
 
     def _apply_preset(self, new_vals: Layout, restore: bool = False) -> None:
-        """Apply a preset layout"""
+        """Apply a preset layout.
+        restore=False: Use the default values of a preset.
+        restore=True: Use an already saved layout.
+        """
         if self._applying:
             return
 
@@ -917,8 +927,6 @@ class MonitorsPage(SectionPage):
         self._ownership.mark_saved()
         self._save_snapshot()
         self._save_confirmed_snapshot()
-        # Saving cancels the confirm banner without calling _on_confirmed, but
-        # writing the config is itself a confirmation.
         self._remember_active_preset()
         if self._confirm:
             self._confirm.cancel()
