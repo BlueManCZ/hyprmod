@@ -2,6 +2,7 @@
 
 import copy
 from collections.abc import Iterator
+from typing import Any
 
 from gi.repository import Adw, Gtk
 from hyprland_monitors import get_monitor_capabilities
@@ -292,7 +293,7 @@ class MonitorsPage(SectionPage):
             self._content_box.append(
                 EmptyState(
                     title="No Monitors Detected",
-                    description="Could not read monitor information from Hyprland.",
+                    description="Could not read monitor information Hyprland.",
                     icon_name="computer-symbolic",
                 )
             )
@@ -331,7 +332,7 @@ class MonitorsPage(SectionPage):
             self._update_gap_warning()
 
         # Preset dropdown
-        dropdown_switch = MonitorSwitch(self._monitors)
+        dropdown_switch = MonitorSwitch(self._monitors, self._apply_preset)
         self._content_box.append(dropdown_switch)
 
         self._cards = []
@@ -345,7 +346,7 @@ class MonitorsPage(SectionPage):
             card = MonitorCard(
                 mon,
                 index=idx + 1,
-                on_changed=self._apply_change,
+                on_changed=self._apply_change_for_card,
                 on_discard=self._discard_monitor,
                 on_remove=self._remove_monitor,
                 caps=caps,  # type: ignore[arg-type]  # MonitorCapabilities is a TypedDict
@@ -413,80 +414,66 @@ class MonitorsPage(SectionPage):
 
     # -- Applying changes --
 
-    def _apply_change(self, mon: MonitorState, new_vals: dict):
+    def _mutate_monitor_state(self, mon: MonitorState, new_vals: dict) -> None:
         """Handle a widget change: update Monitor, adjust neighbors, commit."""
+        self._ownership.own(mon.name)
+
+        old_w, old_h = mon.effective_size
+        # Detect if the display is transitioning from disabled to enabled
+        is_being_enabled = mon.disabled and not new_vals.get("disabled", mon.disabled)
+
+        for k, v in new_vals.items():
+            setattr(mon, k, v)
+        if is_being_enabled and mon.width == 0 and mon.height == 0:
+            mon.mode = "preferred"
+
+        # Clear special keywords if explicit resolution/positioning changes are targeted
+        if not is_being_enabled:
+            if "width" in new_vals or "height" in new_vals or "refresh_rate" in new_vals:
+                mon.mode = None
+            if "x" in new_vals or "y" in new_vals:
+                mon.position = None
+
+        # Calculate side-effects (neighbor offsets / breaking mirror lines)
+        if not is_being_enabled and "disabled" not in new_vals and "mirror_of" not in new_vals:
+            adjust_neighbors(self._monitors, mon, old_w, old_h)
+
+        # Disabling a monitor clears any monitors mirroring it
+        if new_vals.get("disabled"):
+            for other in self._monitors:
+                if other.mirror_of == mon.name:
+                    other.mirror_of = None
+                    self._ownership.own(other.name)
+
+        if is_being_enabled:
+            has_active_neighbor = any(
+                is_adjacent(mon, other)
+                for other in self._monitors
+                if other.name != mon.name and not other.disabled
+            )
+            if not has_active_neighbor:
+                mon.position = "auto"
+
+    def _apply_change_for_card(self, mon: MonitorState, new_vals: dict) -> None:
         if self._applying:
             return
         if all(getattr(mon, k) == v for k, v in new_vals.items()):
             return
 
-        # Validate mirror target before applying
         if "mirror_of" in new_vals:
             error = validate_mirror(self._monitors, mon, new_vals["mirror_of"])
             if error:
                 self._window.show_toast(error, timeout=3, copy=True)
                 return
-
         with self._undo_track():
-            self._ownership.own(mon.name)
-            self._applying = True
-            try:
-                old_w, old_h = mon.effective_size
+            self._mutate_monitor_state(mon, new_vals)
+            self._commit_to_hyprland()
 
-                # Detect if the display is transitioning from disabled to enabled
-                is_being_enabled = mon.disabled and not new_vals.get("disabled", mon.disabled)
-
-                for k, v in new_vals.items():
-                    setattr(mon, k, v)
-                if is_being_enabled and mon.width == 0 and mon.height == 0:
-                    mon.mode = "preferred"
-
-                # Clear special keywords if explicit resolution/positioning changes are targeted
-                if not is_being_enabled:
-                    if "width" in new_vals or "height" in new_vals or "refresh_rate" in new_vals:
-                        mon.mode = None
-                    if "x" in new_vals or "y" in new_vals:
-                        mon.position = None
-
-                # Calculate side-effects (neighbor offsets / breaking mirror lines)
-                if (
-                    not is_being_enabled
-                    and "disabled" not in new_vals
-                    and "mirror_of" not in new_vals
-                ):
-                    adjust_neighbors(self._monitors, mon, old_w, old_h)
-
-                # Disabling a monitor clears any monitors mirroring it
-                if new_vals.get("disabled"):
-                    for other in self._monitors:
-                        if other.mirror_of == mon.name:
-                            other.mirror_of = None
-                            self._ownership.own(other.name)
-
-                if is_being_enabled:
-                    has_active_neighbor = any(
-                        is_adjacent(mon, other)
-                        for other in self._monitors
-                        if other.name != mon.name and not other.disabled
-                    )
-                    if not has_active_neighbor:
-                        mon.position = "auto"
-
-                success = try_with_toast(
-                    self._window.show_bug_toast,
-                    "Monitor config failed",
-                    lambda: self._window.hypr.monitors.apply(self._monitors),
-                    catch=HyprlandError,
-                )
-                if not success:
-                    return
-
-                # Push safe UI state
-                self._push_to_ui()
-            finally:
-                self._applying = False
-        self._on_monitors_changed()
-        self._schedule_resync()
+    def _apply_preset(self, new_vals: dict[str, dict[str, Any]]) -> None:
+        """Handles a projection preset change."""
+        # 1. Should call _apply_change for each monitor in new_vals
+        # 2. Should apply the chages to the monitors and commit to Hyprland
+        pass
 
     def _commit_to_hyprland(self):
         """Send all monitors to Hyprland, push to UI."""
