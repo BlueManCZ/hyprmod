@@ -471,9 +471,25 @@ class MonitorsPage(SectionPage):
 
     def _apply_preset(self, new_vals: dict[str, dict[str, Any]]) -> None:
         """Handles a projection preset change."""
-        # 1. Should call _apply_change for each monitor in new_vals
-        # 2. Should apply the chages to the monitors and commit to Hyprland
-        pass
+        if self._applying:
+            return
+
+        by_name = {m.name: m for m in self._monitors}
+        changes = []
+        for name, val in new_vals.items():
+            mon = by_name.get(name)
+            if mon is not None and not all(getattr(mon, k) == v for k, v in val.items()):
+                changes.append((mon, val))
+
+        if not changes:
+            return
+
+        # This is needed to ensure that disabled monitors are applied last, so that they don't override the enabled monitors
+        changes.sort(key=lambda c: bool(c[1].get("disabled")))
+        with self._undo_track():
+            for mon, val in changes:
+                self._mutate_monitor_state(mon, val)
+            self._commit_to_hyprland()
 
     def _commit_to_hyprland(self):
         """Send all monitors to Hyprland, push to UI."""
