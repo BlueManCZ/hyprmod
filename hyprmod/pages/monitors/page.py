@@ -27,7 +27,13 @@ from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
-from hyprmod.pages.monitors.presets import NO_PRESET, Layout, PresetStore, default_layout
+from hyprmod.pages.monitors.presets import (
+    NO_PRESET,
+    Layout,
+    PresetStore,
+    default_layout,
+    matches_preset,
+)
 from hyprmod.pages.monitors.projection_switch import ProjectionPresetSwitch
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
@@ -342,9 +348,7 @@ class MonitorsPage(SectionPage):
 
         # Preset dropdown
         self._switch = ProjectionPresetSwitch(
-            self._monitors,
-            self._active_preset,
-            self._on_preset_selected
+            self._monitors, self._active_preset, self._on_preset_selected
         )
         self._content_box.append(self._switch)
 
@@ -798,6 +802,12 @@ class MonitorsPage(SectionPage):
 
     def _remember_active_preset(self):
         """Store the current layout under the active preset once it has been accepted."""
+        if not matches_preset(self._active_preset, self._monitors):
+            # e.g. DP-1 turned back on under "only:DP-2": the layout is no longer that
+            # preset, so drop to "none" and keep the preset's last valid slot intact.
+            self._active_preset = self._presets.active = NO_PRESET
+            if self._switch is not None:
+                self._switch.set_active(NO_PRESET)
         self._confirmed_preset = self._active_preset
         self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
         self._presets.save()

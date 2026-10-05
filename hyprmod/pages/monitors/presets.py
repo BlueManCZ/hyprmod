@@ -143,6 +143,23 @@ def _mirror(monitors: list[MonitorState]) -> Layout:
     # }
 
 
+def matches_preset(key: str, monitors: list[MonitorState]) -> bool:
+    """Check whether a preset is `valid` by rules. Used to revert to `none` preset
+    if the user modifies a setting that breaks the rules.
+    Only the rules that define a preset are checked (which monitors are on or
+    mirroring); positions, modes and scale are free to change.
+    """
+    action, _, arg = key.partition(":")
+    if action == "only":
+        return all(m.disabled == (m.name != arg) for m in monitors)
+    if action == "extend":
+        return all(not m.disabled and not m.mirror_of for m in monitors)
+    if action == "mirror":
+        sources = [m for m in monitors if not m.mirror_of]
+        return len(sources) == 1 and all(not m.disabled for m in monitors)
+    return True
+
+
 def default_layout(key: str, monitors: list[MonitorState]) -> Layout:
     """Layout to apply for a preset that has never been used before."""
     action, _, arg = key.partition(":")
