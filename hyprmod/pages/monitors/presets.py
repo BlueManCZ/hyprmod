@@ -1,11 +1,13 @@
 """Projection preset store and default layouts."""
 
+import copy
 import json
+import re
 from collections.abc import Iterable
 from typing import Any, cast
 
 from hyprland_config import atomic_write
-from hyprland_monitors.monitors import MonitorState
+from hyprland_monitors.monitors import MonitorState, parse_mode
 
 from hyprmod.core.config import HYPRMOD_DIR
 
@@ -85,9 +87,6 @@ class PresetStore:
         layout: Layout = {}
         for m in monitors:
             snapshot = {f: getattr(m, f) for f in fields}
-            # The IPC resync has already written the coordinates Hyprland picked for
-            # "auto" into x/y. Store those instead of the keyword so restoring this
-            # layout puts the monitor back exactly where it was.
             if snapshot.get("position") == "auto" and not m.disabled and not m.mirror_of:
                 snapshot["position"] = None
             layout[m.name] = snapshot
@@ -101,17 +100,31 @@ def _only(selected: str, monitors: list[MonitorState]) -> Layout:
     return {m.name: {"disabled": m.name != selected} for m in monitors}
 
 
+def _display_number(name: str) -> list[str | int]:
+    # Sort key that compares the numbers in a name as numbers, so "DP-2" sorts
+    # before "DP-10".
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", name)]
+
+
 def _extend(monitors: list[MonitorState]) -> Layout:
-    saved = PresetStore.load().layouts.get("extend", {})
+    """Turn every monitor on and place them side by side, left to right by name."""
     layout: Layout = {}
-    for m in monitors:
-        layout[m.name] = {"disabled": False, "mirror_of": None}
-        stored = saved.get(m.name, {})
-        if "x" in stored and "y" in stored and stored.get("position") != "auto":
-            # The user positioned this monitor manually while extending.
-            layout[m.name].update(x=stored["x"], y=stored["y"])
-        else:
-            layout[m.name]["position"] = "auto"
+    x = 0
+    for m in sorted(monitors, key=lambda m: _display_number(m.name)):
+        fields: dict[str, Any] = {
+            "disabled": False,
+            "mirror_of": None,
+            "position": None,
+            "x": x,
+            "y": 0,
+        }
+        placed = m
+        if m.width == 0 and m.height == 0 and m.available_modes:
+            # Never enabled, so there's no current mode to keep: use the monitor's preferred one.
+            fields.update(parse_mode(m.available_modes[0]), mode=None)
+            placed = copy.replace(m, width=fields["width"], height=fields["height"])
+        layout[m.name] = fields
+        x += placed.effective_size[0]
     return layout
 
 
