@@ -103,6 +103,8 @@ class MonitorsPage(SectionPage):
         # Preset in effect when the monitor layout was last confirmed; restored on revert.
         self._confirmed_preset = self._active_preset
         self._switch: ProjectionPresetSwitch | None = None
+        # Monitors owned by _pin_auto_positions; exempt from auto-disown until saved.
+        self._pinned: set[str] = set()
 
         self._reload_monitors(saved_sections=saved_sections)
         self._save_snapshot()
@@ -426,8 +428,14 @@ class MonitorsPage(SectionPage):
             is_managed = self._ownership.is_owned(mon.name)
             is_saved = self._ownership.is_saved(mon.name)
             baseline = saved_by_name.get(mon.name)
-            # Auto-disown if all fields match baseline (change fully reverted)
-            if is_managed and not is_saved and baseline is not None:
+            # Auto-disown if all fields match baseline (change fully reverted).
+            # Pinned monitors match their baseline by design but must stay managed.
+            if (
+                is_managed
+                and not is_saved
+                and baseline is not None
+                and mon.name not in self._pinned
+            ):
                 if lines_from_monitors([mon]) == lines_from_monitors([baseline]):
                     self._ownership.disown(mon.name)
                     is_managed = False
@@ -492,6 +500,7 @@ class MonitorsPage(SectionPage):
                 continue
             other.position = None
             self._ownership.own(other.name)
+            self._pinned.add(other.name)
 
     def _apply_change_for_card(self, mon: MonitorState, new_vals: dict) -> None:
         if self._applying:
@@ -531,7 +540,10 @@ class MonitorsPage(SectionPage):
                 restore=True,
             )
         else:
-            self._apply_preset(default_layout(key, self._monitors))
+            # Use restore=True for the extend preset to avoid hyprland `auto` positioning
+            # when a neighbour monitor is an island
+            _restore = key == "extend"
+            self._apply_preset(default_layout(key, self._monitors), restore=_restore)
         # No confirm countdown means nothing changed or the result matches disk.
         if not self.is_confirm_pending():
             self._confirmed_preset = key
@@ -925,6 +937,7 @@ class MonitorsPage(SectionPage):
 
     def mark_saved(self):
         self._ownership.mark_saved()
+        self._pinned.clear()
         self._save_snapshot()
         self._save_confirmed_snapshot()
         self._remember_active_preset()
@@ -937,6 +950,7 @@ class MonitorsPage(SectionPage):
         if not self._saved_monitors or not self.is_dirty():
             return
         self._ownership.discard_all()
+        self._pinned.clear()
         self._applying = True
         try:
             self._window.hypr.monitors.apply(self._saved_monitors)
