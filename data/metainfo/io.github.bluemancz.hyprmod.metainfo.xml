@@ -70,6 +70,21 @@
   </keywords>
 
   <releases>
+    <release version="0.5.0" date="2026-10-07">
+      <description>
+        <p>Plugins page, multi-action window rules, and a round of keybind and Lua fixes:</p>
+        <ul>
+          <li>Plugins page for configuring Hyprland plugins, starting with Hypr Dynamic Cursors</li>
+          <li>Window rules can carry several actions, and all of them now apply and save in Lua mode</li>
+          <li>The Run command keybind action can pick from installed apps</li>
+          <li>Recording media keys, AltGr keys, or keys on a secondary layout produces binds Hyprland accepts</li>
+          <li>Described Lua keybinds show their real action, and binds HyprMod cannot edit safely are read-only</li>
+          <li>The Norwegian keyboard layout saves and applies correctly in Lua mode</li>
+          <li>A Lua config that prints no longer breaks startup, and an unreadable one shows what went wrong</li>
+          <li>Rotated monitors can be set back to Normal in Lua mode</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-07-01">
       <description>
         <p>New input options, command-line profiles, and Lua migration fixes:</p>
