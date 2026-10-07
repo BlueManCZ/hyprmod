@@ -99,7 +99,7 @@ in
 
 python3Packages.buildPythonApplication {
   pname = "hyprmod";
-  version = "0.4.0";
+  version = "0.5.0";
   pyproject = true;
 
   # src is passed by the caller so the flake can supply `self` (the repo root)
