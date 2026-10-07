@@ -15,7 +15,7 @@
 # Inline derivations for the five Python deps that are not yet in nixpkgs.
 # Track https://github.com/NixOS/nixpkgs/pull/505419 — once merged, these
 # can be removed and the dependencies replaced with the upstream nixpkgs attrs.
-# Last updated for hyprmod v0.4.0.
+# Last updated for hyprmod v0.5.0.
 
 let
   hyprland-socket = python3Packages.buildPythonPackage rec {
@@ -33,21 +33,6 @@ let
     meta.description = "Typed Python library for Hyprland IPC via Unix sockets";
   };
 
-  hyprland-config = python3Packages.buildPythonPackage rec {
-    pname = "hyprland-config";
-    version = "0.9.18";
-    pyproject = true;
-    src = fetchFromGitHub {
-      owner = "BlueManCZ";
-      repo = "hyprland-config";
-      tag = "v${version}";
-      hash = "sha256-SL7ZZWraRpkDNR9jE4DZx6arFRdRnjZKYfFHdZrEeZQ=";
-    };
-    build-system = [ python3Packages.hatchling ];
-    doCheck = false;
-    meta.description = "Round-trip parser and editor for Hyprland configuration files";
-  };
-
   hyprland-schema = python3Packages.buildPythonPackage rec {
     pname = "hyprland-schema";
     version = "0.7.1";
@@ -61,6 +46,22 @@ let
     build-system = [ python3Packages.hatchling ];
     doCheck = false;
     meta.description = "Typed Python schema for every Hyprland configuration option";
+  };
+
+  hyprland-config = python3Packages.buildPythonPackage rec {
+    pname = "hyprland-config";
+    version = "0.9.19";
+    pyproject = true;
+    src = fetchFromGitHub {
+      owner = "BlueManCZ";
+      repo = "hyprland-config";
+      tag = "v${version}";
+      hash = "sha256-7V74a3IYiB8xwVKpzCUYuYTBd3eIihWuEfA95LRm47c=";
+    };
+    build-system = [ python3Packages.hatchling ];
+    dependencies = [ hyprland-schema ];
+    doCheck = false;
+    meta.description = "Round-trip parser and editor for Hyprland configuration files";
   };
 
   hyprland-monitors = python3Packages.buildPythonPackage rec {

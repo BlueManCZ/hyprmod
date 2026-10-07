@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A Norwegian keyboard layout is saved and applied correctly in Lua mode. Its xkb code is `no`, which is also one of Hyprland's boolean words, so HyprMod wrote `kb_layout = false` and the compositor rejected it with "string type requires a string". Every string-typed setting whose value starts with `no`, `on` or `off` was affected, and an already-correct layout was rewritten on the next save of any unrelated setting. Requires hyprland-config 0.9.19 (#96)
 - Opaque Lua callbacks, custom dispatchers, and parsed bind variants the editor cannot safely represent are now read-only. Editing one previously selected the first available action and could save an empty `exec` command, silently breaking the shortcut (#88)
 - A described keybind from a Lua config shows its real action again. Omarchy's `SUPER + B` read as `Browser`, the description Hyprland reports ahead of the dispatcher, so HyprMod had no command to show or edit. Requires hyprland-config 0.9.18 (#88)
 - A Lua config that prints something no longer stops HyprMod from starting. The reader took the config's stdout output as part of its own data and failed to parse it, so the first launch showed nothing and every launch after that showed an empty window. A config HyprMod genuinely cannot read now gets a window saying what the parser rejected, with a retry, instead of a traceback in the terminal. Requires hyprland-config 0.9.17 (#87)
