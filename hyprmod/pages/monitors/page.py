@@ -27,6 +27,14 @@ from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import MonitorsUndoEntry
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
+from hyprmod.pages.monitors.presets import (
+    NO_PRESET,
+    Layout,
+    PresetStore,
+    default_layout,
+    matches_preset,
+)
+from hyprmod.pages.monitors.projection_switch import ProjectionPresetSwitch
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
@@ -95,6 +103,14 @@ class MonitorsPage(SectionPage):
         self._ownership = OwnershipSet()
         self._last_dragged_idx = -1
         self._drag_undo_state = None
+        self._presets = PresetStore.load()
+        self._active_preset = self._presets.active
+
+        # Preset in effect when the monitor layout was last confirmed; restored on revert.
+        self._confirmed_preset = self._active_preset
+        self._switch: ProjectionPresetSwitch | None = None
+        # Monitors owned by _pin_auto_positions; exempt from auto-disown until saved.
+        self._pinned: set[str] = set()
 
         self._reload_monitors(saved_sections=saved_sections)
         self._save_snapshot()
@@ -286,12 +302,13 @@ class MonitorsPage(SectionPage):
         self._preview = None
         self._drag_hint = None
         self._gap_banner = None
+        self._switch = None
 
         if not self._monitors:
             self._content_box.append(
                 EmptyState(
                     title="No Monitors Detected",
-                    description="Could not read monitor information from Hyprland.",
+                    description="Could not read monitor information Hyprland.",
                     icon_name="computer-symbolic",
                 )
             )
@@ -329,6 +346,12 @@ class MonitorsPage(SectionPage):
             self._content_box.append(gap_frame)
             self._update_gap_warning()
 
+        # Preset dropdown
+        self._switch = ProjectionPresetSwitch(
+            self._monitors, self._active_preset, self._on_preset_selected
+        )
+        self._content_box.append(self._switch)
+
         self._cards = []
         for idx, mon in enumerate(self._monitors):
             caps = get_monitor_capabilities(mon.name)
@@ -340,7 +363,7 @@ class MonitorsPage(SectionPage):
             card = MonitorCard(
                 mon,
                 index=idx + 1,
-                on_changed=self._apply_change,
+                on_changed=self._apply_change_for_card,
                 on_discard=self._discard_monitor,
                 on_remove=self._remove_monitor,
                 caps=caps,  # type: ignore[arg-type]  # MonitorCapabilities is a TypedDict
@@ -365,6 +388,16 @@ class MonitorsPage(SectionPage):
         # as True and defers the write until the user keeps or reverts.
         if self._confirm:
             self._confirm.maybe_confirm()
+            # Ensures that the persistent preset memory is getting updated even if
+            # no changes are made to the config file.
+            # For example:
+            # 1. Extend is active and the config on disk has DP-2 at -1920x0.
+            # 2. You drag DP-2 to 2560x0 and press Keep. The store now has 2560x0.
+            # 3. You drag DP-2 back to -1920x0.
+            #    That matches the config on disk, so no banner appears.
+            # 4. The store still says 2560x0.
+            if not self._confirm.is_pending:
+                self._remember_active_preset()
         self._notify_dirty()
         self._update_gap_warning()
         self._update_preview_draggable()
@@ -399,8 +432,14 @@ class MonitorsPage(SectionPage):
             is_managed = self._ownership.is_owned(mon.name)
             is_saved = self._ownership.is_saved(mon.name)
             baseline = saved_by_name.get(mon.name)
-            # Auto-disown if all fields match baseline (change fully reverted)
-            if is_managed and not is_saved and baseline is not None:
+            # Auto-disown if all fields match baseline (change fully reverted).
+            # Pinned monitors match their baseline by design but must stay managed.
+            if (
+                is_managed
+                and not is_saved
+                and baseline is not None
+                and mon.name not in self._pinned
+            ):
                 if lines_from_monitors([mon]) == lines_from_monitors([baseline]):
                     self._ownership.disown(mon.name)
                     is_managed = False
@@ -408,80 +447,141 @@ class MonitorsPage(SectionPage):
 
     # -- Applying changes --
 
-    def _apply_change(self, mon: MonitorState, new_vals: dict):
+    def _mutate_monitor_state(self, mon: MonitorState, new_vals: dict) -> None:
         """Handle a widget change: update Monitor, adjust neighbors, commit."""
+        self._ownership.own(mon.name)
+
+        old_w, old_h = mon.effective_size
+        # Detect if the display is transitioning from disabled to enabled
+        is_being_enabled = mon.disabled and not new_vals.get("disabled", mon.disabled)
+
+        for k, v in new_vals.items():
+            setattr(mon, k, v)
+        if is_being_enabled and mon.width == 0 and mon.height == 0:
+            mon.mode = "preferred"
+
+        # Clear special keywords if explicit resolution/positioning changes are targeted
+        if not is_being_enabled:
+            if "width" in new_vals or "height" in new_vals or "refresh_rate" in new_vals:
+                mon.mode = None
+            if "x" in new_vals or "y" in new_vals:
+                mon.position = None
+                self._pin_auto_positions(mon)
+
+        # Calculate side-effects (neighbor offsets / breaking mirror lines)
+        if not is_being_enabled and "disabled" not in new_vals and "mirror_of" not in new_vals:
+            adjust_neighbors(self._monitors, mon, old_w, old_h)
+
+        # Disabling a monitor clears any monitors mirroring it
+        if new_vals.get("disabled"):
+            for other in self._monitors:
+                if other.mirror_of == mon.name:
+                    other.mirror_of = None
+                    self._ownership.own(other.name)
+
+        if is_being_enabled:
+            has_active_neighbor = any(
+                is_adjacent(mon, other)
+                for other in self._monitors
+                if other.name != mon.name and not other.disabled
+            )
+            if not has_active_neighbor:
+                mon.position = "auto"
+
+    def _pin_auto_positions(self, moved: MonitorState) -> None:
+        """Freeze other monitors' "auto" placement at their current coordinates.
+        Resolves the ambiguity of "auto" when a monitor is moved, so that restoring a preset
+        puts the monitor back exactly where it was.
+        """
+        for other in self._monitors:
+            if other is moved:
+                continue
+            # A monitor we don't manage is also auto-placed: with no config line,
+            # Hyprland falls back to its default rule, which re-places it on reload.
+            if other.position != "auto" and self._ownership.is_owned(other.name):
+                continue
+            if other.disabled or other.mirror_of:
+                continue
+            other.position = None
+            self._ownership.own(other.name)
+            self._pinned.add(other.name)
+
+    def _apply_change_for_card(self, mon: MonitorState, new_vals: dict) -> None:
         if self._applying:
             return
         if all(getattr(mon, k) == v for k, v in new_vals.items()):
             return
 
-        # Validate mirror target before applying
         if "mirror_of" in new_vals:
             error = validate_mirror(self._monitors, mon, new_vals["mirror_of"])
             if error:
                 self._window.show_toast(error, timeout=3, copy=True)
                 return
-
         with self._undo_track():
-            self._ownership.own(mon.name)
-            self._applying = True
-            try:
-                old_w, old_h = mon.effective_size
+            self._mutate_monitor_state(mon, new_vals)
+            self._commit_to_hyprland()
 
-                # Detect if the display is transitioning from disabled to enabled
-                is_being_enabled = mon.disabled and not new_vals.get("disabled", mon.disabled)
+    def _on_preset_selected(self, key: str) -> None:
+        if self._applying:
+            return
+        # Remember the outgoing preset's layout so switching back restores it.
+        self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
+        self._active_preset = self._presets.active = key
+        self._presets.save()
 
-                for k, v in new_vals.items():
-                    setattr(mon, k, v)
-                if is_being_enabled and mon.width == 0 and mon.height == 0:
-                    mon.mode = "preferred"
+        if key == NO_PRESET:
+            # Leave the current layout as is
+            self._confirmed_preset = key
+            return
 
-                # Clear special keywords if explicit resolution/positioning changes are targeted
-                if not is_being_enabled:
-                    if "width" in new_vals or "height" in new_vals or "refresh_rate" in new_vals:
-                        mon.mode = None
-                    if "x" in new_vals or "y" in new_vals:
-                        mon.position = None
+        saved = self._presets.layouts.get(key)
+        if saved is not None:
+            self._apply_preset(
+                {
+                    name: {k: v for k, v in fields.items() if k in self._RESTORABLE_FIELDS}
+                    for name, fields in saved.items()
+                },
+                restore=True,
+            )
+        else:
+            # Use restore=True for the extend preset to avoid hyprland `auto` positioning
+            # when a neighbour monitor is an island
+            _restore = key == "extend"
+            self._apply_preset(default_layout(key, self._monitors), restore=_restore)
+        # No confirm countdown means nothing changed or the result matches disk.
+        if not self.is_confirm_pending():
+            self._confirmed_preset = key
 
-                # Calculate side-effects (neighbor offsets / breaking mirror lines)
-                if (
-                    not is_being_enabled
-                    and "disabled" not in new_vals
-                    and "mirror_of" not in new_vals
-                ):
-                    adjust_neighbors(self._monitors, mon, old_w, old_h)
+    def _apply_preset(self, new_vals: Layout, restore: bool = False) -> None:
+        """Apply a preset layout.
+        restore=False: Use the default values of a preset.
+        restore=True: Use an already saved layout.
+        """
+        if self._applying:
+            return
 
-                # Disabling a monitor clears any monitors mirroring it
-                if new_vals.get("disabled"):
-                    for other in self._monitors:
-                        if other.mirror_of == mon.name:
-                            other.mirror_of = None
-                            self._ownership.own(other.name)
+        by_name = {m.name: m for m in self._monitors}
+        changes = []
+        for name, val in new_vals.items():
+            mon = by_name.get(name)
+            if mon is not None and not all(getattr(mon, k) == v for k, v in val.items()):
+                changes.append((mon, val))
 
-                if is_being_enabled:
-                    has_active_neighbor = any(
-                        is_adjacent(mon, other)
-                        for other in self._monitors
-                        if other.name != mon.name and not other.disabled
-                    )
-                    if not has_active_neighbor:
-                        mon.position = "auto"
+        if not changes:
+            return
 
-                success = try_with_toast(
-                    self._window.show_bug_toast,
-                    "Monitor config failed",
-                    lambda: self._window.hypr.monitors.apply(self._monitors),
-                    catch=HyprlandError,
-                )
-                if not success:
-                    return
-
-                # Push safe UI state
-                self._push_to_ui()
-            finally:
-                self._applying = False
-        self._on_monitors_changed()
-        self._schedule_resync()
+        # This is needed to ensure that disabled monitors are applied last,
+        # so that they don't override the enabled monitors
+        changes.sort(key=lambda c: bool(c[1].get("disabled")))
+        with self._undo_track():
+            for mon, val in changes:
+                if restore:
+                    self._ownership.own(mon.name)
+                    for k, v in val.items():
+                        setattr(mon, k, v)
+                else:
+                    self._mutate_monitor_state(mon, val)
+            self._commit_to_hyprland()
 
     def _commit_to_hyprland(self):
         """Send all monitors to Hyprland, push to UI."""
@@ -638,6 +738,7 @@ class MonitorsPage(SectionPage):
             # Clear positional keywords (like "auto") so that
             # Hyprland respects the explicit numeric x,y coordinates from the drag.
             mon.position = None
+            self._pin_auto_positions(mon)
             self._commit_to_hyprland()
 
         if self._drag_undo_state is not None:
@@ -691,12 +792,25 @@ class MonitorsPage(SectionPage):
 
     def _on_confirmed(self):
         self._save_confirmed_snapshot()
+        self._remember_active_preset()
         # Update UI state without re-triggering the confirm flow —
         # the page is still dirty (unsaved to disk) but the IPC change
         # has been accepted, so the banner should stay hidden.
         self._update_card_states()
         self._notify_dirty()
         self._update_gap_warning()
+
+    def _remember_active_preset(self):
+        """Store the current layout under the active preset once it has been accepted."""
+        if not matches_preset(self._active_preset, self._monitors):
+            # e.g. DP-1 turned back on under "only:DP-2": the layout is no longer that
+            # preset, so drop to "none" and keep the preset's last valid slot intact.
+            self._active_preset = self._presets.active = NO_PRESET
+            if self._switch is not None:
+                self._switch.set_active(NO_PRESET)
+        self._confirmed_preset = self._active_preset
+        self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
+        self._presets.save()
 
     def _revert_monitors(self):
         if not self._confirmed_monitors:
@@ -710,6 +824,11 @@ class MonitorsPage(SectionPage):
             return
         self._monitors = copy.deepcopy(self._confirmed_monitors)
         self._snap_scales()
+        if self._active_preset != self._confirmed_preset:
+            self._active_preset = self._presets.active = self._confirmed_preset
+            self._presets.save()
+            if self._switch is not None:
+                self._switch.set_active(self._active_preset)
         # Update in place — a full rebuild would collapse the Advanced expander.
         try:
             self._push_to_ui()
@@ -828,8 +947,10 @@ class MonitorsPage(SectionPage):
 
     def mark_saved(self):
         self._ownership.mark_saved()
+        self._pinned.clear()
         self._save_snapshot()
         self._save_confirmed_snapshot()
+        self._remember_active_preset()
         if self._confirm:
             self._confirm.cancel()
         if self._content_box is not None:
@@ -839,6 +960,7 @@ class MonitorsPage(SectionPage):
         if not self._saved_monitors or not self.is_dirty():
             return
         self._ownership.discard_all()
+        self._pinned.clear()
         self._applying = True
         try:
             self._window.hypr.monitors.apply(self._saved_monitors)
