@@ -102,6 +102,15 @@ class TestLogDeprecationsHelper:
         assert any("deprecated syntax" in rec.message for rec in caplog.records)
 
 
+class TestReadCache:
+    def test_external_edit_invalidates_the_cache(self, gui_conf_tmp):
+        config.write_all({"general:gaps_in": "5"}, config.ConfigSections())
+        assert config.read_cached()[0]["general:gaps_in"] == "5"
+
+        gui_conf_tmp.write_text("general:gaps_in = 8\n")
+        assert config.read_cached()[0]["general:gaps_in"] == "8"
+
+
 class TestWriteAllIsStable:
     def test_content_is_stable_across_writes(self, gui_conf_tmp):
         """Writing the same clean values twice produces identical content."""

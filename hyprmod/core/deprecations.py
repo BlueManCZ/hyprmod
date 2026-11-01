@@ -140,7 +140,7 @@ def apply_to_file(plan: FilePlan, *, backup: bool = True) -> ApplyResult:
     backup_path: Path | None = None
     try:
         if backup and plan.path.exists():
-            backup_path = _write_backup(plan.path)
+            backup_path = backup_file(plan.path)
         atomic_write(plan.path, plan.migrated)
     except OSError as exc:
         log.warning("failed to apply migration to %s: %s", plan.path, exc)
@@ -273,7 +273,7 @@ def _safe_resolve(path: Path) -> Path:
         return path
 
 
-def _write_backup(path: Path) -> Path:
+def backup_file(path: Path) -> Path:
     """Copy *path* into a ``.hyprmod-backups/`` sibling directory.
 
     Using a dot-prefixed directory keeps backups out of ``source = …/*``
@@ -291,5 +291,6 @@ __all__ = [
     "FilePlan",
     "ScanResult",
     "apply_to_file",
+    "backup_file",
     "scan",
 ]

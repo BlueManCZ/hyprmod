@@ -471,6 +471,30 @@ ACTION_PRESETS: tuple[ActionPreset, ...] = (
         description="Disable open/close animations for this window.",
     ),
     ActionPreset(
+        id="active_border",
+        label="Active border color",
+        description="Override the border color while this window is focused.",
+        fields=(
+            ActionField(
+                label="Color",
+                placeholder="rgb(ff0000)",
+                hint="A Hyprland color or gradient string.",
+            ),
+        ),
+    ),
+    ActionPreset(
+        id="inactive_border",
+        label="Inactive border color",
+        description="Override the border color while this window is unfocused.",
+        fields=(
+            ActionField(
+                label="Color",
+                placeholder="rgb(333333)",
+                hint="A Hyprland color or gradient string.",
+            ),
+        ),
+    ),
+    ActionPreset(
         id="no_initial_focus",
         label="No initial focus",
         description="Don't focus the window when it spawns.",
@@ -514,6 +538,32 @@ ACTION_PRESETS: tuple[ActionPreset, ...] = (
         ),
     ),
 )
+
+# Hyprland 0.57 added these boolean effects. Older hyprland-config
+# releases don't know them as booleans and would emit an invalid empty
+# value, so only surface the presets once the library supports them.
+_HYPRLAND_057_BOOL_PRESETS = (
+    (
+        ActionPreset(
+            id="no_glow",
+            label="No inner glow",
+            description="Disable the inner glow for this window.",
+        ),
+        ActionPreset(
+            id="no_wobble",
+            label="No wobble",
+            description="Disable window wobble for this window.",
+        ),
+        ActionPreset(
+            id="no_xdg_drags",
+            label="Block XDG drags",
+            description="Reject XDG drag-and-drop requests targeting this window.",
+        ),
+    )
+    if "no_glow" in V3_BOOL_EFFECTS
+    else ()
+)
+ACTION_PRESETS = (*ACTION_PRESETS, *_HYPRLAND_057_BOOL_PRESETS)
 
 ACTION_PRESETS_BY_ID: dict[str, ActionPreset] = {p.id: p for p in ACTION_PRESETS}
 

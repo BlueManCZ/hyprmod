@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -37,11 +37,11 @@ wheels = [
 
 [[package]]
 name = "hyprland-schema"
-version = "0.7.1"
+version = "0.7.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/af/48/11d41c3740072c309fd1eb61dfbfe4f9897a2b1124c1f10cb17a18dc8172/hyprland_schema-0.7.1.tar.gz", hash = "sha256:e73d4a19aece1df602c52b2985df35f6c8bc584b0fa7058ea56e1aab9fc01233", size = 47844, upload-time = "2026-07-31T05:42:32.186Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/de/03d5778cddb364cf177f7792d7a411ae8fd5039d5a1eb3bffda44e494d6a/hyprland_schema-0.7.2.tar.gz", hash = "sha256:2a05d3e4abe63b73c2c4da524cb27fd165f9d733230a7a5670188e72e2096891", size = 47863, upload-time = "2026-10-19T12:51:50.57Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/24/66d5aad64573e38a5ec31820f3a920ff6a79364a329dba7f3e708bced536/hyprland_schema-0.7.1-py3-none-any.whl", hash = "sha256:97637f24ac593232e388f99b079c4166cc8e321775e9097470f3b467cda551dc", size = 53309, upload-time = "2026-07-31T05:42:30.964Z" },
+    { url = "https://files.pythonhosted.org/packages/52/d8/c531c5dd8b42d4c93514494b2d6764c8229156a224558e6251f15a42a57a/hyprland_schema-0.7.2-py3-none-any.whl", hash = "sha256:dae0018cf444266c83df5208560bfa8a2c0b17683cab4c1f37fcc60ae1fb03dd", size = 53595, upload-time = "2026-10-19T12:51:49.4Z" },
 ]
 
 [[package]]
@@ -70,7 +70,7 @@ wheels = [
 
 [[package]]
 name = "hyprmod"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "hyprland-config" },
@@ -94,7 +94,7 @@ dev = [
 requires-dist = [
     { name = "hyprland-config", specifier = ">=0.9.19" },
     { name = "hyprland-monitors", specifier = ">=0.9.0" },
-    { name = "hyprland-schema", specifier = ">=0.7.1" },
+    { name = "hyprland-schema", specifier = ">=0.7.2" },
     { name = "hyprland-socket", specifier = ">=0.12.2" },
     { name = "hyprland-state", specifier = ">=0.4.7" },
     { name = "pycairo", specifier = ">=1.16" },

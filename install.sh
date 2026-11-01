@@ -107,6 +107,10 @@ do_install() {
     echo '>> Registering desktop entry and icon...'
     hyprmod --install
 
+    if ! have lua; then
+        err '>> Warning: no Lua interpreter found. HyprMod needs `lua` to read hyprland.lua.'
+    fi
+
     echo
     echo '>> Done. Launch HyprMod from your app menu or run: hyprmod'
 }

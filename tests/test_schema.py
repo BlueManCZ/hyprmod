@@ -131,11 +131,15 @@ class TestDefaultTypes:
 
 
 class TestNumericConstraints:
-    def test_int_has_min_max(self, all_options):
+    def test_int_bounds_are_numeric_when_present(self, all_options):
+        # Upstream can declare an int with no bounds, or only one bound.
         for opt in all_options:
             if opt["type"] == "int":
-                assert "min" in opt, f"Int option '{opt['key']}' missing 'min'"
-                assert "max" in opt, f"Int option '{opt['key']}' missing 'max'"
+                for bound in ("min", "max"):
+                    if bound in opt:
+                        assert isinstance(opt[bound], int), (
+                            f"Int option '{opt['key']}' has non-int {bound}"
+                        )
 
     def test_float_has_min_max(self, all_options):
         for opt in all_options:
@@ -192,18 +196,33 @@ class TestDependencies:
                     f"Option '{opt['key']}' depends_on '{dep}' which doesn't exist"
                 )
 
-    def test_depends_on_references_bool_option(self, all_options):
+    def test_depends_on_references_truthy_option(self, all_options):
         opt_map = {o["key"]: o for o in all_options}
         for opt in all_options:
             dep = opt.get("depends_on")
             if dep and dep in opt_map:
                 # Options with a dynamic source use depends_on to refresh
-                # values, not for visibility — the parent need not be bool.
+                # values, not for visibility. Visibility treats the parent as
+                # truthy, so ints with a zero "off" value work too.
                 if opt.get("source"):
                     continue
-                assert opt_map[dep]["type"] == "bool", (
+                assert opt_map[dep]["type"] in ("bool", "int", "choice"), (
                     f"Option '{opt['key']}' depends_on '{dep}' "
-                    f"which is type '{opt_map[dep]['type']}', expected 'bool'"
+                    f"which is type '{opt_map[dep]['type']}'"
+                )
+
+    def test_depends_on_value_references_choice_values(self, all_options):
+        opt_map = {o["key"]: o for o in all_options}
+        for opt in all_options:
+            expected = opt.get("depends_on_value")
+            if expected is None:
+                continue
+            parent = opt_map[opt["depends_on"]]
+            ids = {v.get("id") for v in parent.get("values", [])}
+            for value in expected if isinstance(expected, list) else [expected]:
+                assert str(value) in ids, (
+                    f"Option '{opt['key']}' depends on {parent['key']} value "
+                    f"{value!r}, which is not in {ids}"
                 )
 
     def test_no_circular_dependencies(self, all_options):

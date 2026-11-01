@@ -80,6 +80,8 @@ class SettingsPage:
     def _apply_new_path(self, new_text: str, *, overwrite_confirmed: bool = False):
         """Validate and apply a new config file path."""
         new_path = Path(new_text).expanduser()
+        if config.lua_is_required() and new_path.suffix.lower() != ".lua":
+            new_path = new_path.with_suffix(".lua")
         old_path = config.managed_path()
 
         if new_path.resolve() == old_path.resolve():

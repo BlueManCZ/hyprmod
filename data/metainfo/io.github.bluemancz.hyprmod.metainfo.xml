@@ -70,6 +70,18 @@
   </keywords>
 
   <releases>
+    <release version="0.6.0" date="2026-11-01">
+      <description>
+        <p>Hyprland 0.57 support and upgrade recovery:</p>
+        <ul>
+          <li>Hyprland 0.57 is always Lua mode. Migrate a leftover hyprland.conf even when the compositor generated a placeholder hyprland.lua</li>
+          <li>Blur variants, wobble, glow, layer surfaces, tablet input, and render scheduling options</li>
+          <li>New window-rule effects: no_glow, no_wobble, no_xdg_drags, active_border, and inactive_border</li>
+          <li>Opening HyprMod no longer reloads the compositor</li>
+          <li>Config changes made by another process are picked up without restarting</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-10-07">
       <description>
         <p>Plugins page, multi-action window rules, and a round of keybind and Lua fixes:</p>
