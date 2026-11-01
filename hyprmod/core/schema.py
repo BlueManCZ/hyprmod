@@ -10,6 +10,8 @@ from hyprland_schema import HyprOption
 
 log = logging.getLogger(__name__)
 
+_LOCAL_SCHEMA_DIR = Path(__file__).parent.parent / "data" / "schema" / "versions"
+
 
 def load_schema(version: str | None = None, path: Path | None = None) -> dict:
     """Load the option schema, preferring the catalog that matches *version*.
@@ -58,6 +60,10 @@ def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
     if version is None:
         return hyprland_schema.OPTIONS_BY_KEY
 
+    local = _load_local_schema(version)
+    if local is not None:
+        return local
+
     try:
         return hyprland_schema.load(version).options_by_key
     except hyprland_schema.MigrationError as exc:
@@ -68,6 +74,23 @@ def _resolve_schema_options(version: str | None) -> Mapping[str, HyprOption]:
             hyprland_schema.HYPRLAND_VERSION,
         )
         return hyprland_schema.OPTIONS_BY_KEY
+
+
+def _load_local_schema(version: str) -> Mapping[str, HyprOption] | None:
+    """Load a bundled snapshot for *version* without touching the network."""
+    parts = version.strip().lstrip("v").split(".")
+    if len(parts) < 2:
+        return None
+    path = _LOCAL_SCHEMA_DIR / f"hyprland-{parts[0]}.{parts[1]}.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        options = [HyprOption.from_dict(option) for option in data["options"]]
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        log.warning("Could not read bundled schema %s (%s); using library", path, exc)
+        return None
+    return {option.key: option for option in options}
 
 
 def _load_options_json(path: Path | None = None) -> dict:

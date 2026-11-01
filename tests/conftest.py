@@ -14,9 +14,11 @@ def reset_config_caches():
     Clearing them at the seam of each test isolates state without forcing
     every test to remember.
     """
+    config.reset_runtime()
     config.invalidate_lua_mode_cache()
     config.invalidate_cache()
     yield
+    config.reset_runtime()
     config.invalidate_lua_mode_cache()
     config.invalidate_cache()
 

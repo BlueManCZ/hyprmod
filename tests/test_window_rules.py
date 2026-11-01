@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 
 import pytest
-from hyprland_config import V3_BOOL_EFFECTS
+from hyprland_config import V3_BOOL_EFFECTS, render_rule_lua
 from hyprland_socket import Window
 
 from hyprmod.core.change_tracking import (
@@ -460,6 +460,25 @@ class TestMatcherKindLookup:
 # ---------------------------------------------------------------------------
 # Boolean effect catalog
 # ---------------------------------------------------------------------------
+
+
+class TestHyprland057Effects:
+    def test_new_bool_effects_fill_a_value(self):
+        if "no_glow" not in V3_BOOL_EFFECTS:
+            pytest.skip("hyprland-config 0.9.19 does not know the 0.57 effects")
+        for name in ("no_glow", "no_wobble", "no_xdg_drags"):
+            rule = WindowRule(
+                matchers=[Matcher(key="class", value="kitty")],
+                effects=[Effect(name=name)],
+            )
+            assert rule.to_line().endswith(f"{name} on")
+            assert f"{name} = true" in render_rule_lua(rule.to_rule_node())
+
+    def test_border_color_presets_exist(self):
+        for name in ("active_border", "inactive_border"):
+            preset = lookup_preset(name)
+            assert preset.id == name
+            assert preset.fields
 
 
 class TestBoolEffectCatalog:

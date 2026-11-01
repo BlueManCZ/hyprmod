@@ -9,6 +9,7 @@ from hyprland_config import ParseError
 
 from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
+from hyprmod.core import config
 from hyprmod.core.setup import needs_setup, run_setup
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import has_cairo_support, try_with_toast
@@ -70,6 +71,11 @@ class HyprModApp(Adw.Application):
             dialog = Adw.AlertDialog(heading="Missing Cairo Bindings", body=CAIRO_MISSING_BODY)
             dialog.add_response("close", "Close")
             dialog.present(win)
+        elif config.legacy_config_recovery_needed():
+            # The migration banner owns recovery. Adding the managed include
+            # to the placeholder now would hide the fact that the user's real
+            # config is still in hyprland.conf.
+            pass
         elif needs_setup():
             window = win  # locally typed for the closure below
 

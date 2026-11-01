@@ -72,15 +72,17 @@ class HyprModWindow(Adw.ApplicationWindow):
         self.set_default_size(900, 650)
 
         self._settings = open_settings()
+        self.hypr = HyprlandState()
+        self._hyprland_available = self.hypr.online
+        provider = None
+        if self._hyprland_available:
+            provider = "lua" if self.hypr.is_live_lua_mode() else "hyprlang"
+        config.configure_runtime(provider=provider, version=self.hypr.version)
         apply_saved_config_path(self._settings)
 
         # Warm the managed-config cache so the first ``saved_sections`` access
         # below doesn't pay for a parse synchronously during widget construction.
         config.read_cached()
-        self.hypr = HyprlandState()
-        self._hyprland_available = self.hypr.online
-        if self._hyprland_available:
-            self.hypr.reload_compositor()  # Reset runtime state to match config files
         self._has_touchpad = self.hypr.has_touchpad() if self._hyprland_available else True
         self._has_touchscreen = self.hypr.has_touchscreen() if self._hyprland_available else True
         # Load the option catalog matching the running compositor version.
@@ -242,6 +244,11 @@ class HyprModWindow(Adw.ApplicationWindow):
         report_action = Gio.SimpleAction.new("report-bug", None)
         report_action.connect("activate", self._on_report_bug)
         self.add_action(report_action)
+
+        reload_action = Gio.SimpleAction.new("reload-compositor", None)
+        reload_action.connect("activate", lambda *_: self.reload_compositor())
+        reload_action.set_enabled(self._hyprland_available)
+        self.add_action(reload_action)
 
         # Lua migration: owns its banner, action, dialog, completion flow.
         self._lua_migration = LuaMigrationController(
@@ -455,6 +462,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         menu.append_section(None, prefs_section)
 
         tools_section = Gio.Menu()
+        tools_section.append("Reload compositor", "win.reload-compositor")
         # ``hidden-when="action-disabled"`` lets GTK hide the item
         # entirely (not just grey it out) when the controller disables
         # the action on pre-0.55 Hyprland or once the user is on Lua.
@@ -744,6 +752,17 @@ class HyprModWindow(Adw.ApplicationWindow):
         """Show/hide dependent options based on their parent's current value."""
         for parent_key in self._dependents:
             self._update_dependents(parent_key)
+        self._refresh_group_visibility()
+
+    def _refresh_group_visibility(self) -> None:
+        """Hide sections whose rows are all hidden by dependencies."""
+        visible_owners = {
+            self._row_owner_group[key]
+            for key, opt_row in self._option_rows.items()
+            if key in self._row_owner_group and opt_row.row.get_visible()
+        }
+        for owner in set(self._row_owner_group.values()):
+            owner.set_visible(owner in visible_owners)
 
     def _is_option_visible(self, key: str) -> bool:
         """Check if an option should be visible (parent enabled and visible)."""
@@ -758,7 +777,15 @@ class HyprModWindow(Adw.ApplicationWindow):
         if not self._is_option_visible(parent_key):
             return False
         parent_state = self.app_state.get(parent_key)
-        return bool(parent_state.live_value) if parent_state else True
+        if parent_state is None:
+            return True
+        if not parent_state.live_value:
+            return False
+        expected = option.get("depends_on_value")
+        if expected is None:
+            return True
+        allowed = expected if isinstance(expected, list) else [expected]
+        return str(parent_state.live_value) in {str(value) for value in allowed}
 
     def _update_dependents(self, parent_key: str):
         """Update visibility and source values of options that depend on parent_key."""
@@ -835,6 +862,18 @@ class HyprModWindow(Adw.ApplicationWindow):
     def _on_report_bug(self, *_args):
         """Open a prefilled GitHub issue in the browser (Help → Report a bug)."""
         self._open_bug_report()
+
+    def reload_compositor(self) -> bool:
+        """Reload Hyprland on explicit request, never on window creation."""
+        if not self._hyprland_available:
+            self.show_toast("Hyprland is not running")
+            return False
+        return try_with_toast(
+            self.show_bug_toast,
+            "Couldn't reload Hyprland",
+            self.hypr.reload_compositor,
+            catch=HyprlandError,
+        )
 
     # -- Search --
 
@@ -1025,6 +1064,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 opt_row.flash_highlight(duration_ms=600)
         if key in self._dependents:
             self._update_dependents(key)
+            self._refresh_group_visibility()
 
     def _on_option_reset(self, key: str, _default_value):
         """Remove override — preview the fallback value and mark pending."""

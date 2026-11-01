@@ -34,11 +34,12 @@ Huge thanks to the creators below — without you, HyprMod would reach far fewer
 - **Live preview** — changes apply instantly to your running compositor
 - **Your config stays untouched** — HyprMod writes only to its own `hyprland-gui.conf`
 - **Undo with Ctrl+Z** — step back one change at a time
-- **Profiles** — save, name, and share complete configurations as `.conf` files
+- **Profiles** — save, name, and reuse complete configurations across config-language changes
 
 ## ✨ Features
 
-- **Lua config support** — migrate and edit `hyprland.lua` directly (Hyprland 0.55+)
+- **Lua config support**: migrate and edit `hyprland.lua` directly (Hyprland 0.55+; 0.57+ is Lua-only)
+- **Hyprland 0.57 controls**: blur variants, wobble, glow, layer surfaces, tablet input, and render scheduling options
 - Bezier curve editor with live animation preview
 - Monitor layout editor with VRR, 10-bit detection, and advanced HDR controls with safe defaults
 - Keybind editor with interactive key capture, including mouse-drag (`bindm`) binds
@@ -64,7 +65,7 @@ hyprmod profile previous        # cycle to the previous one (alias: prev)
 
 > HyprMod is in active development and not yet packaged for most distributions.
 
-Requires Python 3.12+, GTK4, and libadwaita.
+Requires Python 3.12+, GTK4, libadwaita, and a `lua` interpreter for Lua-mode configs.
 
 The one-line installer works on any distribution.
 

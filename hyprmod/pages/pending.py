@@ -30,6 +30,7 @@ from hyprmod.ui.icons import (
     MONITORS_ICON,
     WINDOW_RULES_ICON,
 )
+from hyprmod.ui.timer import Timer
 
 log = logging.getLogger(__name__)
 
@@ -71,9 +72,9 @@ class PendingChangesPage:
         self._diff: ConfigDiffWidget | None = None
         self._diff_group: Adw.PreferencesGroup | None = None
         # Coalesce many quick "dirty" pings (e.g. typing in a spinbutton) into
-        # a single rebuild. Without this the page rebuilds at signal speed
-        # which is wasteful and can fight scroll position recovery.
-        self._refresh_pending = False
+        # a single rebuild. The small delay also keeps the diff off the typing
+        # path; a single idle turn still fires between keystrokes.
+        self._refresh_timer = Timer()
         # Map sidebar group_id -> icon name, sourced from the same schema the
         # sidebar uses, so each row's icon mirrors its source page exactly.
         # Also seed the hardcoded sidebar pages (binds/monitors) so that
@@ -136,22 +137,15 @@ class PendingChangesPage:
         self._diff_group = diff_group
         content_box.append(diff_group)
 
+        toolbar.connect("map", lambda *_: self.refresh())
         self.refresh()
         return toolbar
 
     # ── Public refresh entry points ──
 
     def schedule_refresh(self) -> None:
-        """Coalesce repeated change pings into a single idle-time rebuild."""
-        if self._refresh_pending:
-            return
-        self._refresh_pending = True
-        GLib.idle_add(self._refresh_idle)
-
-    def _refresh_idle(self) -> bool:
-        self._refresh_pending = False
-        self.refresh()
-        return GLib.SOURCE_REMOVE
+        """Coalesce repeated change pings into one delayed rebuild."""
+        self._refresh_timer.schedule(150, self.refresh)
 
     def refresh(self) -> None:
         """Rebuild the change list and the diff preview from current state."""
@@ -276,6 +270,8 @@ class PendingChangesPage:
 
     def _render_diff(self) -> None:
         if self._diff is None or self._diff_group is None:
+            return
+        if self._toolbar is not None and not self._toolbar.get_mapped():
             return
         path = config.managed_path()
         old_text = self._read_saved_config_text()

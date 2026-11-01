@@ -15,7 +15,7 @@
 # Inline derivations for the five Python deps that are not yet in nixpkgs.
 # Track https://github.com/NixOS/nixpkgs/pull/505419 — once merged, these
 # can be removed and the dependencies replaced with the upstream nixpkgs attrs.
-# Last updated for hyprmod v0.5.0.
+# Last updated for hyprmod v0.6.0.
 
 let
   hyprland-socket = python3Packages.buildPythonPackage rec {
@@ -35,13 +35,13 @@ let
 
   hyprland-schema = python3Packages.buildPythonPackage rec {
     pname = "hyprland-schema";
-    version = "0.7.1";
+    version = "0.7.2";
     pyproject = true;
     src = fetchFromGitHub {
       owner = "BlueManCZ";
       repo = "hyprland-schema";
       tag = "v${version}";
-      hash = "sha256-36nSnuiWtJeCGcxJB2hNlbWEd0t2Ke5hhsUJddoap+w=";
+      hash = "sha256-/ynmTlDGreez72X9jVOJ0z999LaefiCCe7REllRH83E=";
     };
     build-system = [ python3Packages.hatchling ];
     doCheck = false;
