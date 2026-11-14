@@ -744,6 +744,17 @@ class HyprModWindow(Adw.ApplicationWindow):
         """Show/hide dependent options based on their parent's current value."""
         for parent_key in self._dependents:
             self._update_dependents(parent_key)
+        self._refresh_group_visibility()
+
+    def _refresh_group_visibility(self) -> None:
+        """Hide sections whose rows are all hidden by dependencies."""
+        visible_owners = {
+            self._row_owner_group[key]
+            for key, opt_row in self._option_rows.items()
+            if key in self._row_owner_group and opt_row.row.get_visible()
+        }
+        for owner in set(self._row_owner_group.values()):
+            owner.set_visible(owner in visible_owners)
 
     def _is_option_visible(self, key: str) -> bool:
         """Check if an option should be visible (parent enabled and visible)."""
@@ -754,11 +765,17 @@ class HyprModWindow(Adw.ApplicationWindow):
         parent_key = option.get("depends_on")
         if not parent_key:
             return True
-        # Parent must be visible itself and have a truthy value
+        # Parent must be visible itself and have a truthy value, or one of the
+        # values the option names in ``depends_on_value``.
         if not self._is_option_visible(parent_key):
             return False
         parent_state = self.app_state.get(parent_key)
-        return bool(parent_state.live_value) if parent_state else True
+        if parent_state is None:
+            return True
+        allowed = option.get("depends_on_value")
+        if allowed is None:
+            return bool(parent_state.live_value)
+        return str(parent_state.live_value) in allowed
 
     def _update_dependents(self, parent_key: str):
         """Update visibility and source values of options that depend on parent_key."""
@@ -1025,6 +1042,7 @@ class HyprModWindow(Adw.ApplicationWindow):
                 opt_row.flash_highlight(duration_ms=600)
         if key in self._dependents:
             self._update_dependents(key)
+            self._refresh_group_visibility()
 
     def _on_option_reset(self, key: str, _default_value):
         """Remove override — preview the fallback value and mark pending."""

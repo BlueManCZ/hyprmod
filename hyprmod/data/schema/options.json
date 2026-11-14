@@ -81,22 +81,10 @@
               "description": "Which layout to use for tiling",
               "type": "choice",
               "values": [
-                {
-                  "id": "dwindle",
-                  "label": "Dwindle"
-                },
-                {
-                  "id": "master",
-                  "label": "Master"
-                },
-                {
-                  "id": "scrolling",
-                  "label": "Scrolling"
-                },
-                {
-                  "id": "monocle",
-                  "label": "Monocle"
-                }
+                { "id": "dwindle", "label": "Dwindle" },
+                { "id": "master", "label": "Master" },
+                { "id": "scrolling", "label": "Scrolling" },
+                { "id": "monocle", "label": "Monocle" }
               ]
             },
             {
@@ -289,59 +277,300 @@
               "label": "Blur variant",
               "depends_on": "decoration:blur:enabled",
               "values": [
-                {
-                  "id": "0",
-                  "label": "Kawase (default)"
-                },
-                {
-                  "id": "1",
-                  "label": "Frost"
-                },
-                {
-                  "id": "2",
-                  "label": "Ripple"
-                },
-                {
-                  "id": "3",
-                  "label": "Drops"
-                },
-                {
-                  "id": "4",
-                  "label": "Water"
-                },
-                {
-                  "id": "5",
-                  "label": "Fluid jar"
-                },
-                {
-                  "id": "6",
-                  "label": "Prism"
-                },
-                {
-                  "id": "7",
-                  "label": "Heat shimmer"
-                },
-                {
-                  "id": "8",
-                  "label": "Acrylic"
-                },
-                {
-                  "id": "9",
-                  "label": "Aurora"
-                },
-                {
-                  "id": "10",
-                  "label": "Haze"
-                }
+                { "label": "Kawase" },
+                { "label": "Frost" },
+                { "label": "Ripple" },
+                { "label": "Drops" },
+                { "label": "Water" },
+                { "label": "Fluid jar" },
+                { "label": "Prism" },
+                { "label": "Heat shimmer" },
+                { "label": "Acrylic" },
+                { "label": "Aurora" },
+                { "label": "Haze" }
               ]
             },
             {
               "key": "decoration:blur:proportional",
               "label": "Proportional blur",
-              "depends_on": "render:use_shader_blur_blend"
+              "depends_on": "decoration:blur:enabled"
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:acrylic",
+          "label": "Blur: Acrylic",
+          "options": [
+            {
+              "key": "decoration:blur:acrylic:aberration",
+              "label": "Aberration",
+              "step": 0.005,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["8"]
+            },
+            {
+              "key": "decoration:blur:acrylic:bulb",
+              "label": "Edge width",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["8"]
+            },
+            {
+              "key": "decoration:blur:acrylic:clarity",
+              "label": "Clarity",
+              "step": 0.01,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["8"]
+            },
+            {
+              "key": "decoration:blur:acrylic:refraction",
+              "label": "Refraction",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["8"]
+            },
+            {
+              "key": "decoration:blur:acrylic:tint",
+              "label": "Tint",
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["8"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:aurora",
+          "label": "Blur: Aurora",
+          "options": [
+            {
+              "key": "decoration:blur:aurora:color1",
+              "label": "Color 1",
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["9"]
+            },
+            {
+              "key": "decoration:blur:aurora:color2",
+              "label": "Color 2",
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["9"]
+            },
+            {
+              "key": "decoration:blur:aurora:intensity",
+              "label": "Intensity",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["9"]
+            },
+            {
+              "key": "decoration:blur:aurora:speed",
+              "label": "Speed",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["9"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:drops",
+          "label": "Blur: Drops",
+          "options": [
+            {
+              "key": "decoration:blur:drops:speed",
+              "label": "Speed",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["3"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:fluid_jar",
+          "label": "Blur: Fluid jar",
+          "options": [
+            {
+              "key": "decoration:blur:fluid_jar:color",
+              "label": "Color",
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:distortion",
+              "label": "Distortion",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:fill_amount",
+              "label": "Fill amount",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:mass",
+              "label": "Mass",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:precision",
+              "label": "Precision",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:speed",
+              "label": "Speed",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            },
+            {
+              "key": "decoration:blur:fluid_jar:turbulence",
+              "label": "Turbulence",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["5"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:glass",
+          "label": "Blur: Glass",
+          "options": [
+            {
+              "key": "decoration:blur:glass:refraction",
+              "label": "Refraction",
+              "step": 0.5,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["1", "3", "6", "7", "9"]
+            },
+            {
+              "key": "decoration:blur:glass:roughness",
+              "label": "Roughness",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["1", "3", "6", "7", "9"]
+            },
+            {
+              "key": "decoration:blur:glass:size",
+              "label": "Pattern size",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["1", "3", "6", "7", "9"]
             }
           ],
-          "description": "Blur cost grows with size and passes. Variants add GPU and CPU load; Kawase is the cheapest."
+          "description": "Shared by the Frost, Drops, Prism, Heat shimmer and Aurora variants"
+        },
+        {
+          "id": "decoration:blur:haze",
+          "label": "Blur: Haze",
+          "options": [
+            {
+              "key": "decoration:blur:haze:intensity",
+              "label": "Intensity",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["10"]
+            },
+            {
+              "key": "decoration:blur:haze:iridescence",
+              "label": "Iridescence",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["10"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:heat_shimmer",
+          "label": "Blur: Heat shimmer",
+          "options": [
+            {
+              "key": "decoration:blur:heat_shimmer:speed",
+              "label": "Speed",
+              "step": 0.1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["7"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:ripple",
+          "label": "Blur: Ripple",
+          "options": [
+            {
+              "key": "decoration:blur:ripple:duration",
+              "label": "Duration",
+              "step": 0.05,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["2"]
+            },
+            {
+              "key": "decoration:blur:ripple:radius",
+              "label": "Radius",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["2"]
+            },
+            {
+              "key": "decoration:blur:ripple:strength",
+              "label": "Strength",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["2"]
+            },
+            {
+              "key": "decoration:blur:ripple:width",
+              "label": "Width",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["2"]
+            }
+          ]
+        },
+        {
+          "id": "decoration:blur:water",
+          "label": "Blur: Water",
+          "options": [
+            {
+              "key": "decoration:blur:water:damping",
+              "label": "Damping",
+              "step": 0.01,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["4"]
+            },
+            {
+              "key": "decoration:blur:water:duration",
+              "label": "Duration",
+              "step": 0.5,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["4"]
+            },
+            {
+              "key": "decoration:blur:water:radius",
+              "label": "Radius",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["4"]
+            },
+            {
+              "key": "decoration:blur:water:speed",
+              "label": "Speed",
+              "step": 0.01,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["4"]
+            },
+            {
+              "key": "decoration:blur:water:strength",
+              "label": "Strength",
+              "step": 1,
+              "depends_on": "decoration:blur:variant",
+              "depends_on_value": ["4"]
+            }
+          ]
         },
         {
           "id": "decoration:shadow",
@@ -395,325 +624,6 @@
           ]
         },
         {
-          "id": "decoration:blur:acrylic",
-          "label": "Blur: Acrylic",
-          "options": [
-            {
-              "key": "decoration:blur:acrylic:aberration",
-              "label": "Aberration",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "8"
-              ]
-            },
-            {
-              "key": "decoration:blur:acrylic:bulb",
-              "label": "Edge width",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "8"
-              ]
-            },
-            {
-              "key": "decoration:blur:acrylic:clarity",
-              "label": "Clarity",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "8"
-              ]
-            },
-            {
-              "key": "decoration:blur:acrylic:refraction",
-              "label": "Refraction",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "8"
-              ]
-            },
-            {
-              "key": "decoration:blur:acrylic:tint",
-              "label": "Tint",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "8"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:aurora",
-          "label": "Blur: Aurora",
-          "options": [
-            {
-              "key": "decoration:blur:aurora:color1",
-              "label": "Color 1",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "9"
-              ]
-            },
-            {
-              "key": "decoration:blur:aurora:color2",
-              "label": "Color 2",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "9"
-              ]
-            },
-            {
-              "key": "decoration:blur:aurora:intensity",
-              "label": "Intensity",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "9"
-              ]
-            },
-            {
-              "key": "decoration:blur:aurora:speed",
-              "label": "Speed",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "9"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:drops",
-          "label": "Blur: Drops",
-          "options": [
-            {
-              "key": "decoration:blur:drops:speed",
-              "label": "Speed",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "3"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:fluid_jar",
-          "label": "Blur: Fluid jar",
-          "options": [
-            {
-              "key": "decoration:blur:fluid_jar:color",
-              "label": "Color",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:distortion",
-              "label": "Distortion",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:fill_amount",
-              "label": "Fill amount",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:mass",
-              "label": "Mass",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:precision",
-              "label": "Precision",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:speed",
-              "label": "Speed",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            },
-            {
-              "key": "decoration:blur:fluid_jar:turbulence",
-              "label": "Turbulence",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "5"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:glass",
-          "label": "Blur: Glass",
-          "options": [
-            {
-              "key": "decoration:blur:glass:refraction",
-              "label": "Refraction",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "3",
-                "6",
-                "7",
-                "9"
-              ]
-            },
-            {
-              "key": "decoration:blur:glass:roughness",
-              "label": "Roughness",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "3",
-                "6",
-                "7",
-                "9"
-              ]
-            },
-            {
-              "key": "decoration:blur:glass:size",
-              "label": "Pattern size",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "3",
-                "6",
-                "7",
-                "9"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:haze",
-          "label": "Blur: Haze",
-          "options": [
-            {
-              "key": "decoration:blur:haze:intensity",
-              "label": "Intensity",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "10"
-              ]
-            },
-            {
-              "key": "decoration:blur:haze:iridescence",
-              "label": "Iridescence",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "10"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:heat_shimmer",
-          "label": "Blur: Heat shimmer",
-          "options": [
-            {
-              "key": "decoration:blur:heat_shimmer:speed",
-              "label": "Speed",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "7"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:ripple",
-          "label": "Blur: Ripple",
-          "options": [
-            {
-              "key": "decoration:blur:ripple:duration",
-              "label": "Duration",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "2"
-              ]
-            },
-            {
-              "key": "decoration:blur:ripple:radius",
-              "label": "Radius",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "2"
-              ]
-            },
-            {
-              "key": "decoration:blur:ripple:strength",
-              "label": "Strength",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "2"
-              ]
-            },
-            {
-              "key": "decoration:blur:ripple:width",
-              "label": "Width",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "2"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "decoration:blur:water",
-          "label": "Blur: Water",
-          "options": [
-            {
-              "key": "decoration:blur:water:damping",
-              "label": "Damping",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "4"
-              ]
-            },
-            {
-              "key": "decoration:blur:water:duration",
-              "label": "Duration",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "4"
-              ]
-            },
-            {
-              "key": "decoration:blur:water:radius",
-              "label": "Radius",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "4"
-              ]
-            },
-            {
-              "key": "decoration:blur:water:speed",
-              "label": "Speed",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "4"
-              ]
-            },
-            {
-              "key": "decoration:blur:water:strength",
-              "label": "Strength",
-              "depends_on": "decoration:blur:variant",
-              "depends_on_value": [
-                "4"
-              ]
-            }
-          ]
-        },
-        {
           "id": "decoration:wobble",
           "label": "Wobble",
           "options": [
@@ -724,16 +634,20 @@
             {
               "key": "decoration:wobble:damping",
               "label": "Damping",
+              "step": 1,
               "depends_on": "decoration:wobble:enabled"
             },
             {
               "key": "decoration:wobble:intensity",
               "label": "Intensity",
+              "step": 0.05,
               "depends_on": "decoration:wobble:enabled"
             },
             {
               "key": "decoration:wobble:mass",
               "label": "Mass",
+              "min": 0.1,
+              "step": 0.1,
               "depends_on": "decoration:wobble:enabled"
             },
             {
@@ -744,20 +658,23 @@
             {
               "key": "decoration:wobble:stiffness",
               "label": "Stiffness",
+              "min": 1,
+              "step": 1,
               "depends_on": "decoration:wobble:enabled"
             },
             {
               "key": "decoration:wobble:value_epsilon",
               "label": "Value epsilon",
+              "step": 0.05,
               "depends_on": "decoration:wobble:enabled"
             },
             {
               "key": "decoration:wobble:velocity_epsilon",
               "label": "Velocity epsilon",
+              "step": 0.1,
               "depends_on": "decoration:wobble:enabled"
             }
-          ],
-          "description": "Experimental physics effect. Animates every moving window and costs GPU time."
+          ]
         },
         {
           "id": "decoration:glow",
@@ -869,18 +786,9 @@
               "description": "How cursor speed changes relative to mouse movement speed",
               "type": "choice",
               "values": [
-                {
-                  "id": "",
-                  "label": "Default"
-                },
-                {
-                  "id": "flat",
-                  "label": "Flat"
-                },
-                {
-                  "id": "adaptive",
-                  "label": "Adaptive"
-                }
+                { "id": "", "label": "Default" },
+                { "id": "flat", "label": "Flat" },
+                { "id": "adaptive", "label": "Adaptive" }
               ]
             },
             {
@@ -889,18 +797,10 @@
               "description": "Window focus follows mouse movement",
               "type": "choice",
               "values": [
-                {
-                  "label": "Disabled"
-                },
-                {
-                  "label": "Full"
-                },
-                {
-                  "label": "Loose"
-                },
-                {
-                  "label": "Loose (no mouse focus)"
-                }
+                { "label": "Disabled" },
+                { "label": "Full" },
+                { "label": "Loose" },
+                { "label": "Loose (no mouse focus)" }
               ]
             },
             {
@@ -926,20 +826,18 @@
               "description": "Re-focus the window under the cursor when switching workspaces"
             },
             {
+              "key": "input:swallow_focus_click",
+              "label": "Swallow first focus click"
+            },
+            {
               "key": "input:float_switch_override_focus",
               "label": "Float switch override focus",
               "description": "Focus the window under cursor when switching between tiled and floating",
               "type": "choice",
               "values": [
-                {
-                  "label": "Disabled"
-                },
-                {
-                  "label": "Enabled"
-                },
-                {
-                  "label": "Enabled (also unfocuses)"
-                }
+                { "label": "Disabled" },
+                { "label": "Enabled" },
+                { "label": "Enabled (also unfocuses)" }
               ]
             }
           ]
@@ -973,18 +871,9 @@
               "label": "Tap button map",
               "type": "choice",
               "values": [
-                {
-                  "id": "",
-                  "label": "Default"
-                },
-                {
-                  "id": "lrm",
-                  "label": "Left, Right, Middle"
-                },
-                {
-                  "id": "lmr",
-                  "label": "Left, Middle, Right"
-                }
+                { "id": "", "label": "Default" },
+                { "id": "lrm", "label": "Left, Right, Middle" },
+                { "id": "lmr", "label": "Left, Middle, Right" }
               ]
             },
             {
@@ -998,15 +887,9 @@
               "description": "Drag lock mode for tap-and-drag",
               "type": "choice",
               "values": [
-                {
-                  "label": "Disabled"
-                },
-                {
-                  "label": "Enabled with timeout"
-                },
-                {
-                  "label": "Sticky"
-                }
+                { "label": "Disabled" },
+                { "label": "Enabled with timeout" },
+                { "label": "Sticky" }
               ]
             },
             {
@@ -1015,20 +898,6 @@
               "min": 0.1,
               "max": 10.0,
               "step": 0.1
-            }
-          ]
-        },
-        {
-          "id": "input:focus",
-          "label": "Focus and Click",
-          "options": [
-            {
-              "key": "input:swallow_focus_click",
-              "label": "Swallow first focus click"
-            },
-            {
-              "key": "binds:drag_center_window",
-              "label": "Center dragged window"
             }
           ]
         },
@@ -1085,22 +954,10 @@
               "key": "cursor:warp_on_monitor_change",
               "label": "Warp on monitor change",
               "values": [
-                {
-                  "id": "-1",
-                  "label": "Same as workspace change"
-                },
-                {
-                  "id": "0",
-                  "label": "Disable"
-                },
-                {
-                  "id": "1",
-                  "label": "Enable"
-                },
-                {
-                  "id": "2",
-                  "label": "Force"
-                }
+                { "id": "-1", "label": "Same as workspace change" },
+                { "id": "0", "label": "Disable" },
+                { "id": "1", "label": "Enable" },
+                { "id": "2", "label": "Force" }
               ]
             }
           ]
@@ -1231,15 +1088,9 @@
               "label": "Force split direction",
               "type": "choice",
               "values": [
-                {
-                  "label": "Follow mouse"
-                },
-                {
-                  "label": "Left / Top"
-                },
-                {
-                  "label": "Right / Bottom"
-                }
+                { "label": "Follow mouse" },
+                { "label": "Left / Top" },
+                { "label": "Right / Bottom" }
               ]
             },
             {
@@ -1300,26 +1151,11 @@
               "label": "Orientation",
               "type": "choice",
               "values": [
-                {
-                  "id": "left",
-                  "label": "Left"
-                },
-                {
-                  "id": "right",
-                  "label": "Right"
-                },
-                {
-                  "id": "top",
-                  "label": "Top"
-                },
-                {
-                  "id": "bottom",
-                  "label": "Bottom"
-                },
-                {
-                  "id": "center",
-                  "label": "Center"
-                }
+                { "id": "left", "label": "Left" },
+                { "id": "right", "label": "Right" },
+                { "id": "top", "label": "Top" },
+                { "id": "bottom", "label": "Bottom" },
+                { "id": "center", "label": "Center" }
               ]
             },
             {
@@ -1333,18 +1169,9 @@
               "label": "New window status",
               "type": "choice",
               "values": [
-                {
-                  "id": "master",
-                  "label": "Master"
-                },
-                {
-                  "id": "slave",
-                  "label": "Slave"
-                },
-                {
-                  "id": "inherit",
-                  "label": "Inherit"
-                }
+                { "id": "master", "label": "Master" },
+                { "id": "slave", "label": "Slave" },
+                { "id": "inherit", "label": "Inherit" }
               ]
             },
             {
@@ -1356,18 +1183,9 @@
               "label": "New window placement",
               "type": "choice",
               "values": [
-                {
-                  "id": "none",
-                  "label": "None"
-                },
-                {
-                  "id": "before",
-                  "label": "Before active"
-                },
-                {
-                  "id": "after",
-                  "label": "After active"
-                }
+                { "id": "none", "label": "None" },
+                { "id": "before", "label": "Before active" },
+                { "id": "after", "label": "After active" }
               ]
             }
           ]
@@ -1419,22 +1237,10 @@
               "label": "Scroll direction",
               "default": "right",
               "values": [
-                {
-                  "id": "right",
-                  "label": "Right"
-                },
-                {
-                  "id": "left",
-                  "label": "Left"
-                },
-                {
-                  "id": "down",
-                  "label": "Down"
-                },
-                {
-                  "id": "up",
-                  "label": "Up"
-                }
+                { "id": "right", "label": "Right" },
+                { "id": "left", "label": "Left" },
+                { "id": "down", "label": "Down" },
+                { "id": "up", "label": "Up" }
               ]
             },
             {
@@ -1451,12 +1257,8 @@
               "key": "scrolling:focus_fit_method",
               "label": "Focus fit method",
               "values": [
-                {
-                  "label": "Center"
-                },
-                {
-                  "label": "Fit"
-                }
+                { "label": "Center" },
+                { "label": "Fit" }
               ]
             },
             {
@@ -1551,18 +1353,10 @@
               "description": "Controls adaptive sync globally",
               "type": "choice",
               "values": [
-                {
-                  "label": "Off"
-                },
-                {
-                  "label": "On"
-                },
-                {
-                  "label": "Fullscreen only"
-                },
-                {
-                  "label": "Fullscreen (game content)"
-                }
+                { "label": "Off" },
+                { "label": "On" },
+                { "label": "Fullscreen only" },
+                { "label": "Fullscreen (game content)" }
               ]
             },
             {
@@ -1610,6 +1404,10 @@
               "key": "misc:animate_mouse_windowdragging",
               "label": "Animate mouse window dragging",
               "description": "Animate windows being dragged by the mouse"
+            },
+            {
+              "key": "binds:drag_center_window",
+              "label": "Center dragged window"
             }
           ]
         },
@@ -1633,14 +1431,7 @@
               "description": "Force the default wallpaper (-1 random, 0-2 for specific)"
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "layers",
-      "label": "Layers",
-      "icon": "overlapping-windows-symbolic",
-      "sections": [
+        },
         {
           "id": "layers",
           "label": "Layer surfaces",
@@ -1654,17 +1445,10 @@
               "label": "Allow top layers over fullscreen"
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "render",
-      "label": "Rendering",
-      "icon": "view-refresh-symbolic",
-      "sections": [
+        },
         {
           "id": "render",
-          "label": "Performance",
+          "label": "Rendering",
           "options": [
             {
               "key": "render:new_render_scheduling",
@@ -1684,11 +1468,9 @@
             },
             {
               "key": "render:use_shader_blur_blend",
-              "label": "Shader blur blending",
-              "depends_on": "decoration:blur:enabled"
+              "label": "Shader blur blending"
             }
-          ],
-          "description": "Trade latency or memory for smoother rendering. Test one change at a time."
+          ]
         }
       ]
     }
