@@ -5,6 +5,23 @@ All notable changes to HyprMod will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The option catalog for Hyprland 0.57 is bundled, so option types, defaults and ranges match a 0.57 compositor without a download. Requires hyprland-schema 0.8.2
+- "Follow focus" on the Scrolling page is a choice of three modes on Hyprland 0.57, which turned the setting from on/off into off, follow on focus, and follow on focus with a click always scrolling. It stays a switch on older versions
+
+### Fixed
+
+- Tap to click and tap and drag can be changed in Lua mode again. They were sent under their dashed names (`tap-to-click`), which Hyprland's Lua API rejects with "unknown config key". Requires hyprland-config 0.9.21 and hyprland-state 0.4.8 (#102)
+- A setting whose default is an empty value, such as the pointer acceleration profile, is left out of a saved Lua config when set back to that default. HyprMod wrote `accel_profile = ""`, which Hyprland's Lua API rejects. Requires hyprland-config 0.9.21 (#108)
+- The touchpad settings and the Gestures page no longer disappear on laptops whose built-in touchpad Hyprland lists under a hardware ID (`pnp0c50:0b-0911:5288`) with no "touchpad" in its name. Requires hyprland-state 0.4.8
+- Switching a display from Mirror back to Extend takes effect right away in Lua mode. Hyprland kept the previous mirror target until the next config reload. Requires hyprland-monitors 0.9.1 and hyprland-state 0.4.8
+- A monitor whose description contains `#` keeps its mode, position and scale on save. Everything after the `#` was read as a comment. Requires hyprland-monitors 0.9.1 and hyprland-config 0.9.21
+- Migrating to Lua keeps `sendshortcut` and `sendkeystate` keybinds. They were left in the manual-conversion block, so the binds were lost. Requires hyprland-config 0.9.21
+- A Lua config that loops over `hl.get_devices()` or another query result is read in full. Everything after the loop was dropped. Requires hyprland-config 0.9.20
+
 ## [0.5.0] - 2026-10-07
 
 ### Added

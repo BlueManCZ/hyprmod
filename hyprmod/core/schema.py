@@ -90,6 +90,11 @@ def _merge(overlay: dict, schema_by_key: Mapping[str, HyprOption]) -> None:
                 src_d = src.to_dict()
                 for field in ("type", "default", "description"):
                     option.setdefault(field, src_d[field])
+                # Labels with no overlay type belong to an option whose type
+                # differs across Hyprland versions: scrolling:follow_focus was
+                # a bool until 0.57 made it a three-state int.
+                if option["type"] == "int" and "values" in option:
+                    option["type"] = "choice"
                 desc = option["description"]
                 if desc and desc[0].islower():
                     option["description"] = desc[0].upper() + desc[1:]

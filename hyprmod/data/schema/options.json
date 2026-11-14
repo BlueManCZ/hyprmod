@@ -859,7 +859,12 @@
             {
               "key": "scrolling:follow_focus",
               "label": "Follow focus",
-              "description": "Move the layout automatically to bring the focused window into view"
+              "description": "Move the layout automatically to bring the focused window into view",
+              "values": [
+                { "label": "Disabled" },
+                { "label": "On focus, always on click" },
+                { "label": "On focus" }
+              ]
             },
             {
               "key": "scrolling:follow_min_visible",
