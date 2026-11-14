@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings Hyprland 0.57 introduced: blur variants with the parameters of the selected variant, window wobble, layer surface behavior, tablet input, swallowing the click that focuses a window, centering a dragged window, cursor warp on monitor change, and asynchronous commits (#106)
+- Inner glow, new render scheduling, FP16 buffers and shader blur blending, which older Hyprland versions already had, can be configured (#106)
+
 ### Changed
 
 - The option catalog for Hyprland 0.57 is bundled, so option types, defaults and ranges match a 0.57 compositor without a download. Requires hyprland-schema 0.8.2

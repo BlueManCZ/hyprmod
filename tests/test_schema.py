@@ -1,5 +1,6 @@
 """Validate the options.json schema file."""
 
+import hyprland_schema
 import pytest
 
 from hyprmod.core.schema import _drop_unavailable, get_options_flat, load_schema
@@ -182,6 +183,16 @@ class TestChoiceOptions:
                     f"Choice '{opt['key']}' default '{opt['default']}' not in values {ids}"
                 )
 
+    def test_labels_cover_every_schema_value(self, all_options):
+        """A hand-labelled choice lists one label per value Hyprland accepts."""
+        for opt in all_options:
+            source = hyprland_schema.OPTIONS_BY_KEY.get(opt["key"])
+            if source is not None and source.enum_values and "values" in opt:
+                assert len(opt["values"]) == len(source.enum_values), (
+                    f"Choice '{opt['key']}' labels {len(opt['values'])} values, "
+                    f"Hyprland has {source.enum_values}"
+                )
+
 
 class TestDependencies:
     def test_depends_on_references_existing_key(self, all_options, all_keys):
@@ -210,6 +221,17 @@ class TestDependencies:
                 assert parent["type"] == "bool" or indexed_choice, (
                     f"Option '{opt['key']}' depends_on '{dep}' "
                     f"which is type '{parent['type']}', expected 'bool' or an indexed choice"
+                )
+
+    def test_depends_on_value_names_parent_values(self, all_options):
+        opt_map = {o["key"]: o for o in all_options}
+        for opt in all_options:
+            for value in opt.get("depends_on_value", []):
+                parent = opt_map[opt["depends_on"]]
+                ids = [v.get("id", str(i)) for i, v in enumerate(parent["values"])]
+                assert value in ids, (
+                    f"Option '{opt['key']}' depends on {parent['key']} value "
+                    f"{value!r}, which is not in {ids}"
                 )
 
     def test_no_circular_dependencies(self, all_options):
@@ -283,6 +305,18 @@ class TestDropUnavailable:
     dropped, so older Hyprland versions don't render empty sidebar pages (the
     Scrolling-on-0.49 bug: layout didn't exist yet, so every option lacked a
     ``type`` and the page showed only section titles)."""
+
+    def test_options_added_in_057_follow_the_running_version(self):
+        on_057 = get_options_flat(load_schema("0.57.2"))
+        on_056 = get_options_flat(load_schema("0.56.2"))
+        for key in (
+            "decoration:blur:variant",
+            "decoration:wobble:enabled",
+            "layers:layers_hog_keyboard_focus",
+            "input:tablet:enabled",
+        ):
+            assert key in on_057
+            assert key not in on_056
 
     def test_option_without_type_is_dropped(self):
         overlay = {
