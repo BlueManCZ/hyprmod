@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `hyprland.conf` that Hyprland 0.57 no longer reads can be recovered. Upgrading without a `hyprland.lua` makes Hyprland generate one and ignore the old config. HyprMod took that for a finished Lua setup: it hid the migration and offered to add itself to the generated file. It now offers the migration even if the banner was dismissed before, backs up every file it replaces, and reloads on the recovered configuration
 - Tap to click and tap and drag can be changed in Lua mode again. They were sent under their dashed names (`tap-to-click`), which Hyprland's Lua API rejects with "unknown config key". Requires hyprland-config 0.9.21 and hyprland-state 0.4.8 (#102)
 - A setting whose default is an empty value, such as the pointer acceleration profile, is left out of a saved Lua config when set back to that default. HyprMod wrote `accel_profile = ""`, which Hyprland's Lua API rejects. Requires hyprland-config 0.9.21 (#108)
 - The touchpad settings and the Gestures page no longer disappear on laptops whose built-in touchpad Hyprland lists under a hardware ID (`pnp0c50:0b-0911:5288`) with no "touchpad" in its name. Requires hyprland-state 0.4.8

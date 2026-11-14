@@ -9,6 +9,7 @@ from hyprland_config import ParseError
 
 from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
+from hyprmod.core import config
 from hyprmod.core.setup import needs_setup, run_setup
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import has_cairo_support, try_with_toast
@@ -70,7 +71,10 @@ class HyprModApp(Adw.Application):
             dialog = Adw.AlertDialog(heading="Missing Cairo Bindings", body=CAIRO_MISSING_BODY)
             dialog.add_response("close", "Close")
             dialog.present(win)
-        elif needs_setup():
+        # A stranded hyprland.conf is the migration banner's to fix. Adding our
+        # include to the generated hyprland.lua first would bury the fact
+        # that the user's own config is not being loaded.
+        elif not config.legacy_config_stranded() and needs_setup():
             window = win  # locally typed for the closure below
 
             def _on_setup() -> None:

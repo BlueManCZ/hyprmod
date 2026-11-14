@@ -1,6 +1,7 @@
 """Top-of-window banner that offers to migrate hyprland.conf to hyprland.lua.
 
-Shown on Hyprland 0.55+ when the user is still on a ``.conf`` entrypoint.
+Shown on Hyprland 0.55+ when the user is still on a ``.conf`` entrypoint,
+or when their ``hyprland.conf`` is stranded beside a generated ``hyprland.lua``.
 ``Adw.Banner`` only allows a single action button, so this is a custom
 widget matching the ``DirtyBanner`` shape — ``Gtk.Revealer`` + horizontal
 ``Gtk.Box`` — with both a primary "Migrate" action and a separate
@@ -28,6 +29,11 @@ class LuaMigrationBanner(Gtk.Revealer):
     to the same handler as the menu item so the two entry points share
     code paths. *on_dismiss* fires when the user clicks the dismiss
     icon-button and should persist the "never again" preference.
+
+    A *stranded* config is not a recommendation the user can decline:
+    their own config is not loaded. That banner says so and has no
+    dismiss button. It goes away once the config is recovered, or once
+    the user makes the generated one their own.
     """
 
     def __init__(
@@ -35,6 +41,7 @@ class LuaMigrationBanner(Gtk.Revealer):
         *,
         on_migrate: Callable[[], None],
         on_dismiss: Callable[[], None],
+        stranded: bool,
     ) -> None:
         super().__init__()
         self.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
@@ -53,12 +60,18 @@ class LuaMigrationBanner(Gtk.Revealer):
         icon.add_css_class("accent")
         box.append(icon)
 
-        label = Gtk.Label(
-            label=(
+        if stranded:
+            text = (
+                "Hyprland no longer reads hyprland.conf and is running a "
+                "generated hyprland.lua instead. Recover your configuration "
+                "by migrating it"
+            )
+        else:
+            text = (
                 f"Hyprland {_min_version_label()} recommends Lua configs — "
                 "migrate your hyprland.conf with one click"
-            ),
-        )
+            )
+        label = Gtk.Label(label=text)
         label.set_hexpand(True)
         label.set_xalign(0)
         label.set_wrap(True)
@@ -69,12 +82,13 @@ class LuaMigrationBanner(Gtk.Revealer):
         migrate_btn.connect("clicked", lambda _b: on_migrate())
         box.append(migrate_btn)
 
-        # Icon-only "Don't show again" — close-symbolic reads as "make
-        # this go away," and the tooltip clarifies that it's permanent.
-        dismiss_btn = Gtk.Button.new_from_icon_name("window-close-symbolic")
-        dismiss_btn.set_tooltip_text("Don't show again")
-        dismiss_btn.add_css_class("flat")
-        dismiss_btn.connect("clicked", lambda _b: on_dismiss())
-        box.append(dismiss_btn)
+        if not stranded:
+            # Icon-only "Don't show again" — close-symbolic reads as "make
+            # this go away," and the tooltip clarifies that it's permanent.
+            dismiss_btn = Gtk.Button.new_from_icon_name("window-close-symbolic")
+            dismiss_btn.set_tooltip_text("Don't show again")
+            dismiss_btn.add_css_class("flat")
+            dismiss_btn.connect("clicked", lambda _b: on_dismiss())
+            box.append(dismiss_btn)
 
         self.set_child(box)
