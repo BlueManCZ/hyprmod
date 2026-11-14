@@ -2,7 +2,7 @@
 
 import pytest
 
-from hyprmod.core.schema import _drop_unavailable, load_schema
+from hyprmod.core.schema import _drop_unavailable, get_options_flat, load_schema
 
 VALID_TYPES = {
     "bool",
@@ -131,15 +131,11 @@ class TestDefaultTypes:
 
 
 class TestNumericConstraints:
-    def test_int_bounds_are_numeric_when_present(self, all_options):
-        # Upstream can declare an int with no bounds, or only one bound.
+    def test_int_has_min_max(self, all_options):
         for opt in all_options:
             if opt["type"] == "int":
-                for bound in ("min", "max"):
-                    if bound in opt:
-                        assert isinstance(opt[bound], int), (
-                            f"Int option '{opt['key']}' has non-int {bound}"
-                        )
+                assert "min" in opt, f"Int option '{opt['key']}' missing 'min'"
+                assert "max" in opt, f"Int option '{opt['key']}' missing 'max'"
 
     def test_float_has_min_max(self, all_options):
         for opt in all_options:
@@ -196,33 +192,24 @@ class TestDependencies:
                     f"Option '{opt['key']}' depends_on '{dep}' which doesn't exist"
                 )
 
-    def test_depends_on_references_truthy_option(self, all_options):
+    def test_depends_on_parent_can_be_off(self, all_options):
+        """Visibility follows the parent's truthiness, so it must be a bool or
+        a choice whose values keep their index as id: index 0 then reads as off."""
         opt_map = {o["key"]: o for o in all_options}
         for opt in all_options:
             dep = opt.get("depends_on")
             if dep and dep in opt_map:
                 # Options with a dynamic source use depends_on to refresh
-                # values, not for visibility. Visibility treats the parent as
-                # truthy, so ints with a zero "off" value work too.
+                # values, not for visibility — the parent need not be bool.
                 if opt.get("source"):
                     continue
-                assert opt_map[dep]["type"] in ("bool", "int", "choice"), (
-                    f"Option '{opt['key']}' depends_on '{dep}' "
-                    f"which is type '{opt_map[dep]['type']}'"
+                parent = opt_map[dep]
+                indexed_choice = parent["type"] == "choice" and not any(
+                    "id" in value for value in parent["values"]
                 )
-
-    def test_depends_on_value_references_choice_values(self, all_options):
-        opt_map = {o["key"]: o for o in all_options}
-        for opt in all_options:
-            expected = opt.get("depends_on_value")
-            if expected is None:
-                continue
-            parent = opt_map[opt["depends_on"]]
-            ids = {v.get("id") for v in parent.get("values", [])}
-            for value in expected if isinstance(expected, list) else [expected]:
-                assert str(value) in ids, (
-                    f"Option '{opt['key']}' depends on {parent['key']} value "
-                    f"{value!r}, which is not in {ids}"
+                assert parent["type"] == "bool" or indexed_choice, (
+                    f"Option '{opt['key']}' depends_on '{dep}' "
+                    f"which is type '{parent['type']}', expected 'bool' or an indexed choice"
                 )
 
     def test_no_circular_dependencies(self, all_options):
@@ -267,12 +254,23 @@ class TestSchemaMerge:
 
     def test_overlay_range_override_preserved(self, all_options):
         opt = next(o for o in all_options if o["key"] == "decoration:rounding")
-        assert opt["max"] == 50  # schema says 20
+        assert opt["max"] == 50  # schema says 100
 
     def test_overlay_choice_override_preserved(self, all_options):
         opt = next(o for o in all_options if o["key"] == "misc:vrr")
         assert opt["type"] == "choice"  # schema says int
         assert opt["default"] == 0
+
+    def test_labels_turn_an_untyped_int_into_a_choice(self):
+        """scrolling:follow_focus is a three-state int from Hyprland 0.57 on."""
+        opt = get_options_flat(load_schema("0.57.2"))["scrolling:follow_focus"]
+        assert opt["type"] == "choice"
+        assert len(opt["values"]) == 3
+
+    def test_labels_leave_an_untyped_bool_alone(self):
+        """Before 0.57 it was a bool, which the labels don't describe."""
+        opt = get_options_flat(load_schema("0.56.2"))["scrolling:follow_focus"]
+        assert opt["type"] == "bool"
 
     def test_vec2_type_preserved(self, all_options):
         """vec2 type from schema should be preserved."""
