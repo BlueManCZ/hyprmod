@@ -106,6 +106,8 @@ class AppState:
         """
         if not isinstance(value, str) or value.strip() or not self._hypr.is_live_lua_mode():
             return False
+        # TODO: ask hyprland-config's lua_accepts_empty() once it is exported,
+        # instead of probing the emitter for its ValueError.
         try:
             keyword_to_lua(key, value)
         except ValueError:
