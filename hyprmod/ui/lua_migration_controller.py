@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gi.repository import Adw, Gio
+from gi.repository import Adw, Gio, GLib
 from hyprland_config import ConversionResult
 
 from hyprmod.core import config
@@ -37,12 +37,15 @@ def _migration_actionable(version: str | None) -> bool:
     """Whether a Lua migration can actually produce a useful result now.
 
     Shared by the banner-visibility and action-enabled predicates: both
-    require a Hyprland new enough to support Lua (``0.55+``) and a user
-    not already on Lua. The dismissed-banner flag is intentionally not
-    folded in here — dismissing the banner is "stop pestering me" and
-    must leave the menu action reachable.
+    require a Hyprland new enough to support Lua (``0.55+``) and either a
+    user not already on Lua or one whose ``hyprland.conf`` is stranded
+    beside a generated ``hyprland.lua``. The dismissed-banner flag is
+    intentionally not folded in here — dismissing the banner is "stop
+    pestering me" and must leave the menu action reachable.
     """
-    return config.supports_lua_migration(version) and not config.is_lua_mode()
+    if not config.supports_lua_migration(version):
+        return False
+    return not config.is_lua_mode() or config.legacy_config_stranded()
 
 
 class LuaMigrationController:
@@ -67,6 +70,7 @@ class LuaMigrationController:
         self._banner = LuaMigrationBanner(
             on_migrate=self.start_migration,
             on_dismiss=self._mark_done,
+            stranded=config.legacy_config_stranded(),
         )
         self._banner.set_reveal_child(self._should_offer())
 
@@ -98,12 +102,17 @@ class LuaMigrationController:
     # ── Internals ─────────────────────────────────────────────────────
 
     def _should_offer(self) -> bool:
-        """True on 0.55+ Hyprlang setups the user hasn't dismissed."""
+        """True on 0.55+ Hyprlang setups the user hasn't dismissed.
+
+        A stranded config is offered regardless: the dismissal was an answer
+        to "Lua is recommended", from before Hyprland stopped reading the
+        user's config.
+        """
         if not _migration_actionable(self._get_version()):
             return False
-        if self._settings and self._settings.get_boolean(_DISMISSED_KEY):
-            return False
-        return True
+        if config.legacy_config_stranded():
+            return True
+        return not (self._settings and self._settings.get_boolean(_DISMISSED_KEY))
 
     def _action_applicable(self) -> bool:
         """True when the menu action should be enabled (ignores dismissal)."""
@@ -132,14 +141,17 @@ class LuaMigrationController:
         else:
             self._show_toast(f"Wrote {len(result.written)} Lua file(s).")
 
-        # A clean run produced ``.lua`` files but Hyprland is still running
-        # with the ``.conf`` parser — config language is locked at compositor
-        # startup. Surface that explicitly so the user isn't surprised when
-        # live-apply keeps using the old config until they next log in.
+        # A clean run produced ``.lua`` files. A compositor on the ``.conf``
+        # parser keeps it until the next login, since the config language is
+        # locked at startup, so say so. One already on Lua was running its
+        # generated config and can load the recovered one right away.
         if not result.errors and result.written:
             self._mark_done()
             self._repoint_stored_path(result.written)
-            self._show_restart_notice()
+            if self._window.hypr.is_live_lua_mode():
+                self._show_recovered_notice()
+            else:
+                self._show_restart_notice()
 
     def _repoint_stored_path(self, written: list[Path]) -> None:
         """Swap a saved .conf ``config-path`` to its newly-written .lua sibling.
@@ -174,6 +186,37 @@ class LuaMigrationController:
         dialog.add_response("ok", "Got it")
         dialog.set_default_response("ok")
         dialog.present(self._window)
+
+    def _show_recovered_notice(self) -> None:
+        """Confirm the recovery, then rebuild the window on the migrated config."""
+        dialog = Adw.AlertDialog(
+            heading="Configuration recovered",
+            body=(
+                "hyprland.lua now holds your migrated configuration. HyprMod "
+                "reloads Hyprland and reopens to pick it up."
+            ),
+        )
+        dialog.add_response("ok", "Reload")
+        dialog.set_default_response("ok")
+        # Deferred so the dialog finishes closing before its window goes.
+        dialog.connect("response", lambda *_: GLib.idle_add(self._rebuild_window))
+        dialog.present(self._window)
+
+    def _rebuild_window(self) -> None:
+        """Replace the window with one built from the migrated config.
+
+        Every page read the generated config at startup. A new window
+        reloads the compositor, reads the config tree again and offers
+        onboarding when the migrated config does not load HyprMod's file.
+        """
+        app = self._window.get_application()
+        if app is None:
+            return
+        # Held so the application does not quit between the two windows.
+        app.hold()
+        self._window.destroy()
+        app.activate()
+        app.release()
 
 
 __all__ = ["ACTION_NAME", "LuaMigrationController"]
