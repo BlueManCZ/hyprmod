@@ -15,7 +15,7 @@
 # Inline derivations for the five Python deps that are not yet in nixpkgs.
 # Track https://github.com/NixOS/nixpkgs/pull/505419 — once merged, these
 # can be removed and the dependencies replaced with the upstream nixpkgs attrs.
-# Last updated for hyprmod v0.5.0.
+# Last updated for hyprmod v0.6.0.
 
 let
   hyprland-socket = python3Packages.buildPythonPackage rec {
@@ -99,7 +99,7 @@ in
 
 python3Packages.buildPythonApplication {
   pname = "hyprmod";
-  version = "0.5.0";
+  version = "0.6.0";
   pyproject = true;
 
   # src is passed by the caller so the flake can supply `self` (the repo root)

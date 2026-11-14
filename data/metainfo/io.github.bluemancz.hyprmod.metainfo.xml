@@ -70,6 +70,21 @@
   </keywords>
 
   <releases>
+    <release version="0.6.0" date="2026-11-14">
+      <description>
+        <p>Hyprland 0.57 support, with its new settings and a round of Lua fixes:</p>
+        <ul>
+          <li>Settings Hyprland 0.57 introduced: blur variants, window wobble, layer surface behavior, tablet input and more</li>
+          <li>Inner glow, new render scheduling, FP16 buffers and shader blur blending can be configured</li>
+          <li>A hyprland.conf that Hyprland 0.57 stopped reading can be recovered by migrating it to Lua</li>
+          <li>Tap to click and tap and drag can be changed in Lua mode again</li>
+          <li>A setting whose default is empty, such as the pointer acceleration profile, can be set back to it in Lua mode</li>
+          <li>Touchpad settings and the Gestures page show up on laptops whose touchpad is listed under a hardware ID</li>
+          <li>Switching a display from Mirror back to Extend takes effect right away in Lua mode</li>
+          <li>Migrating to Lua keeps sendshortcut and sendkeystate keybinds</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-10-07">
       <description>
         <p>Plugins page, multi-action window rules, and a round of keybind and Lua fixes:</p>
