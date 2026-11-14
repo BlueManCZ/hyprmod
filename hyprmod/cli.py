@@ -11,7 +11,7 @@ import sys
 
 from hyprland_state import HyprlandState
 
-from hyprmod.core import config, profiles
+from hyprmod.core import profiles
 from hyprmod.core.settings import apply_saved_config_path, open_settings
 
 
@@ -26,18 +26,8 @@ def _list_profiles() -> int:
     return 0
 
 
-def _prepare_runtime() -> HyprlandState:
-    """Create state, then resolve the managed path against the live provider."""
+def _activate(profile_id: str, name: str) -> int:
     hypr = HyprlandState()
-    provider = None
-    if hypr.online:
-        provider = "lua" if hypr.is_live_lua_mode() else "hyprlang"
-    config.configure_runtime(provider=provider, version=hypr.version)
-    apply_saved_config_path(open_settings())
-    return hypr
-
-
-def _activate(profile_id: str, name: str, hypr: HyprlandState) -> int:
     if not profiles.activate(profile_id, hypr):
         print(f"hyprmod: profile {name!r} has no saved snapshot", file=sys.stderr)
         return 1
@@ -50,17 +40,21 @@ def _activate(profile_id: str, name: str, hypr: HyprlandState) -> int:
 
 
 def _apply_profile(name: str) -> int:
-    hypr = _prepare_runtime()
+    # Honour a custom config-path before resolving the managed file, so the
+    # CLI writes to the same place the GUI does.
+    apply_saved_config_path(open_settings())
+
     profile_list, _ = profiles.list_profiles_and_active()
     profile = profiles.find_by_name(profile_list, name)
     if profile is None:
         print(f"hyprmod: no profile named {name!r}", file=sys.stderr)
         return 1
-    return _activate(profile["id"], profile["name"], hypr)
+    return _activate(profile["id"], profile["name"])
 
 
 def _cycle_profile(*, forward: bool) -> int:
-    hypr = _prepare_runtime()
+    apply_saved_config_path(open_settings())
+
     profile_list, active_id = profiles.list_profiles_and_active()
     target_id = profiles.adjacent_id(profile_list, active_id, forward=forward)
     if target_id is None:
@@ -72,7 +66,7 @@ def _cycle_profile(*, forward: bool) -> int:
         # Single profile, already active: nothing to cycle to.
         print(f"{target['name']!r} is the only profile.")
         return 0
-    return _activate(target_id, target["name"], hypr)
+    return _activate(target_id, target["name"])
 
 
 def run(argv: list[str]) -> int:
