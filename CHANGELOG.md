@@ -14,19 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The option catalog for Hyprland 0.57 is bundled, so option types, defaults and ranges match a 0.57 compositor without a download. Requires hyprland-schema 0.8.2
-- "Follow focus" on the Scrolling page is a choice of three modes on Hyprland 0.57, which turned the setting from on/off into off, follow on focus, and follow on focus with a click always scrolling. It stays a switch on older versions
+- The option catalog for Hyprland 0.57 is bundled, so option types, defaults and ranges match a 0.57 compositor without a download. Requires hyprland-schema 0.8.2 (https://github.com/BlueManCZ/hyprland-schema/pull/7)
+- "Follow focus" on the Scrolling page is a choice of three modes on Hyprland 0.57, which turned the setting from on/off into off, follow on focus, and follow on focus with a click always scrolling. It stays a switch on older versions (#109)
 
 ### Fixed
 
 - A `hyprland.conf` that Hyprland 0.57 no longer reads can be recovered. Upgrading without a `hyprland.lua` makes Hyprland generate one and ignore the old config. HyprMod took that for a finished Lua setup: it hid the migration and offered to add itself to the generated file. It now offers the migration even if the banner was dismissed before, backs up every file it replaces, and reloads on the recovered configuration (#110)
 - Tap to click and tap and drag can be changed in Lua mode again. They were sent under their dashed names (`tap-to-click`), which Hyprland's Lua API rejects with "unknown config key". Requires hyprland-config 0.9.21 and hyprland-state 0.4.8 (#102)
 - A setting whose default is an empty value, such as the pointer acceleration profile, can be set back to that default in Lua mode. Hyprland's Lua API has no value for it, so picking "Default" failed with "eval rejected" and a saved config carried `accel_profile = ""`. The key is now left out of the saved config, and HyprMod reloads Hyprland to bring the default back as soon as no other change is unsaved. Resetting the setting, discarding it and undo work the same way. Requires hyprland-config 0.9.21 (#108)
-- The touchpad settings and the Gestures page no longer disappear on laptops whose built-in touchpad Hyprland lists under a hardware ID (`pnp0c50:0b-0911:5288`) with no "touchpad" in its name. Requires hyprland-state 0.4.8
-- Switching a display from Mirror back to Extend takes effect right away in Lua mode. Hyprland kept the previous mirror target until the next config reload. Requires hyprland-monitors 0.9.1 and hyprland-state 0.4.8
-- A monitor whose description contains `#` keeps its mode, position and scale on save. Everything after the `#` was read as a comment. Requires hyprland-monitors 0.9.1 and hyprland-config 0.9.21
-- Migrating to Lua keeps `sendshortcut` and `sendkeystate` keybinds. They were left in the manual-conversion block, so the binds were lost. Requires hyprland-config 0.9.21
-- A Lua config that loops over `hl.get_devices()` or another query result is read in full. Everything after the loop was dropped. Requires hyprland-config 0.9.20
+- The touchpad settings and the Gestures page no longer disappear on laptops whose built-in touchpad Hyprland lists under a hardware ID (`pnp0c50:0b-0911:5288`) with no "touchpad" in its name. Requires hyprland-state 0.4.8 (https://github.com/BlueManCZ/hyprland-state/pull/5)
+- Switching a display from Mirror back to Extend takes effect right away in Lua mode. Hyprland kept the previous mirror target until the next config reload. Requires hyprland-monitors 0.9.1 and hyprland-state 0.4.8 (https://github.com/BlueManCZ/hyprland-monitors/pull/2)
+- A monitor whose description contains `#` keeps its mode, position and scale on save. Everything after the `#` was read as a comment. Requires hyprland-monitors 0.9.1 and hyprland-config 0.9.21 (https://github.com/BlueManCZ/hyprland-monitors/issues/3)
+- Migrating to Lua keeps `sendshortcut` and `sendkeystate` keybinds. They were left in the manual-conversion block, so the binds were lost. Requires hyprland-config 0.9.21 (https://github.com/BlueManCZ/hyprland-config/pull/13)
+- A Lua config that loops over `hl.get_devices()` or another query result is read in full. Everything after the loop was dropped. Requires hyprland-config 0.9.20 (https://github.com/BlueManCZ/hyprland-config/pull/8)
 
 ## [0.5.0] - 2026-10-07
 
