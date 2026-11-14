@@ -36,12 +36,14 @@ class FakeHypr:
     :meth:`get_live`; unknown keys fall back to the caller's hint and
     ``available=True``. ``apply_ok`` toggles whether :meth:`apply`
     reports success. ``discard_result`` is what :meth:`discard` returns.
+    ``lua_mode`` is what :meth:`is_live_lua_mode` reports.
     """
 
-    def __init__(self, live=None, apply_ok=True, discard_result=None):
+    def __init__(self, live=None, apply_ok=True, discard_result=None, lua_mode=False):
         self.live = live or {}
         self.apply_ok = apply_ok
         self.discard_result = discard_result or {}
+        self.lua_mode = lua_mode
         self.applied: list[tuple[str, object]] = []
         self.keywords: list[tuple[str, object]] = []
         self.reloaded = 0
@@ -50,6 +52,9 @@ class FakeHypr:
 
     def get_live(self, key, hint=None):
         return self.live.get(key, (hint, True))
+
+    def is_live_lua_mode(self):
+        return self.lua_mode
 
     def apply(self, key, value, *, validate=True):
         self.applied.append((key, value))
@@ -444,3 +449,141 @@ class TestNotifications:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# --- defaults Hyprland's Lua API cannot be sent -----------------------------
+
+ACCEL = "input:accel_profile"
+GLOW = "decoration:glow:color_inactive"
+WHITE = "0xffffffff 0deg"
+
+
+class TestAwaitingReload:
+    """An empty value the Lua API refuses is held for a reload, not sent."""
+
+    def _accel(self, live: str, *, managed: bool, **hypr_kwargs):
+        hypr = FakeHypr(live={ACCEL: (live, True)}, lua_mode=True, **hypr_kwargs)
+        state = make_state(hypr)
+        state.register(ACCEL, default_value="", was_managed_value=live if managed else None)
+        return hypr, state
+
+    def test_only_an_empty_value_in_lua_mode_needs_a_reload(self):
+        lua = make_state(FakeHypr(lua_mode=True))
+        assert lua.needs_reload_to_set(ACCEL, "")
+        assert not lua.needs_reload_to_set(ACCEL, "flat")
+        assert not lua.needs_reload_to_set("input:kb_variant", "")
+        assert not lua.needs_reload_to_set("general:gaps_in", 0)
+        assert not make_state(FakeHypr(lua_mode=False)).needs_reload_to_set(ACCEL, "")
+
+    def test_set_live_holds_the_value_and_stops_managing(self):
+        hypr, state = self._accel("flat", managed=True)
+        entry = state.set_live(ACCEL, "")
+        opt = state.options[ACCEL]
+        assert hypr.applied == []
+        assert opt.live_value == "" and not opt.managed and opt.is_dirty
+        assert state.awaiting_reload == {ACCEL}
+        assert entry == OptionChange(ACCEL, "flat", "", old_managed=True, new_managed=False)
+        assert state.get_all_live_values() == {}  # nothing to write for it
+
+    def test_hyprlang_mode_still_sends_the_empty_value(self):
+        hypr = FakeHypr(live={ACCEL: ("flat", True)})
+        state = make_state(hypr)
+        state.register(ACCEL, default_value="", was_managed_value="flat")
+        state.set_live(ACCEL, "")
+        assert hypr.applied == [(ACCEL, "")]
+        assert state.options[ACCEL].managed
+        assert not state.awaiting_reload
+
+    def test_a_value_that_can_be_sent_ends_the_wait(self):
+        hypr, state = self._accel("flat", managed=True)
+        state.set_live(ACCEL, "")
+        state.set_live(ACCEL, "adaptive")
+        assert hypr.applied == [(ACCEL, "adaptive")]
+        assert not state.awaiting_reload
+
+    def test_undo_to_the_empty_value_is_held_too(self):
+        hypr, state = self._accel("flat", managed=True)
+        assert state.apply_option_value(ACCEL, "", managed=False)
+        assert hypr.applied == []
+        assert state.options[ACCEL].live_value == ""
+        assert state.awaiting_reload == {ACCEL}
+
+    def test_reset_holds_an_empty_fallback(self):
+        hypr, state = self._accel("flat", managed=True)
+        assert state.reset_to_value(ACCEL, fallback="")
+        opt = state.options[ACCEL]
+        assert hypr.applied == []
+        assert opt.live_value == "" and not opt.managed and opt.is_dirty
+        assert state.awaiting_reload == {ACCEL}
+
+    def test_reset_without_a_saved_override_returns_to_the_saved_value(self):
+        """An unset gradient reads back as white, not as the empty default."""
+        hypr = FakeHypr(live={GLOW: (WHITE, True)}, lua_mode=True)
+        state = make_state(hypr)
+        state.register(GLOW, default_value="", was_managed_value=None)
+        state.set_live(GLOW, "0xff00ff00 0deg")
+        state.reset_to_value(GLOW, fallback="")
+        opt = state.options[GLOW]
+        assert opt.live_value == WHITE and not opt.is_dirty
+        assert state.awaiting_reload == {GLOW}
+
+    def test_discard_one_holds_an_empty_saved_value(self):
+        hypr, state = self._accel("", managed=False)
+        state.set_live(ACCEL, "flat")
+        assert state.discard_one(ACCEL)
+        assert hypr.keywords == []
+        assert state.options[ACCEL].live_value == ""
+        assert state.awaiting_reload == {ACCEL}
+
+    def test_discard_one_of_a_held_value_sends_the_saved_one(self):
+        hypr, state = self._accel("flat", managed=True)
+        state.set_live(ACCEL, "")
+        assert state.discard_one(ACCEL)
+        assert hypr.keywords == [(ACCEL, "flat")]
+        assert not state.awaiting_reload
+
+    def test_discard_dirty_reverts_a_held_value_the_library_never_saw(self):
+        hypr, state = self._accel("flat", managed=True)
+        state.set_live(ACCEL, "")
+        assert state.discard_dirty() == {ACCEL: "flat"}
+        opt = state.options[ACCEL]
+        assert opt.live_value == "flat" and opt.managed and not opt.is_dirty
+        assert not state.awaiting_reload
+
+    def test_discard_dirty_holds_an_empty_saved_value(self):
+        hypr, state = self._accel("", managed=False, discard_result={ACCEL: ""})
+        state.set_live(ACCEL, "flat")
+        state.discard_dirty()
+        assert not state.options[ACCEL].is_dirty
+        assert state.awaiting_reload == {ACCEL}
+
+    def test_reload_rereads_the_held_options(self):
+        hypr = FakeHypr(live={GLOW: ("0xff00ff00 0deg", True)}, lua_mode=True)
+        state = make_state(hypr)
+        state.register(GLOW, default_value="", was_managed_value="0xff00ff00 0deg")
+        state.reset_to_value(GLOW, fallback="")
+        state.mark_saved()
+        seen: list[str] = []
+        state.on_change(seen.append)
+
+        hypr.live[GLOW] = (WHITE, True)  # what the reload leaves behind
+        state.reload_compositor()
+
+        opt = state.options[GLOW]
+        assert hypr.reloaded == 1
+        assert opt.live_value == opt.saved_value == WHITE
+        assert not state.awaiting_reload
+        assert seen == [GLOW]
+
+    def test_reload_preserving_dirty_does_not_resend_a_held_value(self):
+        hypr, state = self._accel("flat", managed=True)
+        state.set_live(ACCEL, "")
+        state.reload_preserving_dirty()
+        assert hypr.reloaded == 1
+        assert hypr.keywords == []
+
+    def test_refresh_all_live_ends_every_wait(self):
+        hypr, state = self._accel("flat", managed=True)
+        state.set_live(ACCEL, "")
+        state.refresh_all_live()
+        assert not state.awaiting_reload
