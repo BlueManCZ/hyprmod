@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from hyprland_config import value_to_conf
+from hyprland_config import keyword_to_lua, value_to_conf
 from hyprland_socket import HyprlandError
 from hyprland_state import HyprlandState
 
@@ -45,6 +45,9 @@ class AppState:
         self.options: dict[str, OptionState] = {}
         self._precisions: dict[str, int] = {}
         self._change_callbacks: list[Callable[[str], Any]] = []
+        # Options holding a value IPC could not send, which the compositor
+        # only picks up from a reload (see needs_reload_to_set).
+        self.awaiting_reload: set[str] = set()
 
     def normalize(self, key: str, value: Any) -> Any:
         """Round floats to widget display precision if registered."""
@@ -94,9 +97,27 @@ class AppState:
     def get(self, key: str) -> OptionState | None:
         return self.options.get(key)
 
+    def needs_reload_to_set(self, key: str, value: Any) -> bool:
+        """Whether the compositor takes *value* for *key* only from its config.
+
+        Hyprland's Lua API refuses an empty value for some options, so their
+        default comes back only when the config is reloaded with the key
+        left out.
+        """
+        if not isinstance(value, str) or value.strip() or not self._hypr.is_live_lua_mode():
+            return False
+        # TODO: ask hyprland-config's lua_accepts_empty() once it is exported,
+        # instead of probing the emitter for its ValueError.
+        try:
+            keyword_to_lua(key, value)
+        except ValueError:
+            return True
+        return False
+
     def set_live(self, key: str, value: Any) -> OptionChange | None:
         """Update live value and apply via IPC.
 
+        A value only a reload can set is held in ``awaiting_reload`` instead.
         Returns an OptionChange on success (for undo history), or None on failure.
         """
         state = self.options.get(key)
@@ -107,18 +128,24 @@ class AppState:
         old_value = state.live_value
         old_managed = state.managed
 
-        if self._hypr.apply(key, value, validate=False):
-            state.live_value = value
+        if self.needs_reload_to_set(key, value):
+            # Nothing to manage either: the saved config leaves the key out.
+            self.awaiting_reload.add(key)
+            state.managed = False
+        elif self._hypr.apply(key, value, validate=False):
+            self.awaiting_reload.discard(key)
             state.managed = state.saved_managed or value != state.saved_value
-            self.notify(key)
-            return OptionChange(
-                key=key,
-                old_value=old_value,
-                new_value=value,
-                old_managed=old_managed,
-                new_managed=state.managed,
-            )
-        return None
+        else:
+            return None
+        state.live_value = value
+        self.notify(key)
+        return OptionChange(
+            key=key,
+            old_value=old_value,
+            new_value=value,
+            old_managed=old_managed,
+            new_managed=state.managed,
+        )
 
     def apply_option_value(self, key: str, value: Any, managed: bool) -> bool:
         """Set an option to a specific value (used by undo/redo). Returns True on success."""
@@ -130,12 +157,16 @@ class AppState:
         # they round-trip back through IPC; non-strings are already in
         # their target Python type and pass through unchanged.
         coerced = value_to_conf(value) if isinstance(value, str) else value
-        if self._hypr.apply(key, coerced, validate=False):
-            state.live_value = coerced
-            state.managed = managed
-            self.notify(key)
-            return True
-        return False
+        if self.needs_reload_to_set(key, coerced):
+            self.awaiting_reload.add(key)
+        elif self._hypr.apply(key, coerced, validate=False):
+            self.awaiting_reload.discard(key)
+        else:
+            return False
+        state.live_value = coerced
+        state.managed = managed
+        self.notify(key)
+        return True
 
     def unmanage(self, key: str):
         """Remove a key from HyprMod management and mark as permanently unmanaged.
@@ -152,18 +183,26 @@ class AppState:
     def reset_to_value(self, key: str, fallback: Any) -> bool:
         """Remove an option from management and apply a fallback value.
 
-        Sends *fallback* to the compositor, updates the live value,
-        and clears the managed flag. Returns True on success.
+        Sends *fallback* to the compositor, or holds it in
+        ``awaiting_reload`` when only a reload can set it, updates the live
+        value, and clears the managed flag. Returns True on success.
         """
         state = self.options.get(key)
         if state is None:
             return False
-        if fallback is not None:
+        if isinstance(fallback, str):
+            fallback = value_to_conf(fallback)
+        if self.needs_reload_to_set(key, fallback):
+            self.awaiting_reload.add(key)
+            # With no saved override the reload restores the saved value,
+            # which is not always the empty one: an unset gradient reads
+            # back as white.
+            state.live_value = fallback if state.saved_managed else state.saved_value
+        elif fallback is not None:
             try:
-                if isinstance(fallback, str):
-                    fallback = value_to_conf(fallback)
                 self._hypr.apply(key, fallback, validate=False)
                 state.live_value = self.normalize(key, fallback)
+                self.awaiting_reload.discard(key)
             except HyprlandError:
                 log.warning("Failed to apply fallback for %s via IPC", key)
         state.managed = False
@@ -180,11 +219,15 @@ class AppState:
             return False
         state.live_value = state.saved_value
         state.managed = state.saved_managed
-        if state.saved_value is not None:
-            try:
-                self._hypr.keyword(key, value_to_conf(state.saved_value))
-            except HyprlandError:
-                log.warning("Failed to revert %s via IPC", key)
+        if self.needs_reload_to_set(key, state.saved_value):
+            self.awaiting_reload.add(key)
+        else:
+            self.awaiting_reload.discard(key)
+            if state.saved_value is not None:
+                try:
+                    self._hypr.keyword(key, value_to_conf(state.saved_value))
+                except HyprlandError:
+                    log.warning("Failed to revert %s via IPC", key)
         self.notify(key)
         return True
 
@@ -196,10 +239,28 @@ class AppState:
         """
         self._hypr.reload_compositor()
         for key, value in self.get_dirty_values().items():
+            if key in self.awaiting_reload:
+                continue
             try:
                 self._hypr.keyword(key, value)
             except HyprlandError:
                 log.warning("Failed to re-apply %s after reload", key)
+
+    def reload_compositor(self):
+        """Reload Hyprland config and re-read the options that waited on it.
+
+        A reload drops every live preview, so this is for when nothing is
+        unsaved and the config on disk is the state to show.
+        """
+        self._hypr.reload_compositor()
+        # Emptied first: the notifications below can lead back here.
+        waiting, self.awaiting_reload = self.awaiting_reload, set()
+        for key in waiting:
+            state = self.options[key]
+            value, available = self._hypr.get_live(key, state.default_value)
+            if available:
+                state.live_value = state.saved_value = self.normalize(key, value)
+            self.notify(key)
 
     def refresh_all_live(self):
         """Re-read all registered options from Hyprland and reset baselines.
@@ -208,6 +269,7 @@ class AppState:
         Fires change notifications for each option that changed, so
         subscribed widgets update reactively.
         """
+        self.awaiting_reload.clear()
         changed_keys: list[str] = []
         for key, state in self.options.items():
             value, available = self._hypr.get_live(key, state.default_value)
@@ -254,9 +316,15 @@ class AppState:
         nor the schema had a value to revert to).
         """
         reverted = self._hypr.discard()
+        # A value held for a reload never reached the library's pending list.
+        for key in self.awaiting_reload - reverted.keys():
+            reverted[key] = self.options[key].saved_value
+        self.awaiting_reload.clear()
         for key, s in self.options.items():
             if key in reverted:
                 s.live_value = s.saved_value
+                if self.needs_reload_to_set(key, s.saved_value):
+                    self.awaiting_reload.add(key)
             # Restore managed flags for all dirty options (including those
             # where only the managed flag changed without a value change).
             if s.managed != s.saved_managed:

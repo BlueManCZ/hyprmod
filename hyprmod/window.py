@@ -986,23 +986,39 @@ class HyprModWindow(Adw.ApplicationWindow):
                 self.app_state.set_live(dep_key, dep_option.get("default", ""))
 
         opt_row = self._option_rows.get(key)
-        try:
-            entry = self.app_state.set_live(key, value)
-        except HyprlandError as e:
+
+        def reject():
             if opt_row:
                 opt_row.flash_error()
                 if state:
                     opt_row.set_value_silent(state.live_value)
+
+        # A default the compositor only takes from a reload is reached by
+        # leaving the key out, which hands the option to any other file
+        # that sets it.
+        if self.app_state.needs_reload_to_set(key, value) and (
+            self.hypr.get_fallback_value(key, config.managed_path()) != value
+        ):
+            reject()
+            label = self._options_flat.get(key, {}).get("label", key)
+            self.show_toast(
+                f"{label} is set in another config file. Remove it there to get the default.",
+                timeout=5,
+            )
+            return
+        try:
+            entry = self.app_state.set_live(key, value)
+        except HyprlandError as e:
+            reject()
             self.show_bug_toast(f"Failed to set {key} — {e}", detail=str(e), timeout=5)
             return
-        if entry is None and opt_row:
-            opt_row.flash_error()
-            if state:
-                opt_row.set_value_silent(state.live_value)
-        elif entry is not None:
-            self._undo.push(entry)
-            if self.auto_save:
-                self._schedule_auto_save()
+        if entry is None:
+            reject()
+            return
+        self._undo.push(entry)
+        self._explain_awaited_reload(key)
+        if self.auto_save:
+            self._schedule_auto_save()
 
     def _on_paired_option_changed(self, changes: list[tuple[str, object]]):
         """Apply several keys as one atomic undo step (keyboard layouts own two).
@@ -1053,6 +1069,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self.app_state.reset_to_value(key, fallback)
         self._sync_option_row(key, flash=True)
         self._notify_ui_change()
+        self._explain_awaited_reload(key)
         if self.auto_save:
             self._schedule_auto_save()
 
@@ -1090,11 +1107,32 @@ class HyprModWindow(Adw.ApplicationWindow):
         else:
             self._banner.hide()
 
+    def _reload_once_clean(self):
+        """Reload Hyprland for the options that can only take a value that way.
+
+        Held until nothing is unsaved: a reload drops every live preview, so
+        it has to wait for the config on disk to be the state on screen.
+        """
+        if not self.app_state.awaiting_reload or self.has_dirty():
+            return
+        try_with_toast(
+            self.show_bug_toast,
+            "Couldn't reload Hyprland",
+            self.app_state.reload_compositor,
+            catch=HyprlandError,
+        )
+
+    def _explain_awaited_reload(self, key: str):
+        """Say why a change to *key* shows no effect yet."""
+        if key in self.app_state.awaiting_reload and not self.auto_save:
+            self.show_toast("The default takes effect once changes are saved", timeout=4)
+
     def _on_state_changed(self, key: str):
         self._update_banner()
         self._update_sidebar_badges()
         self._sync_option_row(key)
         self._schedule_pending_refresh()
+        self._reload_once_clean()
 
         if key == ANIMATIONS_ENABLED and self._anim_details_box is not None:
             state = self.app_state.get(key)
@@ -1105,6 +1143,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._update_banner()
         self._update_sidebar_badges()
         self._schedule_pending_refresh()
+        self._reload_once_clean()
         if self.auto_save and self.has_dirty():
             self._schedule_auto_save()
 
@@ -1267,16 +1306,17 @@ class HyprModWindow(Adw.ApplicationWindow):
                 profiles.update(active_id)
         if self._profiles_page is not None:
             self._profiles_page.rebuild()
-        if rules_changed:
+        if rules_changed or self.app_state.awaiting_reload:
             # Don't wait for Hyprland's config watcher to notice: it holds an
             # inotify watch on the config file's inode with IN_CLOSE_WRITE, and
             # our atomic save replaces that inode by rename. The watch fires on
             # neither the rename nor any later write, and only a reload re-arms
-            # it, so without this the rules we just wrote would sit unread.
+            # it, so without this the rules we just wrote would sit unread, and
+            # so would a default that comes from leaving its key out.
             try_with_toast(
                 self.show_bug_toast,
                 "Couldn't reload Hyprland after saving",
-                self.hypr.reload_compositor,
+                self.app_state.reload_compositor,
                 catch=HyprlandError,
             )
 
@@ -1446,6 +1486,7 @@ class HyprModWindow(Adw.ApplicationWindow):
         self._undo.clear()
         self._refresh_all_modified_indicators()
         self._schedule_pending_refresh()
+        self._reload_once_clean()
 
     # -- Auto-save --
 
