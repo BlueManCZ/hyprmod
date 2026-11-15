@@ -25,6 +25,7 @@ from hyprmod.core import config
 from hyprmod.core.ownership import OwnershipSet
 from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import MonitorsUndoEntry
+from hyprmod.i18n import _
 from hyprmod.pages.monitors.card import MonitorCard
 from hyprmod.pages.monitors.confirm_controller import ConfirmController
 from hyprmod.pages.section import SectionPage
@@ -254,7 +255,7 @@ class MonitorsPage(SectionPage):
         page_header = header or Adw.HeaderBar()
 
         refresh_btn = Gtk.Button(icon_name="view-refresh-symbolic")
-        refresh_btn.set_tooltip_text("Refresh monitors")
+        refresh_btn.set_tooltip_text(_("Refresh monitors"))
         refresh_btn.connect("clicked", self._on_refresh)
         page_header.pack_start(refresh_btn)
 
@@ -290,8 +291,8 @@ class MonitorsPage(SectionPage):
         if not self._monitors:
             self._content_box.append(
                 EmptyState(
-                    title="No Monitors Detected",
-                    description="Could not read monitor information from Hyprland.",
+                    title=_("No Monitors Detected"),
+                    description=_("Could not read monitor information from Hyprland."),
                     icon_name="computer-symbolic",
                 )
             )
@@ -314,14 +315,14 @@ class MonitorsPage(SectionPage):
 
             preview_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             preview_box.append(preview_frame)
-            self._drag_hint = Gtk.Label(label="Drag monitors to reposition", visible=multi)
+            self._drag_hint = Gtk.Label(label=_("Drag monitors to reposition"), visible=multi)
             self._drag_hint.add_css_class("dim-label")
             self._drag_hint.set_margin_top(4)
             preview_box.append(self._drag_hint)
             self._content_box.append(preview_box)
 
             self._gap_banner = Adw.Banner(
-                title="Monitors have gaps between them — cursor won't be able to move across",
+                title=_("Monitors have gaps between them — cursor won't be able to move across"),
             )
             gap_frame = Gtk.Frame()
             gap_frame.add_css_class("gap-banner-frame")
@@ -782,30 +783,30 @@ class MonitorsPage(SectionPage):
     @staticmethod
     def _summarize_monitor(mon: MonitorState) -> str:
         if mon.disabled:
-            return "disabled"
+            return _("disabled")
         return (
             f"{mon.width}x{mon.height}@{mon.refresh_rate:.0f}Hz · "
-            f"{mon.x},{mon.y} · scale {mon.scale:g}"
+            f"{mon.x},{mon.y} · {_('scale')} {mon.scale:g}"
         )
 
     @staticmethod
     def _diff_monitor(baseline: MonitorState, current: MonitorState) -> str:
         diffs: list[str] = []
         if baseline.disabled != current.disabled:
-            diffs.append("disabled" if current.disabled else "re-enabled")
+            diffs.append(_("disabled") if current.disabled else _("re-enabled"))
         if (baseline.width, baseline.height) != (current.width, current.height):
             diffs.append(f"{baseline.width}x{baseline.height} → {current.width}x{current.height}")
         if abs(baseline.refresh_rate - current.refresh_rate) > 0.01:
             diffs.append(f"{baseline.refresh_rate:.0f}Hz → {current.refresh_rate:.0f}Hz")
         if (baseline.x, baseline.y) != (current.x, current.y):
-            diffs.append(f"pos {baseline.x},{baseline.y} → {current.x},{current.y}")
+            diffs.append(f"{_('pos')} {baseline.x},{baseline.y} → {current.x},{current.y}")
         if abs(baseline.scale - current.scale) > 1e-6:
-            diffs.append(f"scale {baseline.scale:g} → {current.scale:g}")
+            diffs.append(f"{_('scale')} {baseline.scale:g} → {current.scale:g}")
         if baseline.transform != current.transform:
-            diffs.append(f"rotate {baseline.transform} → {current.transform}")
+            diffs.append(f"{_('rotate')} {baseline.transform} → {current.transform}")
         if (baseline.mirror_of or "") != (current.mirror_of or ""):
-            diffs.append(f"mirror {baseline.mirror_of or '—'} → {current.mirror_of or '—'}")
-        return " · ".join(diffs) if diffs else "updated"
+            diffs.append(f"{_('mirror')} {baseline.mirror_of or '—'} → {current.mirror_of or '—'}")
+        return " · ".join(diffs) if diffs else _("updated")
 
     def dirty_count(self) -> int:
         """Count individual monitors with unsaved changes."""

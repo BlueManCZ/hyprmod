@@ -12,6 +12,7 @@ from html import escape as html_escape
 from gi.repository import Adw, Gtk
 
 from hyprmod.core.desktop_apps import DesktopApp, list_apps
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children
 from hyprmod.ui.dialog import SingletonDialogMixin
 from hyprmod.ui.empty_state import EmptyState
@@ -40,7 +41,7 @@ class AppPickerDialog(SingletonDialogMixin, Adw.Dialog):
         # Cached row widgets — rebuilt only when the filter changes shape.
         self._list_box: Gtk.ListBox
 
-        self.set_title("Pick an Application")
+        self.set_title(_("Pick an Application"))
         self.set_content_width(440)
         self.set_content_height(560)
 
@@ -55,7 +56,7 @@ class AppPickerDialog(SingletonDialogMixin, Adw.Dialog):
         body.set_margin_end(12)
 
         self._search_entry = Gtk.SearchEntry()
-        self._search_entry.set_placeholder_text("Search applications…")
+        self._search_entry.set_placeholder_text(_("Search applications…"))
         self._search_entry.connect("search-changed", self._on_search_changed)
         body.append(self._search_entry)
 
@@ -72,8 +73,8 @@ class AppPickerDialog(SingletonDialogMixin, Adw.Dialog):
 
         # Empty-state placeholder shown when filter matches nothing.
         self._empty = EmptyState(
-            title="No Matches",
-            description="Try a different search term.",
+            title=_("No Matches"),
+            description=_("Try a different search term."),
             icon_name="system-search-symbolic",
         )
         self._empty.set_visible(False)

@@ -30,6 +30,7 @@ from gi.repository import Adw, Gtk
 
 from hyprmod.core import config
 from hyprmod.core.env_vars import RESERVED_NAMES, EnvVar
+from hyprmod.i18n import _
 from hyprmod.ui import build_preview_group, format_config_preview
 from hyprmod.ui.dialog import SingletonDialogMixin
 
@@ -74,11 +75,11 @@ class EnvVarEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._on_apply_callback = on_apply
 
         if is_override:
-            title = "Override Environment Variable"
+            title = _("Override Environment Variable")
         elif self._is_new:
-            title = "Add Environment Variable"
+            title = _("Add Environment Variable")
         else:
-            title = "Edit Environment Variable"
+            title = _("Edit Environment Variable")
         self.set_title(title)
         self.set_content_width(540)
         self.set_content_height(420)
@@ -86,11 +87,11 @@ class EnvVarEditDialog(SingletonDialogMixin, Adw.Dialog):
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -104,19 +105,21 @@ class EnvVarEditDialog(SingletonDialogMixin, Adw.Dialog):
         content.set_margin_end(18)
 
         # Variable group
-        var_group = Adw.PreferencesGroup(title="Variable")
+        var_group = Adw.PreferencesGroup(title=_("Variable"))
         var_group.set_description(
-            "Hyprland exports this variable to processes it spawns "
-            "(autostart commands, dispatchers, terminal launches). "
-            "Changes take effect on the next Hyprland session."
+            _(
+                "Hyprland exports this variable to processes it spawns "
+                "(autostart commands, dispatchers, terminal launches). "
+                "Changes take effect on the next Hyprland session."
+            )
         )
 
-        self._name_entry = Adw.EntryRow(title="Name")
+        self._name_entry = Adw.EntryRow(title=_("Name"))
         self._name_entry.set_text(entry.name if entry else "")
         self._name_entry.connect("changed", self._on_changed)
         var_group.add(self._name_entry)
 
-        self._value_entry = Adw.EntryRow(title="Value")
+        self._value_entry = Adw.EntryRow(title=_("Value"))
         self._value_entry.set_text(entry.value if entry else "")
         self._value_entry.connect("changed", self._on_changed)
         # Apply on Enter from the value field (the more common
@@ -191,7 +194,7 @@ class EnvVarEditDialog(SingletonDialogMixin, Adw.Dialog):
                 format_config_preview(config.KEYWORD_ENV, f"{rule.name},{rule.value}")
             )
         else:
-            self._preview_label.set_text("(entry incomplete)")
+            self._preview_label.set_text(_("(entry incomplete)"))
 
         error = self._validate()
         if error is not None:

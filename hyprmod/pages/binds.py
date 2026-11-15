@@ -23,6 +23,7 @@ from hyprmod.core import config
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import BindsUndoEntry
+from hyprmod.i18n import _
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui import clear_children, make_inline_hint, make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
@@ -167,12 +168,12 @@ class BindsPage(SectionPage):
         page_header = header or Adw.HeaderBar()
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
-        add_btn.set_tooltip_text("Add keybind")
+        add_btn.set_tooltip_text(_("Add keybind"))
         add_btn.connect("clicked", self._on_add)
         page_header.pack_start(add_btn)
 
         self._search_btn = Gtk.ToggleButton(icon_name="system-search-symbolic")
-        self._search_btn.set_tooltip_text("Search keybinds")
+        self._search_btn.set_tooltip_text(_("Search keybinds"))
         self._search_btn.connect("toggled", self._on_search_toggled)
         page_header.pack_end(self._search_btn)
 
@@ -181,7 +182,7 @@ class BindsPage(SectionPage):
         )
 
         self._search_entry = Gtk.SearchEntry()
-        self._search_entry.set_placeholder_text("Filter keybinds\u2026")
+        self._search_entry.set_placeholder_text(_("Filter keybinds\u2026"))
         self._search_entry.connect("search-changed", self._on_search_changed)
         self._search_bar = Gtk.SearchBar()
         self._search_bar.set_child(self._search_entry)
@@ -232,8 +233,10 @@ class BindsPage(SectionPage):
         if has_hypr_binds:
             self._content_box.append(
                 make_inline_hint(
-                    "Locked keybinds come from your hyprland.conf. "
-                    "Supported keybinds can be overridden with the edit button."
+                    _(
+                        "Locked keybinds come from your hyprland.conf. "
+                        "Supported keybinds can be overridden with the edit button."
+                    )
                 )
             )
 
@@ -242,15 +245,18 @@ class BindsPage(SectionPage):
             if not binds_in_cat:
                 continue
 
-            group = Adw.PreferencesGroup(title=cat["label"])
-            group.set_description(
-                f"{len(binds_in_cat)} keybind{'s' if len(binds_in_cat) != 1 else ''}"
-            )
+            group = Adw.PreferencesGroup(title=_(cat["label"]))
+            if len(binds_in_cat) == 1:
+                group.set_description(_("1 keybind"))
+            else:
+                group.set_description(f"{len(binds_in_cat)} {_('keybinds')}")
 
             add_btn = Gtk.Button(icon_name="list-add-symbolic")
             add_btn.set_valign(Gtk.Align.CENTER)
             add_btn.add_css_class("flat")
-            add_btn.set_tooltip_text(f"Add keybind to {cat['label']}")
+            add_btn.set_tooltip_text(
+                _("Add keybind to {category}").format(category=_(cat["label"]))
+            )
             add_btn.connect("clicked", lambda _btn, cid=cat["id"]: self._on_add(category=cid))
             group.set_header_suffix(add_btn)
 
@@ -265,13 +271,13 @@ class BindsPage(SectionPage):
         if not self._row_widgets:
             self._content_box.append(
                 EmptyState(
-                    title="No Keybinds",
-                    description=(
+                    title=_("No Keybinds"),
+                    description=_(
                         "Bind keys to launch apps, switch workspaces, or trigger "
                         "any Hyprland dispatcher."
                     ),
                     icon_name=BINDS_ICON,
-                    primary_action=("Add Keybind…", self._on_add),
+                    primary_action=(_("Add Keybind…"), self._on_add),
                 )
             )
 
@@ -304,13 +310,13 @@ class BindsPage(SectionPage):
                 override_btn = Gtk.Button(icon_name="document-edit-symbolic")
                 override_btn.set_valign(Gtk.Align.CENTER)
                 override_btn.add_css_class("flat")
-                override_btn.set_tooltip_text("Override this keybind")
+                override_btn.set_tooltip_text(_("Override this keybind"))
                 override_btn.connect("clicked", lambda _btn, b=bind: self._on_override(b))
                 row.add_suffix(override_btn)
 
             lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
             if not edit_supported:
-                lock_icon.set_tooltip_text("HyprMod cannot safely edit this keybind")
+                lock_icon.set_tooltip_text(_("HyprMod cannot safely edit this keybind"))
             lock_icon.set_opacity(0.4)
             row.add_suffix(lock_icon)
             row.set_opacity(0.65)
@@ -339,7 +345,7 @@ class BindsPage(SectionPage):
                 row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
             else:
                 lock_icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
-                lock_icon.set_tooltip_text("HyprMod cannot safely edit this keybind")
+                lock_icon.set_tooltip_text(_("HyprMod cannot safely edit this keybind"))
                 lock_icon.set_opacity(0.4)
                 row.add_suffix(lock_icon)
 
@@ -546,11 +552,11 @@ class BindsPage(SectionPage):
             current_lines.add(bind.to_line())
             baseline = self._owned_binds.get_baseline(idx)
             if baseline is None:
-                shortcut = bind.format_shortcut() or "(no shortcut)"
+                shortcut = bind.format_shortcut() or _("(no shortcut)")
                 yield PendingChange(
                     category="Keybinds",
                     title=shortcut,
-                    subtitle=f"new · {bind.format_action()}",
+                    subtitle=f"{_('new')} · {bind.format_action()}",
                     kind="added",
                     revert=lambda i=idx: self._discard_bind_at(i),
                     navigate_to="binds",
@@ -559,8 +565,8 @@ class BindsPage(SectionPage):
                 continue
             if not self._owned_binds.is_item_dirty(idx):
                 continue
-            old_shortcut = baseline.format_shortcut() or "(none)"
-            new_shortcut = bind.format_shortcut() or "(none)"
+            old_shortcut = baseline.format_shortcut() or _("(none)")
+            new_shortcut = bind.format_shortcut() or _("(none)")
             if old_shortcut == new_shortcut:
                 subtitle = f"{baseline.format_action()} → {bind.format_action()}"
             else:
@@ -576,11 +582,11 @@ class BindsPage(SectionPage):
             )
         for saved_bind in self._owned_binds.saved:
             if saved_bind.to_line() not in current_lines:
-                shortcut = saved_bind.format_shortcut() or "(none)"
+                shortcut = saved_bind.format_shortcut() or _("(none)")
                 yield PendingChange(
                     category="Keybinds",
                     title=shortcut,
-                    subtitle=f"deleted · {saved_bind.format_action()}",
+                    subtitle=f"{_('deleted')} · {saved_bind.format_action()}",
                     kind="removed",
                     revert=lambda b=saved_bind: self._restore_deleted(b),
                     navigate_to="binds",

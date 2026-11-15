@@ -11,6 +11,8 @@ from collections.abc import Callable
 
 from gi.repository import Gtk
 
+from hyprmod.i18n import _
+
 
 class DeprecationBanner(Gtk.Revealer):
     """Animated banner with Review / Don't-show-again actions.
@@ -48,13 +50,13 @@ class DeprecationBanner(Gtk.Revealer):
         self._label.set_wrap(True)
         box.append(self._label)
 
-        review_btn = Gtk.Button(label="Review…")
+        review_btn = Gtk.Button(label=_("Review…"))
         review_btn.add_css_class("suggested-action")
         review_btn.connect("clicked", lambda _b: on_review())
         box.append(review_btn)
 
         dismiss_btn = Gtk.Button.new_from_icon_name("window-close-symbolic")
-        dismiss_btn.set_tooltip_text("Don't show again for this scan")
+        dismiss_btn.set_tooltip_text(_("Don't show again for this scan"))
         dismiss_btn.add_css_class("flat")
         dismiss_btn.connect("clicked", lambda _b: on_dismiss())
         box.append(dismiss_btn)
@@ -64,7 +66,9 @@ class DeprecationBanner(Gtk.Revealer):
     def set_summary(self, file_count: int) -> None:
         """Update the banner label to reflect *file_count* fixable files."""
         if file_count == 1:
-            text = "Deprecated Hyprland syntax detected in 1 file — review the fix?"
+            text = _("Deprecated Hyprland syntax detected in 1 file — review the fix?")
         else:
-            text = f"Deprecated Hyprland syntax detected in {file_count} files — review the fixes?"
+            text = _(
+                "Deprecated Hyprland syntax detected in {count} files — review the fixes?"
+            ).format(count=file_count)
         self._label.set_text(text)

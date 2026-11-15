@@ -60,6 +60,7 @@ from hyprmod.core.layer_rules import (
     summarize_rule,
 )
 from hyprmod.core.ownership import SavedList
+from hyprmod.i18n import _
 from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import (
     make_inline_hint,
@@ -123,11 +124,11 @@ class LayerRulesPage(SavedListSectionPage[LayerRule]):
         page_header = header or Adw.HeaderBar()
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
-        add_btn.set_tooltip_text("Add layer rule")
+        add_btn.set_tooltip_text(_("Add layer rule"))
         add_btn.connect("clicked", lambda _b: self._on_add())
         page_header.pack_start(add_btn)
 
-        toolbar_view, _, self._content_box, self._scrolled = make_page_layout(header=page_header)
+        toolbar_view, _tb, self._content_box, self._scrolled = make_page_layout(header=page_header)
 
         self._rebuild_list()
         return toolbar_view
@@ -144,13 +145,13 @@ class LayerRulesPage(SavedListSectionPage[LayerRule]):
         window the user can point at.
         """
         return EmptyState(
-            title="No Layer Rules",
-            description=(
+            title=_("No Layer Rules"),
+            description=_(
                 "Tweak how shell surfaces (waybar, notifications, rofi, wallpapers) "
-                "are decorated — backdrop blur, dim-around, animations, render order."
+                "are decorated - backdrop blur, dim-around, animations, render order."
             ),
             icon_name=LAYER_RULES_ICON,
-            primary_action=("Add Rule…", self._on_add),
+            primary_action=(_("Add Rule…"), self._on_add),
         )
 
     def _build_order_hint(self) -> Gtk.Widget:

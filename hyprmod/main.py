@@ -11,6 +11,7 @@ from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config
 from hyprmod.core.setup import needs_setup, run_setup
+from hyprmod.i18n import _
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import has_cairo_support, try_with_toast
 from hyprmod.ui.config_error import build_config_error_window
@@ -68,8 +69,10 @@ class HyprModApp(Adw.Application):
         # A broken install takes precedence over onboarding: stacking two
         # dialogs hides one behind the other, and setup can wait a launch.
         if not has_cairo_support():
-            dialog = Adw.AlertDialog(heading="Missing Cairo Bindings", body=CAIRO_MISSING_BODY)
-            dialog.add_response("close", "Close")
+            dialog = Adw.AlertDialog(
+                heading=_("Missing Cairo Bindings"), body=_(CAIRO_MISSING_BODY)
+            )
+            dialog.add_response("close", _("Close"))
             dialog.present(win)
         # A stranded hyprland.conf is the migration banner's to fix. Adding our
         # include to the generated hyprland.lua first would bury the fact

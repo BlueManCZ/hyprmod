@@ -6,6 +6,7 @@ from html import escape as html_escape
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from hyprmod.core import profiles
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children, confirm, make_page_layout
 from hyprmod.ui.dna import DnaWidget
 from hyprmod.ui.empty_state import EmptyState
@@ -118,12 +119,12 @@ class ProfileCard(Gtk.Box):
 
     def _build_menu_button(self, profile: dict) -> Gtk.MenuButton:
         menu = Gio.Menu()
-        menu.append("Activate", f"profile.activate::{profile['id']}")
-        menu.append("Rename", f"profile.rename::{profile['id']}")
-        menu.append("Duplicate", f"profile.duplicate::{profile['id']}")
+        menu.append(_("Activate"), f"profile.activate::{profile['id']}")
+        menu.append(_("Rename"), f"profile.rename::{profile['id']}")
+        menu.append(_("Duplicate"), f"profile.duplicate::{profile['id']}")
 
         delete_section = Gio.Menu()
-        delete_section.append("Delete", f"profile.delete::{profile['id']}")
+        delete_section.append(_("Delete"), f"profile.delete::{profile['id']}")
         menu.append_section(None, delete_section)
 
         btn = Gtk.MenuButton()
@@ -154,11 +155,11 @@ class ProfilesPage:
         page_header = header or Adw.HeaderBar()
 
         save_current_btn = Gtk.Button(icon_name="list-add-symbolic")
-        save_current_btn.set_tooltip_text("Save current as new profile")
+        save_current_btn.set_tooltip_text(_("Save current as new profile"))
         save_current_btn.connect("clicked", self._on_save_current)
         page_header.pack_start(save_current_btn)
 
-        toolbar_view, _, self._content_box, _ = make_page_layout(header=page_header, spacing=6)
+        toolbar_view, _tb, self._content_box, _sc = make_page_layout(header=page_header, spacing=6)
 
         # Hero card depends on which profile is active, so it gets rebuilt
         # on every ``rebuild()``. Wrap it in a stable container so we can
@@ -202,7 +203,7 @@ class ProfilesPage:
         name_label.set_ellipsize(Pango.EllipsizeMode.END)
         name_row.append(name_label)
 
-        badge = Gtk.Label(label="Active")
+        badge = Gtk.Label(label=_("Active"))
         badge.add_css_class("profile-badge-active")
         badge.set_valign(Gtk.Align.CENTER)
         name_row.append(badge)
@@ -240,12 +241,12 @@ class ProfilesPage:
         text_col.set_margin_bottom(14)
         text_col.set_margin_start(16)
 
-        title = Gtk.Label(label="No active profile", xalign=0)
+        title = Gtk.Label(label=_("No active profile"), xalign=0)
         title.add_css_class("heading")
         text_col.append(title)
 
         subtitle = Gtk.Label(
-            label="Save your current configuration as a profile to track it",
+            label=_("Save your current configuration as a profile to track it"),
             xalign=0,
         )
         subtitle.add_css_class("dim-label")
@@ -254,7 +255,7 @@ class ProfilesPage:
 
         hero.append(text_col)
 
-        save_btn = Gtk.Button(label="Save current")
+        save_btn = Gtk.Button(label=_("Save current"))
         save_btn.add_css_class("suggested-action")
         save_btn.add_css_class("pill")
         save_btn.set_valign(Gtk.Align.CENTER)
@@ -267,11 +268,11 @@ class ProfilesPage:
     @staticmethod
     def _build_hero_menu_button(profile_id: str) -> Gtk.MenuButton:
         menu = Gio.Menu()
-        menu.append("Rename", f"profile.rename::{profile_id}")
-        menu.append("Duplicate", f"profile.duplicate::{profile_id}")
+        menu.append(_("Rename"), f"profile.rename::{profile_id}")
+        menu.append(_("Duplicate"), f"profile.duplicate::{profile_id}")
 
         delete_section = Gio.Menu()
-        delete_section.append("Delete", f"profile.delete::{profile_id}")
+        delete_section.append(_("Delete"), f"profile.delete::{profile_id}")
         menu.append_section(None, delete_section)
 
         btn = Gtk.MenuButton()
@@ -308,12 +309,12 @@ class ProfilesPage:
         if not prof:
             return
 
-        rename_body = "Choose a new name for this profile"
-        dialog = Adw.AlertDialog(heading="Rename Profile")
+        rename_body = _("Choose a new name for this profile")
+        dialog = Adw.AlertDialog(heading=_("Rename Profile"))
         dialog.set_body(rename_body)
         dialog.set_body_use_markup(False)
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("save", "Rename")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("save", _("Rename"))
         dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("save")
         dialog.set_close_response("cancel")
@@ -321,7 +322,7 @@ class ProfilesPage:
         taken = self._existing_names(exclude_id=profile_id)
 
         group = Adw.PreferencesGroup()
-        name_row = Adw.EntryRow(title="Name")
+        name_row = Adw.EntryRow(title=_("Name"))
         name_row.set_text(prof.get("name", ""))
         name_row.connect(
             "changed",
@@ -370,13 +371,13 @@ class ProfilesPage:
         if not profile_list:
             self._profiles_box.append(
                 EmptyState(
-                    title="No Profiles",
-                    description=(
+                    title=_("No Profiles"),
+                    description=_(
                         "Profiles let you save and switch between configurations "
                         "instantly. Save your current setup to create your first one."
                     ),
                     icon_name="user-bookmarks-symbolic",
-                    primary_action=("Save Current as Profile", self._on_save_current),
+                    primary_action=(_("Save Current as Profile"), self._on_save_current),
                 )
             )
             return
@@ -392,7 +393,7 @@ class ProfilesPage:
         if not other_profiles:
             return
 
-        heading = Gtk.Label(label="Saved profiles", xalign=0)
+        heading = Gtk.Label(label=_("Saved profiles"), xalign=0)
         heading.add_css_class("heading")
         heading.set_margin_start(4)
         heading.set_margin_top(10)
@@ -456,13 +457,13 @@ class ProfilesPage:
         self._show_save_dialog(navigate_to_profiles=True)
 
     def _show_save_dialog(self, *, navigate_to_profiles: bool):
-        save_body = "Enter a name for the new profile"
-        dialog = Adw.AlertDialog(heading="Save Current as Profile")
+        save_body = _("Enter a name for the new profile")
+        dialog = Adw.AlertDialog(heading=_("Save Current as Profile"))
         dialog.set_body(save_body)
         dialog.set_body_use_markup(False)
 
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("save", "Save")
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("save", _("Save"))
         dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("save")
         dialog.set_close_response("cancel")
@@ -472,7 +473,7 @@ class ProfilesPage:
 
         group = Adw.PreferencesGroup()
 
-        name_row = Adw.EntryRow(title="Name")
+        name_row = Adw.EntryRow(title=_("Name"))
         name_row.connect(
             "changed",
             lambda _: self._validate_name(name_row, dialog, taken, save_body),
@@ -521,7 +522,7 @@ class ProfilesPage:
         dialog.set_response_enabled("save", has_text and not is_taken)
         if is_taken:
             name_row.add_css_class("error")
-            dialog.set_body("A profile with this name already exists")
+            dialog.set_body(_("A profile with this name already exists"))
             dialog.set_body_use_markup(False)
             dialog.add_css_class("profile-name-error")
         else:

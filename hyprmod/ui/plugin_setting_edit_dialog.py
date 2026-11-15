@@ -6,6 +6,7 @@ from collections.abc import Callable
 from gi.repository import Adw, Gtk
 
 from hyprmod.core.plugins import PluginSetting
+from hyprmod.i18n import _
 from hyprmod.ui import build_preview_group
 from hyprmod.ui.dialog import SingletonDialogMixin
 
@@ -24,9 +25,9 @@ class PluginSettingEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._on_apply_callback = on_apply
 
         if self._is_new:
-            title = "Add Plugin Setting"
+            title = _("Add Plugin Setting")
         else:
-            title = "Edit Plugin Setting"
+            title = _("Edit Plugin Setting")
 
         self.set_title(title)
         self.set_content_width(540)
@@ -35,11 +36,11 @@ class PluginSettingEditDialog(SingletonDialogMixin, Adw.Dialog):
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -53,23 +54,25 @@ class PluginSettingEditDialog(SingletonDialogMixin, Adw.Dialog):
         content.set_margin_end(18)
 
         # Variable group
-        var_group = Adw.PreferencesGroup(title="Plugin Setting")
+        var_group = Adw.PreferencesGroup(title=_("Plugin Setting"))
         var_group.set_description(
-            "Define custom settings for Hyprland plugins. These settings will be written "
-            "into a plugin { ... } block."
+            _(
+                "Define custom settings for Hyprland plugins. These settings will be written "
+                "into a plugin { ... } block."
+            )
         )
 
-        self._plugin_entry = Adw.EntryRow(title="Plugin Name")
+        self._plugin_entry = Adw.EntryRow(title=_("Plugin Name"))
         self._plugin_entry.set_text(entry.plugin_name if entry else "")
         self._plugin_entry.connect("changed", self._on_changed)
         var_group.add(self._plugin_entry)
 
-        self._key_entry = Adw.EntryRow(title="Setting Key")
+        self._key_entry = Adw.EntryRow(title=_("Setting Key"))
         self._key_entry.set_text(entry.key if entry else "")
         self._key_entry.connect("changed", self._on_changed)
         var_group.add(self._key_entry)
 
-        self._value_entry = Adw.EntryRow(title="Setting Value")
+        self._value_entry = Adw.EntryRow(title=_("Setting Value"))
         self._value_entry.set_text(entry.value if entry else "")
         self._value_entry.connect("changed", self._on_changed)
         self._value_entry.connect("entry-activated", lambda _e: self._on_apply())

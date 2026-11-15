@@ -14,6 +14,7 @@ from collections.abc import Callable
 
 from gi.repository import Gtk
 
+from hyprmod.i18n import _
 from hyprmod.ui.icons import PENDING_ICON
 
 
@@ -24,7 +25,7 @@ class PendingChip(Gtk.Button):
         super().__init__()
         self.add_css_class("flat")
         self.add_css_class("pending-chip")
-        self.set_tooltip_text("View pending changes")
+        self.set_tooltip_text(_("View pending changes"))
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         box.append(Gtk.Image.new_from_icon_name(PENDING_ICON))

@@ -47,7 +47,7 @@ class LayoutsPage:
         self._key_to_layout: dict[str, str] = {}
 
     def build(self, header: Adw.HeaderBar) -> Adw.ToolbarView:
-        toolbar_view, _, content_box, _ = make_page_layout(header=header)
+        toolbar_view, _tb, content_box, _sc = make_page_layout(header=header)
 
         view_stack = Adw.ViewStack()
         view_stack.set_vexpand(True)

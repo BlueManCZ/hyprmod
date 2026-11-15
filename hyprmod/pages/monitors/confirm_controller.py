@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from gi.repository import Adw, GLib
 
+from hyprmod.i18n import _
 from hyprmod.ui.timer import Timer
 
 CONFIRM_TIMEOUT = 15  # seconds before auto-revert
@@ -117,7 +118,11 @@ class ConfirmController:
         self._on_confirmed()
 
     def _update_title(self):
-        self._banner.set_title(f"Reverting in {self._seconds_left}s unless changed or confirmed")
+        self._banner.set_title(
+            _("Reverting in {seconds}s unless changed or confirmed").format(
+                seconds=self._seconds_left
+            )
+        )
 
     def _set_urgency(self, level: str | None):
         self._banner.remove_css_class("confirm-warning")

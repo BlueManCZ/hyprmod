@@ -10,6 +10,8 @@ import difflib
 
 from gi.repository import Gtk, Pango
 
+from hyprmod.i18n import _
+
 
 class ConfigDiffWidget(Gtk.Box):
     """A modern unified-diff viewer for plain-text config files.
@@ -85,12 +87,12 @@ class ConfigDiffWidget(Gtk.Box):
         icon.set_pixel_size(36)
         icon.add_css_class("dim-label")
         empty.append(icon)
-        empty_label = Gtk.Label(label="Saved config is up to date")
+        empty_label = Gtk.Label(label=_("Saved config is up to date"))
         empty_label.add_css_class("dim-label")
         empty.append(empty_label)
         self._stack.add_named(empty, "empty")
 
-        self._title_label.set_label("Resulting config")
+        self._title_label.set_label(_("Resulting config"))
         self._added_label.set_label("")
         self._removed_label.set_label("")
         self._stack.set_visible_child_name("empty")

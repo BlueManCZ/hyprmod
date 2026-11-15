@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from gi.repository import Adw, Gtk
 
+from hyprmod.i18n import _
 from hyprmod.ui.icons import (
     AUTOSTART_ICON,
     BINDS_ICON,
@@ -84,11 +85,11 @@ class Sidebar:
         # sidebar by default and only get pushed down when the user
         # actually wants to search.
         self.search_button = Gtk.ToggleButton(icon_name="edit-find-symbolic")
-        self.search_button.set_tooltip_text("Search options (Ctrl+F)")
+        self.search_button.set_tooltip_text(_("Search options (Ctrl+F)"))
         self.search_button.connect("toggled", self._on_toggle_search)
 
         self._search_entry = Gtk.SearchEntry()
-        self._search_entry.set_placeholder_text("Search options…")
+        self._search_entry.set_placeholder_text(_("Search options…"))
         self._search_entry.set_margin_top(8)
         self._search_entry.set_margin_start(8)
         self._search_entry.set_margin_end(8)
@@ -128,13 +129,13 @@ class Sidebar:
         self._pinned_list.add_css_class("navigation-sidebar")
         self._pinned_list.connect("row-selected", self._on_row_selected)
 
-        profiles_row = SidebarRow(group_id="profiles", title="Profiles")
+        profiles_row = SidebarRow(group_id="profiles", title=_("Profiles"))
         profiles_row.set_activatable(True)
         profiles_row.add_prefix(Gtk.Image.new_from_icon_name(PROFILES_ICON))
         self._pinned_list.append(profiles_row)
         self._rows_by_id["profiles"] = profiles_row
 
-        settings_row = SidebarRow(group_id="settings", title="Settings")
+        settings_row = SidebarRow(group_id="settings", title=_("Settings"))
         settings_row.set_activatable(True)
         settings_row.add_prefix(Gtk.Image.new_from_icon_name(SETTINGS_ICON))
         self._pinned_list.append(settings_row)
@@ -191,40 +192,40 @@ class Sidebar:
                 return
             add_row(listbox, group_id, group["label"], group.get("icon"))
 
-        look_and_feel = new_category("Look & Feel")
+        look_and_feel = new_category(_("Look & Feel"))
         add_schema_row(look_and_feel, "general")
         add_schema_row(look_and_feel, "decoration")
         add_schema_row(look_and_feel, "animations")
         add_schema_row(look_and_feel, "cursor")
 
-        input_cat = new_category("Input")
-        add_row(input_cat, "binds", "Keybinds", BINDS_ICON)
+        input_cat = new_category(_("Input"))
+        add_row(input_cat, "binds", _("Keybinds"), BINDS_ICON)
         add_schema_row(input_cat, "input")
         add_schema_row(input_cat, "gestures")
 
-        display = new_category("Display")
-        add_row(display, "monitors", "Monitors", MONITORS_ICON)
-        add_row(display, "workspaces", "Workspaces", WORKSPACES_ICON)
+        display = new_category(_("Display"))
+        add_row(display, "monitors", _("Monitors"), MONITORS_ICON)
+        add_row(display, "workspaces", _("Workspaces"), WORKSPACES_ICON)
 
-        windowing = new_category("Window Management")
+        windowing = new_category(_("Window Management"))
         # Dwindle/Master/Scrolling are merged into a single Layouts page
         # with a ViewSwitcher — see ``pages/layouts.py``. The schema groups
         # are hidden via ``parent_page: "layouts"`` so they still
         # contribute option keys to ``_key_to_group`` (for badges) and
         # remain searchable.
-        add_row(windowing, "layouts", "Layouts", LAYOUTS_ICON)
-        add_row(windowing, "window_rules", "Window Rules", WINDOW_RULES_ICON)
-        add_row(windowing, "layer_rules", "Layer Rules", LAYER_RULES_ICON)
+        add_row(windowing, "layouts", _("Layouts"), LAYOUTS_ICON)
+        add_row(windowing, "window_rules", _("Window Rules"), WINDOW_RULES_ICON)
+        add_row(windowing, "layer_rules", _("Layer Rules"), LAYER_RULES_ICON)
 
-        startup = new_category("Startup")
-        add_row(startup, "autostart", "Autostart", AUTOSTART_ICON)
-        add_row(startup, "env_vars", "Env Variables", ENV_VARS_ICON)
+        startup = new_category(_("Startup"))
+        add_row(startup, "autostart", _("Autostart"), AUTOSTART_ICON)
+        add_row(startup, "env_vars", _("Env Variables"), ENV_VARS_ICON)
 
-        advanced = new_category("Advanced")
+        advanced = new_category(_("Advanced"))
         add_schema_row(advanced, "xwayland")
         add_schema_row(advanced, "ecosystem")
         add_schema_row(advanced, "misc")
-        add_row(advanced, "plugins", "Plugin Settings", PLUGINS_ICON)
+        add_row(advanced, "plugins", _("Plugin Settings"), PLUGINS_ICON)
 
         # Pinned list goes last so select_first() picks schema rows
         self._lists.append(self._pinned_list)

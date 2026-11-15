@@ -16,6 +16,7 @@ from gi.repository import Adw, Gtk
 
 from hyprmod.core import config, setup
 from hyprmod.core.config import display_path
+from hyprmod.i18n import _
 
 
 class OnboardingDialog(Adw.AlertDialog):
@@ -28,7 +29,7 @@ class OnboardingDialog(Adw.AlertDialog):
     """
 
     def __init__(self, *, on_setup: Callable[[], None]) -> None:
-        super().__init__(heading="Welcome to HyprMod")
+        super().__init__(heading=_("Welcome to HyprMod"))
         self._on_setup = on_setup
 
         entry = config.user_entry_path()
@@ -44,9 +45,11 @@ class OnboardingDialog(Adw.AlertDialog):
 
         intro = Gtk.Label(
             label=(
-                "HyprMod gives you a visual interface for all Hyprland settings "
-                "with live preview. Every change is applied instantly to your "
-                "running compositor."
+                _(
+                    "HyprMod gives you a visual interface for all Hyprland settings "
+                    "with live preview. Every change is applied instantly to your "
+                    "running compositor."
+                )
             ),
         )
         intro.set_wrap(True)
@@ -56,27 +59,34 @@ class OnboardingDialog(Adw.AlertDialog):
         box.append(
             self._feature_row(
                 "view-refresh-symbolic",
-                "Live Preview",
-                "Changes apply instantly via hyprctl — see the effect on your desktop in real time",
+                _("Live Preview"),
+                _(
+                    "Changes apply instantly via hyprctl: see the effect on "
+                    "your desktop in real time"
+                ),
             )
         )
         box.append(
             self._feature_row(
                 "security-high-symbolic",
-                "Safe Config",
-                f"Your {entry_name} is never modified. HyprMod manages its own file",
+                _("Safe Config"),
+                _("Your {entry_name} is never modified. HyprMod manages its own file").format(
+                    entry_name=entry_name
+                ),
             )
         )
         box.append(
             self._feature_row(
                 "input-keyboard-symbolic",
-                "Keyboard Shortcuts",
-                "Ctrl+S to save, Ctrl+F to search, Ctrl+Z to undo",
+                _("Keyboard Shortcuts"),
+                _("Ctrl+S to save, Ctrl+F to search, Ctrl+Z to undo"),
             )
         )
 
         setup_text = Gtk.Label(
-            label=f"To get started, HyprMod needs to add one line to your {entry_name}:",
+            label=_("To get started, HyprMod needs to add one line to your {entry_name}:").format(
+                entry_name=entry_name
+            ),
         )
         setup_text.set_wrap(True)
         setup_text.set_xalign(0)
@@ -92,8 +102,8 @@ class OnboardingDialog(Adw.AlertDialog):
 
         self.set_extra_child(box)
 
-        self.add_response("cancel", "Not Now")
-        self.add_response("setup", "Get Started")
+        self.add_response("cancel", _("Not Now"))
+        self.add_response("setup", _("Get Started"))
         self.set_response_appearance("setup", Adw.ResponseAppearance.SUGGESTED)
         self.set_default_response("setup")
         self.set_close_response("cancel")

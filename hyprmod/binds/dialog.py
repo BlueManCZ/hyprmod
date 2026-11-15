@@ -26,6 +26,7 @@ from hyprmod.binds.gdk_modifiers import (
     keysyms_to_mods,
 )
 from hyprmod.core.desktop_apps import DesktopApp
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children, confirm
 from hyprmod.ui.app_picker import AppPickerDialog
 
@@ -55,11 +56,6 @@ _MOUSE_BUTTON_VALUES = [v for v, _ in MOUSE_BUTTON_PRESETS]
 _MOUSE_BUTTON_NONE_INDEX = 0
 _MOUSE_BUTTON_PRESET_OFFSET = 1
 _MOUSE_BUTTON_CUSTOM_INDEX = _MOUSE_BUTTON_PRESET_OFFSET + len(_MOUSE_BUTTON_VALUES)
-_MOUSE_BUTTON_DISPLAY_LABELS = (
-    ["Pick a button…"]
-    + [f"{label} ({value})" for value, label in MOUSE_BUTTON_PRESETS]
-    + ["Custom…"]
-)
 
 
 # Kept for back-compat with any external import; equals the full BIND_TYPES.
@@ -71,40 +67,40 @@ BIND_TYPE_LABELS = [v["label"] for v in BIND_TYPES.values()]
 # ---------------------------------------------------------------------------
 
 _WORKSPACE_PRESETS = [
-    ("1", "Workspace 1"),
-    ("2", "Workspace 2"),
-    ("3", "Workspace 3"),
-    ("4", "Workspace 4"),
-    ("5", "Workspace 5"),
-    ("6", "Workspace 6"),
-    ("7", "Workspace 7"),
-    ("8", "Workspace 8"),
-    ("9", "Workspace 9"),
-    ("10", "Workspace 10"),
-    ("+1", "Next workspace"),
-    ("-1", "Previous workspace"),
-    ("previous", "Last visited"),
-    ("empty", "First empty"),
-    ("special", "Special (scratchpad)"),
+    ("1", _("Workspace 1")),
+    ("2", _("Workspace 2")),
+    ("3", _("Workspace 3")),
+    ("4", _("Workspace 4")),
+    ("5", _("Workspace 5")),
+    ("6", _("Workspace 6")),
+    ("7", _("Workspace 7")),
+    ("8", _("Workspace 8")),
+    ("9", _("Workspace 9")),
+    ("10", _("Workspace 10")),
+    ("+1", _("Next workspace")),
+    ("-1", _("Previous workspace")),
+    ("previous", _("Last visited")),
+    ("empty", _("First empty")),
+    ("special", _("Special (scratchpad)")),
 ]
 
 # Hyprland reads mode 1 as maximize and every other value as full screen,
 # so the third mode the dispatcher used to take is gone: offering it only
 # promised a state no Hyprland since 0.43 can enter.
-_FULLSCREEN_MODES = [("0", "Full"), ("1", "Maximize")]
+_FULLSCREEN_MODES = [("0", _("Full")), ("1", _("Maximize"))]
 
 _DIRECTION_CHOICES = [
-    ("l", "go-previous-symbolic", "Left"),
-    ("d", "go-down-symbolic", "Down"),
-    ("u", "go-up-symbolic", "Up"),
-    ("r", "go-next-symbolic", "Right"),
+    ("l", "go-previous-symbolic", _("Left")),
+    ("d", "go-down-symbolic", _("Down")),
+    ("u", "go-up-symbolic", _("Up")),
+    ("r", "go-next-symbolic", _("Right")),
 ]
 
-_GROUP_DIR_CHOICES = [("f", "Forward"), ("b", "Back")]
+_GROUP_DIR_CHOICES = [("f", _("Forward")), ("b", _("Back"))]
 
-_DPMS_CHOICES = [("on", "On"), ("off", "Off"), ("toggle", "Toggle")]
+_DPMS_CHOICES = [("on", _("On")), ("off", _("Off")), ("toggle", _("Toggle"))]
 
-_RESIZE_MODES = [("relative", "By amount"), ("exact", "To exact size")]
+_RESIZE_MODES = [("relative", _("By amount")), ("exact", _("To exact size"))]
 
 # Wide enough for any real display; keeps the spin buttons from running away.
 _RESIZE_LIMIT = 10000
@@ -157,18 +153,18 @@ def _build_resize_arg(current_value: str):
         # editable as text. Anything else unparseable is not a resize value
         # at all (the direction letter this widget exists to prevent), and
         # opens on the editor's defaults rather than being carried forward.
-        row = Adw.EntryRow(title="Argument")
+        row = Adw.EntryRow(title=_("Argument"))
         row.set_text(current_value)
         return row, lambda: row.get_text().strip()
 
     exact, width_value, height_value = parsed or (False, 0, 0)
     mode_row, mode_value = _build_combo_arg(
-        "Mode", _RESIZE_MODES, "exact" if exact else "relative", "relative"
+        _("Mode"), _RESIZE_MODES, "exact" if exact else "relative", "relative"
     )
     width = Adw.SpinRow.new_with_range(-_RESIZE_LIMIT, _RESIZE_LIMIT, 10)
-    width.set_title("Width")
+    width.set_title(_("Width"))
     height = Adw.SpinRow.new_with_range(-_RESIZE_LIMIT, _RESIZE_LIMIT, 10)
-    height.set_title("Height")
+    height.set_title(_("Height"))
 
     def sync_lower_bound(*_args):
         # A target size can't be negative; a delta can.
@@ -201,7 +197,7 @@ def _build_arg_widget(arg_type: str, current_value: str):
         return None, lambda: ""
 
     if arg_type == "command":
-        row = Adw.EntryRow(title="Command")
+        row = Adw.EntryRow(title=_("Command"))
         row.set_text(current_value)
 
         def on_pick(app: DesktopApp) -> None:
@@ -213,7 +209,7 @@ def _build_arg_widget(arg_type: str, current_value: str):
         pick_btn = Gtk.Button.new_from_icon_name("system-search-symbolic")
         pick_btn.set_valign(Gtk.Align.CENTER)
         pick_btn.add_css_class("flat")
-        pick_btn.set_tooltip_text("Pick from installed apps")
+        pick_btn.set_tooltip_text(_("Pick from installed apps"))
         pick_btn.connect(
             "clicked", lambda _b: AppPickerDialog.present_singleton(row, on_pick=on_pick)
         )
@@ -225,8 +221,8 @@ def _build_arg_widget(arg_type: str, current_value: str):
         preset_labels = [p[1] for p in _WORKSPACE_PRESETS]
         preset_values = [p[0] for p in _WORKSPACE_PRESETS]
         group = Adw.PreferencesGroup()
-        combo = Adw.ComboRow(title="Workspace", model=Gtk.StringList.new(preset_labels))
-        custom_row = Adw.EntryRow(title="Custom value")
+        combo = Adw.ComboRow(title=_("Workspace"), model=Gtk.StringList.new(preset_labels))
+        custom_row = Adw.EntryRow(title=_("Custom value"))
         custom_row.set_text("")
         selected_preset = -1
         for i, val in enumerate(preset_values):
@@ -253,7 +249,7 @@ def _build_arg_widget(arg_type: str, current_value: str):
         return group, getter
 
     if arg_type == "fullscreen_mode":
-        return _build_combo_arg("Mode", _FULLSCREEN_MODES, current_value, "0")
+        return _build_combo_arg(_("Mode"), _FULLSCREEN_MODES, current_value, "0")
 
     if arg_type == "direction":
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -274,21 +270,21 @@ def _build_arg_widget(arg_type: str, current_value: str):
         return box, lambda: next((v for v, b in buttons.items() if b.get_active()), current_value)
 
     if arg_type == "group_dir":
-        return _build_combo_arg("Direction", _GROUP_DIR_CHOICES, current_value, "f")
+        return _build_combo_arg(_("Direction"), _GROUP_DIR_CHOICES, current_value, "f")
 
     if arg_type == "dpms":
-        return _build_combo_arg("Action", _DPMS_CHOICES, current_value, "toggle")
+        return _build_combo_arg(_("Action"), _DPMS_CHOICES, current_value, "toggle")
 
     if arg_type == "resize":
         return _build_resize_arg(current_value)
 
     if arg_type == "optional_text":
-        row = Adw.EntryRow(title="Name (optional)")
+        row = Adw.EntryRow(title=_("Name (optional)"))
         row.set_text(current_value)
         return row, lambda: row.get_text().strip()
 
     # Fallback: generic text entry
-    row = Adw.EntryRow(title="Argument")
+    row = Adw.EntryRow(title=_("Argument"))
     row.set_text(current_value)
     return row, lambda: row.get_text().strip()
 
@@ -359,7 +355,7 @@ class BindEditDialog(Adw.Dialog):
 
         self.connect("closed", self._on_dialog_closed)
 
-        self.set_title("Add Keybind" if self._is_new else "Edit Keybind")
+        self.set_title(_("Add Keybind") if self._is_new else _("Edit Keybind"))
         self.set_content_width(520)
         self.set_content_height(620)
         self.set_follows_content_size(True)
@@ -368,11 +364,11 @@ class BindEditDialog(Adw.Dialog):
         toolbar.set_size_request(500, -1)
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         header.pack_end(self._apply_btn)
@@ -389,7 +385,7 @@ class BindEditDialog(Adw.Dialog):
         content.set_margin_end(18)
         self._content = content
 
-        trigger_group = Adw.PreferencesGroup(title="Trigger")
+        trigger_group = Adw.PreferencesGroup(title=_("Trigger"))
         self._build_trigger_section(trigger_group)
         content.append(trigger_group)
 
@@ -397,14 +393,14 @@ class BindEditDialog(Adw.Dialog):
         self._build_key_section(self._key_group)
         content.append(self._key_group)
 
-        self._action_group = Adw.PreferencesGroup(title="Action")
+        self._action_group = Adw.PreferencesGroup(title=_("Action"))
         self._build_action_section(self._action_group)
         content.append(self._action_group)
 
         self._arg_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content.append(self._arg_container)
 
-        self._adv_group = Adw.PreferencesGroup(title="Advanced")
+        self._adv_group = Adw.PreferencesGroup(title=_("Advanced"))
         self._build_type_section(self._adv_group)
         content.append(self._adv_group)
 
@@ -427,15 +423,15 @@ class BindEditDialog(Adw.Dialog):
     # -- Trigger mode --
 
     def _build_trigger_section(self, group):
-        row = Adw.ActionRow(title="Trigger")
-        row.set_subtitle("How this binding is activated")
+        row = Adw.ActionRow(title=_("Trigger"))
+        row.set_subtitle(_("How this binding is activated"))
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         box.add_css_class("linked")
         box.set_valign(Gtk.Align.CENTER)
 
-        self._trigger_key_btn = Gtk.ToggleButton(label="Key combination")
-        self._trigger_mouse_btn = Gtk.ToggleButton(label="Mouse button")
+        self._trigger_key_btn = Gtk.ToggleButton(label=_("Key combination"))
+        self._trigger_mouse_btn = Gtk.ToggleButton(label=_("Mouse button"))
         self._trigger_mouse_btn.set_group(self._trigger_key_btn)
         if self._is_mouse_mode:
             self._trigger_mouse_btn.set_active(True)
@@ -482,8 +478,8 @@ class BindEditDialog(Adw.Dialog):
         """
         is_mouse = self._is_mouse_mode
 
-        self._key_group.set_title("Mouse Button" if is_mouse else "Key Combination")
-        self._capture_row.set_title("Click to record" if is_mouse else "Shortcut")
+        self._key_group.set_title(_("Mouse Button") if is_mouse else _("Key combination"))
+        self._capture_row.set_title(_("Click to record") if is_mouse else _("Shortcut"))
 
         # Manual-edit picker rows
         self._key_entry.set_visible(not is_mouse)
@@ -509,13 +505,13 @@ class BindEditDialog(Adw.Dialog):
         current_mods = [m.upper() for m in self._bind.mods]
         current_key = self._bind.key
 
-        self._capture_row = Adw.ActionRow(title="Shortcut")
+        self._capture_row = Adw.ActionRow(title=_("Shortcut"))
         shortcut_text = self._bind.format_shortcut()
         self._capture_label = Gtk.Label(label=shortcut_text)
         self._capture_label.add_css_class("dim-label")
         self._capture_row.add_suffix(self._capture_label)
 
-        capture_btn = Gtk.Button(label="Record")
+        capture_btn = Gtk.Button(label=_("Record"))
         capture_btn.set_valign(Gtk.Align.CENTER)
         capture_btn.add_css_class("suggested-action")
         capture_btn.add_css_class("keybind-capture-button")
@@ -524,7 +520,7 @@ class BindEditDialog(Adw.Dialog):
         self._capture_row.add_suffix(capture_btn)
         group.add(self._capture_row)
 
-        manual_expander = Adw.ExpanderRow(title="Manual Edit")
+        manual_expander = Adw.ExpanderRow(title=_("Manual Edit"))
 
         # Compact modifier picker: two linked toggle-button strips — common
         # modifiers on top (SUPER/SHIFT/CTRL/ALT), the rarer ones below
@@ -558,7 +554,7 @@ class BindEditDialog(Adw.Dialog):
         manual_expander.add_row(mod_picker_row)
 
         # Key text entry (visible when trigger mode is "key").
-        self._key_entry = Adw.EntryRow(title="Key")
+        self._key_entry = Adw.EntryRow(title=_("Key"))
         if not self._is_mouse_mode:
             self._key_entry.set_text(current_key)
         self._key_entry.connect("changed", self._on_manual_key_changed)
@@ -566,8 +562,12 @@ class BindEditDialog(Adw.Dialog):
 
         # Mouse-button preset combo (visible when trigger mode is "mouse").
         self._mouse_combo = Adw.ComboRow(
-            title="Mouse button",
-            model=Gtk.StringList.new(_MOUSE_BUTTON_DISPLAY_LABELS),
+            title=_("Mouse button"),
+            model=Gtk.StringList.new(
+                [_("Pick a button…")]
+                + [f"{_(label)} ({value})" for value, label in MOUSE_BUTTON_PRESETS]
+                + [_("Custom…")]
+            ),
         )
         if self._is_mouse_mode and current_key in _MOUSE_BUTTON_VALUES:
             self._mouse_combo.set_selected(
@@ -582,7 +582,7 @@ class BindEditDialog(Adw.Dialog):
         self._mouse_combo.connect("notify::selected", self._on_mouse_button_changed)
         manual_expander.add_row(self._mouse_combo)
 
-        self._mouse_custom_entry = Adw.EntryRow(title="Custom button (e.g. mouse:277)")
+        self._mouse_custom_entry = Adw.EntryRow(title=_("Custom button (e.g. mouse:277)"))
         if self._is_mouse_mode and current_key and current_key not in _MOUSE_BUTTON_VALUES:
             self._mouse_custom_entry.set_text(current_key)
         self._mouse_custom_entry.connect("changed", self._on_mouse_custom_changed)
@@ -600,12 +600,10 @@ class BindEditDialog(Adw.Dialog):
         # entered the capture submap.
         self._capturing = True
         prompt = (
-            "Click any mouse button\u2026"
-            if self._is_mouse_mode
-            else "Press a key combination\u2026"
+            _("Click any mouse button…") if self._is_mouse_mode else _("Press a key combination…")
         )
         self._capture_label.set_label(prompt)
-        self._capture_btn.set_label("Cancel")
+        self._capture_btn.set_label(_("Cancel"))
         self._capture_btn.add_css_class("destructive-action")
         self._capture_btn.remove_css_class("suggested-action")
 
@@ -614,9 +612,11 @@ class BindEditDialog(Adw.Dialog):
             self._window.hypr.dispatch("submap", "hyprmod_capture")
         except HyprlandError as e:
             log.warning("entering capture submap failed; aborting capture: %s", e)
-            self._window.show_bug_toast(f"Couldn't start capture — {e}", detail=str(e), timeout=5)
+            self._window.show_bug_toast(
+                _("Couldn't start capture - {error}").format(error=e), detail=str(e), timeout=5
+            )
             self._capturing = False
-            self._capture_btn.set_label("Record")
+            self._capture_btn.set_label(_("Record"))
             self._capture_btn.remove_css_class("destructive-action")
             self._capture_btn.add_css_class("suggested-action")
             return
@@ -639,7 +639,7 @@ class BindEditDialog(Adw.Dialog):
         self._capture_btn.grab_focus()
 
     def _stop_capture(self):
-        self._capture_btn.set_label("Record")
+        self._capture_btn.set_label(_("Record"))
         self._capture_btn.remove_css_class("destructive-action")
         self._capture_btn.add_css_class("suggested-action")
         if self._key_controller is not None:
@@ -850,7 +850,7 @@ class BindEditDialog(Adw.Dialog):
         if self._is_new and self._initial_category:
             current_cat_id = self._initial_category
         self._category_combo = Adw.ComboRow(
-            title="Category", model=Gtk.StringList.new(DIALOG_CATEGORY_LABELS)
+            title=_("Category"), model=Gtk.StringList.new([_(s) for s in DIALOG_CATEGORY_LABELS])
         )
         dialog_cat_ids = [c["id"] for c in DIALOG_CATEGORIES]
         if current_cat_id in dialog_cat_ids:
@@ -864,7 +864,7 @@ class BindEditDialog(Adw.Dialog):
         )
         group.add(self._category_combo)
 
-        self._action_combo = Adw.ComboRow(title="Action")
+        self._action_combo = Adw.ComboRow(title=_("Action"))
         self._action_combo.set_expression(
             Gtk.PropertyExpression.new(Gtk.StringObject, None, "string")
         )
@@ -904,7 +904,7 @@ class BindEditDialog(Adw.Dialog):
         cat = CATEGORY_BY_ID.get(category_id, CATEGORY_BY_ID["advanced"])
         dispatcher_items = list(cat["dispatchers"].items())
         self._current_dispatcher_keys = [d[0] for d in dispatcher_items]
-        labels = [d[1]["label"] for d in dispatcher_items]
+        labels = [_(d[1]["label"]) for d in dispatcher_items]
         max_chars = max((len(lbl) for lbl in labels), default=10)
         self._action_combo.set_factory(self._make_action_factory(max_chars, xalign=1))
         self._action_combo.set_list_factory(self._make_action_factory(max_chars, xalign=0))
@@ -919,7 +919,7 @@ class BindEditDialog(Adw.Dialog):
         """Populate the action combo with the curated bindm dispatcher list."""
         self._action_combo.handler_block(self._sig_action)
         self._current_dispatcher_keys = list(_BINDM_DISPATCHER_KEYS)
-        labels = list(_BINDM_DISPATCHER_LABELS)
+        labels = [_(label) for label in _BINDM_DISPATCHER_LABELS]
         max_chars = max((len(lbl) for lbl in labels), default=10)
         self._action_combo.set_factory(self._make_action_factory(max_chars, xalign=1))
         self._action_combo.set_list_factory(self._make_action_factory(max_chars, xalign=0))
@@ -964,10 +964,10 @@ class BindEditDialog(Adw.Dialog):
                 # A builder that needs several rows supplies the whole group,
                 # so it lands as the Parameters group rather than as a boxed
                 # list nested inside one.
-                widget.set_title("Parameters")
+                widget.set_title(_("Parameters"))
                 arg_group = widget
             else:
-                arg_group = Adw.PreferencesGroup(title="Parameters")
+                arg_group = Adw.PreferencesGroup(title=_("Parameters"))
                 if isinstance(widget, Adw.PreferencesRow):
                     arg_group.add(widget)
                 else:
@@ -983,9 +983,9 @@ class BindEditDialog(Adw.Dialog):
 
     def _build_type_section(self, group):
         self._type_combo = Adw.ComboRow(
-            title="Bind type",
-            subtitle="Normal for most keybinds",
-            model=Gtk.StringList.new(KEY_BIND_TYPE_LABELS),
+            title=_("Bind type"),
+            subtitle=_("Normal for most keybinds"),
+            model=Gtk.StringList.new([_(s) for s in KEY_BIND_TYPE_LABELS]),
         )
         current_type = self._bind.bind_type
         if current_type in KEY_BIND_TYPE_KEYS:
@@ -1021,13 +1021,13 @@ class BindEditDialog(Adw.Dialog):
 
         confirm(
             self._window,
-            heading="Duplicate keybind",
-            body=(
-                f"This key combination is already used by:\n{detail}\n\n"
-                f"Hyprland will trigger all matching binds."
-            ),
-            label="Add Anyway",
-            cancel_label="Go Back",
+            heading=_("Duplicate keybind"),
+            body=_(
+                "This key combination is already used by:\n{detail}\n\n"
+                "Hyprland will trigger all matching binds."
+            ).format(detail=detail),
+            label=_("Add Anyway"),
+            cancel_label=_("Go Back"),
             on_confirm=on_confirm,
         )
 

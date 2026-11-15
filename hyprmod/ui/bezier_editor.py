@@ -8,6 +8,7 @@ from gi.repository import Adw, Gtk
 
 from hyprmod.data.bezier_data import get_curve_store
 from hyprmod.data.bezier_presets import BUILTIN_PRESETS
+from hyprmod.i18n import _
 from hyprmod.ui import confirm
 from hyprmod.ui.bezier_canvas import AnimationPreview, BezierCanvas
 from hyprmod.ui.signals import SignalBlocker
@@ -50,7 +51,7 @@ class BezierEditor(Gtk.Box):
         preset_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         preset_box.set_halign(Gtk.Align.CENTER)
 
-        preset_label = Gtk.Label(label="Preset")
+        preset_label = Gtk.Label(label=_("Preset"))
         preset_label.add_css_class("dim-label")
         preset_box.append(preset_label)
 
@@ -79,7 +80,7 @@ class BezierEditor(Gtk.Box):
 
         canvas_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         canvas_box.append(frame)
-        hint_label = Gtk.Label(label="Drag control points to adjust the curve")
+        hint_label = Gtk.Label(label=_("Drag control points to adjust the curve"))
         hint_label.add_css_class("dim-label")
         hint_label.set_margin_top(4)
         canvas_box.append(hint_label)
@@ -91,7 +92,7 @@ class BezierEditor(Gtk.Box):
         self.append(self._preview)
 
         # Numeric inputs — two compact rows, one per control point
-        inputs_group = Adw.PreferencesGroup(title="Control Points")
+        inputs_group = Adw.PreferencesGroup(title=_("Control Points"))
 
         self._spin_x1, self._spin_y1, row1 = self._make_point_row(
             "Point 1", self._canvas.x1, self._canvas.y1, 0.0, 1.0, -10.0, 10.0
@@ -237,32 +238,32 @@ class BezierEditor(Gtk.Box):
         bar.set_margin_top(4)
 
         # Revert — flat text button
-        self._revert_btn = Gtk.Button(label="Revert")
+        self._revert_btn = Gtk.Button(label=_("Revert"))
         self._revert_btn.add_css_class("flat")
-        self._revert_btn.set_tooltip_text("Revert to saved curve")
+        self._revert_btn.set_tooltip_text(_("Revert to saved curve"))
         self._revert_btn.connect("clicked", lambda _b: self._do_revert())
         bar.append(self._revert_btn)
 
         # Save — for custom curves: update in place
-        self._save_btn = Gtk.Button(label="Save")
+        self._save_btn = Gtk.Button(label=_("Save"))
         self._save_btn.add_css_class("suggested-action")
         self._save_btn.add_css_class("pill")
-        self._save_btn.set_tooltip_text("Save changes")
+        self._save_btn.set_tooltip_text(_("Save changes"))
         self._save_btn.connect("clicked", lambda _b: self._do_update())
         bar.append(self._save_btn)
 
         # Save as — opens name dialog (for both builtin and custom)
-        self._save_as_btn = Gtk.Button(label="Save as\u2026")
+        self._save_as_btn = Gtk.Button(label=_("Save as\u2026"))
         self._save_as_btn.add_css_class("pill")
-        self._save_as_btn.set_tooltip_text("Save as new custom curve")
+        self._save_as_btn.set_tooltip_text(_("Save as new custom curve"))
         self._save_as_btn.connect("clicked", lambda _b: self._show_save_as_dialog())
         bar.append(self._save_as_btn)
 
         # Apply — use this curve for the animation
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.add_css_class("pill")
-        self._apply_btn.set_tooltip_text("Apply curve to animation")
+        self._apply_btn.set_tooltip_text(_("Apply curve to animation"))
         self._apply_btn.connect(
             "clicked",
             lambda _b: self._on_apply(self._base_curve_name) if self._on_apply else None,
@@ -277,7 +278,7 @@ class BezierEditor(Gtk.Box):
         # Rename — icon button
         self._rename_btn = Gtk.Button(icon_name="pencil-symbolic")
         self._rename_btn.add_css_class("flat")
-        self._rename_btn.set_tooltip_text("Rename curve")
+        self._rename_btn.set_tooltip_text(_("Rename curve"))
         self._rename_btn.connect("clicked", lambda _b: self._show_rename_dialog())
         bar.append(self._rename_btn)
 
@@ -285,7 +286,7 @@ class BezierEditor(Gtk.Box):
         self._delete_btn = Gtk.Button(icon_name="user-trash-symbolic")
         self._delete_btn.add_css_class("flat")
         self._delete_btn.add_css_class("error")
-        self._delete_btn.set_tooltip_text("Delete curve")
+        self._delete_btn.set_tooltip_text(_("Delete curve"))
         self._delete_btn.connect("clicked", lambda _b: self._do_delete(self._base_curve_name))
         bar.append(self._delete_btn)
 
@@ -317,10 +318,10 @@ class BezierEditor(Gtk.Box):
     def _show_save_as_dialog(self):
         """Show a dialog to enter a name for the new curve."""
         dialog = Adw.AlertDialog()
-        dialog.set_heading("Save as Custom Curve")
-        dialog.set_body("Enter a name for your curve.")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("save", "Save")
+        dialog.set_heading(_("Save as Custom Curve"))
+        dialog.set_body(_("Enter a name for your curve."))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("save", _("Save"))
         dialog.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("save")
         dialog.set_close_response("cancel")
@@ -351,9 +352,9 @@ class BezierEditor(Gtk.Box):
         """Show a dialog to rename the current custom curve."""
         old_name = self._base_curve_name
         dialog = Adw.AlertDialog()
-        dialog.set_heading("Rename Curve")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("rename", "Rename")
+        dialog.set_heading(_("Rename Curve"))
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("rename", _("Rename"))
         dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
         dialog.set_default_response("rename")
         dialog.set_close_response("cancel")
@@ -533,7 +534,7 @@ class BezierEditorDialog:
         self._preview_active = False
 
         self._dialog = Adw.Dialog()
-        self._dialog.set_title("Bezier Curve Editor")
+        self._dialog.set_title(_("Bezier Curve Editor"))
         self._dialog.set_follows_content_size(True)
 
         toolbar = Adw.ToolbarView()

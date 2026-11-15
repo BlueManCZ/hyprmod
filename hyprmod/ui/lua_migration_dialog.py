@@ -25,6 +25,7 @@ from hyprland_config import (
 
 from hyprmod.core import config
 from hyprmod.core.deprecations import backup_file
+from hyprmod.i18n import _
 from hyprmod.ui.dialog import SingletonDialogMixin
 
 
@@ -37,18 +38,18 @@ class LuaMigrationDialog(SingletonDialogMixin, Adw.Dialog):
         self._plan: ConversionPlan | None = None
         self._overwrite_switch: Adw.SwitchRow | None = None
 
-        self.set_title("Migrate to Lua")
+        self.set_title(_("Migrate to Lua"))
         self.set_content_width(640)
         self.set_content_height(560)
 
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._migrate_btn = Gtk.Button(label="Migrate")
+        self._migrate_btn = Gtk.Button(label=_("Migrate"))
         self._migrate_btn.add_css_class("suggested-action")
         self._migrate_btn.connect("clicked", self._on_migrate)
         self._migrate_btn.set_sensitive(False)
@@ -110,32 +111,36 @@ class LuaMigrationDialog(SingletonDialogMixin, Adw.Dialog):
         self._refresh_migrate_state()
 
     def _build_summary(self, plan: ConversionPlan, *, stranded: bool) -> None:
-        group = Adw.PreferencesGroup(title="Summary")
+        group = Adw.PreferencesGroup(title=_("Summary"))
         if stranded:
             group.set_description(
-                "Hyprland no longer reads hyprland.conf and is running a generated "
-                "hyprland.lua. Migrating replaces that file with your configuration. "
-                "Your hyprland.conf stays untouched."
+                _(
+                    "Hyprland no longer reads hyprland.conf and is running a generated "
+                    "hyprland.lua. Migrating replaces that file with your configuration. "
+                    "Your hyprland.conf stays untouched."
+                )
             )
         else:
             group.set_description(
-                "Your existing hyprland.conf stays untouched. The wizard writes "
-                "hyprland.lua and one .lua per sourced file alongside the originals."
+                _(
+                    "Your existing hyprland.conf stays untouched. The wizard writes "
+                    "hyprland.lua and one .lua per sourced file alongside the originals."
+                )
             )
 
-        files_row = Adw.ActionRow(title="Files to write")
+        files_row = Adw.ActionRow(title=_("Files to write"))
         files_row.set_subtitle(self._files_to_write_subtitle(plan))
         files_row.add_suffix(_count_pill(len(plan.output_files)))
         group.add(files_row)
 
         if plan.sourced_count:
-            sourced_row = Adw.ActionRow(title="Sourced sub-configs")
-            sourced_row.set_subtitle("Each gets its own .lua next to the original .conf.")
+            sourced_row = Adw.ActionRow(title=_("Sourced sub-configs"))
+            sourced_row.set_subtitle(_("Each gets its own .lua next to the original .conf."))
             sourced_row.add_suffix(_count_pill(plan.sourced_count))
             group.add(sourced_row)
 
         if plan.existing_lua:
-            self._overwrite_switch = Adw.SwitchRow(title="Overwrite existing .lua files")
+            self._overwrite_switch = Adw.SwitchRow(title=_("Overwrite existing .lua files"))
             self._overwrite_switch.set_subtitle(self._conflict_subtitle(plan.existing_lua))
             # Replacing files Hyprland generated loses nothing of the user's.
             self._overwrite_switch.set_active(
@@ -152,10 +157,13 @@ class LuaMigrationDialog(SingletonDialogMixin, Adw.Dialog):
     def _build_unmapped(self, plan: ConversionPlan) -> None:
         if not plan.unmapped:
             return
-        group = Adw.PreferencesGroup(title="Won't migrate")
+        group = Adw.PreferencesGroup(title=_("Won't migrate"))
         group.set_description(
-            "The Lua API doesn't have a direct equivalent for these — they'll be "
-            "left out of the generated .lua and you'll need to port them by hand."
+            _(
+                "The Lua API doesn't have a direct equivalent for these. "
+                "They'll be left out of the generated .lua and you'll need to "
+                "port them by hand."
+            )
         )
         for unmapped in plan.unmapped:
             row = Adw.ActionRow(title=unmapped.line)
@@ -166,7 +174,7 @@ class LuaMigrationDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_preview(self, plan: ConversionPlan) -> None:
         """Show the first 40 lines of each emitted file in an expander."""
-        group = Adw.PreferencesGroup(title="Preview")
+        group = Adw.PreferencesGroup(title=_("Preview"))
         for path in sorted(plan.output_files):
             row = Adw.ExpanderRow(title=path.name)
             row.set_subtitle(str(path.parent))
@@ -209,8 +217,10 @@ class LuaMigrationDialog(SingletonDialogMixin, Adw.Dialog):
         if self._plan.existing_lua and not self._wants_overwrite():
             self._migrate_btn.set_sensitive(False)
             self._migrate_btn.set_tooltip_text(
-                "Existing .lua files would block the write. "
-                "Toggle 'Overwrite existing .lua files' to continue."
+                _(
+                    "Existing .lua files would block the write. "
+                    "Toggle 'Overwrite existing .lua files' to continue."
+                )
             )
             return
         self._migrate_btn.set_sensitive(True)

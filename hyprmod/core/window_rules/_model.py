@@ -25,6 +25,7 @@ from hyprland_config import (
 
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config
+from hyprmod.i18n import _
 
 
 def _predates_v3_windowrule(version: str) -> bool:
@@ -662,7 +663,7 @@ def lookup_matcher_kind(key: str) -> MatcherKind:
 def summarize_matchers(matchers: list[Matcher]) -> str:
     """Plain-English summary of what windows the matchers target."""
     if not matchers:
-        return "all windows"
+        return _("all windows")
 
     # Identity matchers users mentally key off: class > initial_class
     # > title > initial_title.
@@ -679,10 +680,10 @@ def summarize_matchers(matchers: list[Matcher]) -> str:
         chosen = matchers[0]
 
     if chosen.key == RAW_KEY:
-        return chosen.value or "all windows"
+        return chosen.value or _("all windows")
 
     kind = lookup_matcher_kind(chosen.key)
-    label = kind.label.lower()
+    label = _(kind.label).lower()
 
     # Detect ``negative:`` regex prefix so the summary reads as
     # "not class: foo" instead of "class: negative:foo".
@@ -696,9 +697,9 @@ def summarize_matchers(matchers: list[Matcher]) -> str:
         truthy = value.strip().lower() in {"1", "true", "yes", "on"}
         if truthy:
             return label
-        return f"not {label}"
+        return f"{_('not')} {label}"
 
-    return f"{'not ' if negated else ''}{label}: {value}"
+    return f"{_('not') + ' ' if negated else ''}{label}: {value}"
 
 
 def _summarize_one_effect(effect: Effect) -> str:
@@ -706,13 +707,13 @@ def _summarize_one_effect(effect: Effect) -> str:
     preset = ACTION_PRESETS_BY_ID.get(effect.name)
     if preset is None:
         full = effect.full
-        return full or "(no action)"
+        return full or _("(no action)")
     args = effect.args.strip()
     # Boolean presets don't surface their auto-``on`` in the title —
     # "Float window" reads cleaner than "Float window: on".
     if not args or args.lower() == "on":
-        return preset.label
-    return f"{preset.label}: {args}"
+        return _(preset.label)
+    return f"{_(preset.label)}: {args}"
 
 
 def summarize_action(rule: WindowRule) -> str:
@@ -723,7 +724,7 @@ def summarize_action(rule: WindowRule) -> str:
     ``+`` to fit on one row, e.g. ``Float window + No blur``.
     """
     if not rule.effects:
-        return "(no action)"
+        return _("(no action)")
     if len(rule.effects) == 1:
         return _summarize_one_effect(rule.effects[0])
     return " + ".join(_summarize_one_effect(e) for e in rule.effects)
@@ -740,5 +741,5 @@ def summarize_rule(rule: WindowRule) -> tuple[str, str]:
     if rule.name:
         subtitle = f"{subtitle} · {rule.name}"
     if not rule.enabled:
-        subtitle = f"{subtitle} (disabled)"
+        subtitle = f"{subtitle} {_('(disabled)')}"
     return summarize_action(rule), subtitle

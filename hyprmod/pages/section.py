@@ -43,6 +43,7 @@ from hyprmod.core.config import display_path
 from hyprmod.core.ownership import SavedList
 from hyprmod.core.pending import ChangeKind, PendingChange
 from hyprmod.core.undo import SavedListSnapshot
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children
 from hyprmod.ui.reorder import RowReorderController
 
@@ -312,13 +313,13 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
         """
         idx_list = list(indices)
         n = len(idx_list)
-        group = Adw.PreferencesGroup(title=title)
+        group = Adw.PreferencesGroup(title=_(title))
         group.set_description(f"{n} {self._unit_label(n)}")
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
         add_btn.set_valign(Gtk.Align.CENTER)
         add_btn.add_css_class("flat")
-        add_btn.set_tooltip_text(self._group_add_tooltip)
+        add_btn.set_tooltip_text(_(self._group_add_tooltip))
         add_btn.connect("clicked", lambda _b: self._on_add())
         group.set_header_suffix(add_btn)
 
@@ -534,7 +535,7 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
                 yield self._make_pending(
                     kind="added",
                     title=title,
-                    subtitle=f"new · {subtitle}",
+                    subtitle=f"{_('new')} · {subtitle}",
                     revert=lambda i=idx: self._discard_at(i),
                 )
             elif kind == "modified" and baseline is not None:
@@ -550,7 +551,7 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
                 yield self._make_pending(
                     kind="removed",
                     title=title,
-                    subtitle=f"deleted · {subtitle}",
+                    subtitle=f"{_('deleted')} · {subtitle}",
                     revert=lambda e=item: self._on_restore_deleted(e),
                 )
         if self.is_reordered():
@@ -559,8 +560,8 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
             )
             yield self._make_pending(
                 kind="modified",
-                title="Reordered",
-                subtitle=f"{common} {self._unit_label(common)} in a different order",
+                title=_("Reordered"),
+                subtitle=(f"{common} {self._unit_label(common)} {_('in a different order')}"),
                 revert=self.revert_reorder,
             )
 
@@ -658,13 +659,13 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
 
     def _unit_label(self, n: int) -> str:
         """Pluralised noun for *n* entries ('1 rule' / '5 rules')."""
-        return self._unit_singular if n == 1 else self._unit_plural
+        return _(self._unit_singular) if n == 1 else _(self._unit_plural)
 
     def _build_deleted_group(self, deleted: list[T]) -> Adw.PreferencesGroup:
         """Render the "Removed (pending save)" group for *deleted* items."""
-        group = Adw.PreferencesGroup(title="Removed (pending save)")
+        group = Adw.PreferencesGroup(title=_("Removed (pending save)"))
         n = len(deleted)
-        group.set_description(f"{n} {self._unit_label(n)} will be removed on save")
+        group.set_description(f"{n} {self._unit_label(n)} {_('will be removed on save')}")
         for item in deleted:
             group.add(self._make_deleted_row(item))
         return group
@@ -688,7 +689,7 @@ class SavedListSectionPage[T: LineSerialisable](SectionPage):
         restore_btn = Gtk.Button(icon_name="edit-undo-symbolic")
         restore_btn.set_valign(Gtk.Align.CENTER)
         restore_btn.add_css_class("flat")
-        restore_btn.set_tooltip_text(f"Restore this {self._unit_singular}")
+        restore_btn.set_tooltip_text(_("Restore this item"))
         restore_btn.connect("clicked", lambda _b, e=item: self._on_restore_deleted(e))
         row.add_suffix(restore_btn)
         return row

@@ -6,6 +6,8 @@ labels, categories, and human-readable formatting.
 
 from typing import TypedDict
 
+from hyprmod.i18n import _
+
 # ---------------------------------------------------------------------------
 # Bind types
 # ---------------------------------------------------------------------------
@@ -273,7 +275,7 @@ def categorize_bind(bind_type: str, dispatcher: str) -> str:
 def dispatcher_label(dispatcher: str) -> str:
     """Human-readable label for a dispatcher."""
     info = DISPATCHER_INFO.get(dispatcher)
-    return info["label"] if info else dispatcher
+    return _(info["label"]) if info else dispatcher
 
 
 def bind_dispatcher_label(bind_type: str, dispatcher: str) -> str:
@@ -284,7 +286,7 @@ def bind_dispatcher_label(bind_type: str, dispatcher: str) -> str:
     direction-flavoured keyboard label.
     """
     if bind_type == "bindm" and dispatcher in BINDM_DISPATCHERS:
-        return BINDM_DISPATCHERS[dispatcher]
+        return _(BINDM_DISPATCHERS[dispatcher])
     return dispatcher_label(dispatcher)
 
 

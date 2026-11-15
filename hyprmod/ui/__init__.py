@@ -9,6 +9,7 @@ from gi.repository import Adw, Gdk, Gtk, Pango
 from hyprland_config import keyword_to_lua
 
 from hyprmod.core import config
+from hyprmod.i18n import _
 from hyprmod.ui.options import (  # noqa: F401
     KeyboardLayoutsOptionRow,
     OptionRow,
@@ -209,7 +210,7 @@ def build_preview_group(
     label for ``set_text(...)`` calls. The same shape is used by every
     edit dialog that previews the config line it will write.
     """
-    group = Adw.PreferencesGroup(title="Preview")
+    group = Adw.PreferencesGroup(title=_("Preview"))
     group.set_description(description)
 
     frame = Gtk.Frame()

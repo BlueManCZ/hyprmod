@@ -14,6 +14,7 @@ from hyprmod.core.env_vars import parse_env_lines
 from hyprmod.core.pending import PendingChange
 from hyprmod.core.undo import CursorUndoEntry
 from hyprmod.core.xcursor import crop_to_content, load_pointer, pad_to_square, scale_nearest
+from hyprmod.i18n import _
 from hyprmod.pages.section import SectionPage
 from hyprmod.ui.icons import CURSOR_ICON
 from hyprmod.ui.managed_row import ManagedRow, make_combo_row
@@ -113,8 +114,8 @@ class CursorPage(SectionPage):
 
     def build_widget(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(
-            title="Theme",
-            description=(
+            title=_("Theme"),
+            description=_(
                 "Applies instantly to Hyprland and GTK apps. "
                 "Other apps pick up changes on relaunch."
             ),
@@ -138,7 +139,7 @@ class CursorPage(SectionPage):
 
         row = make_combo_row(
             "Cursor",
-            subtitle="Theme and size",
+            subtitle=_("Theme and size"),
             model=self._model,
             factory=factory,
             selected=self._index_for(self._current.theme),
@@ -152,7 +153,7 @@ class CursorPage(SectionPage):
         self._size_spin = Gtk.SpinButton(adjustment=self._size_adjustment, digits=0)
         self._size_spin.set_valign(Gtk.Align.CENTER)
         self._size_spin.set_sensitive(self._current.theme != _SYSTEM_DEFAULT)
-        self._size_spin.set_tooltip_text("Cursor size (pixels)")
+        self._size_spin.set_tooltip_text(_("Cursor size (pixels)"))
         self._size_handler_id = self._size_spin.connect("value-changed", self._on_size_changed)
         row.add_suffix(self._size_spin)
 
@@ -329,15 +330,15 @@ class CursorPage(SectionPage):
         diffs: list[str] = []
         if self._baseline.theme != self._current.theme:
             diffs.append(
-                f"theme {self._theme_label(self._baseline.theme)} → "
+                f"{_('theme')} {self._theme_label(self._baseline.theme)} → "
                 f"{self._theme_label(self._current.theme)}"
             )
         if self._baseline.size != self._current.size:
-            diffs.append(f"size {self._baseline.size}px → {self._current.size}px")
+            diffs.append(f"{_('size')} {self._baseline.size}px → {self._current.size}px")
         yield PendingChange(
             category="Cursor",
-            title="Cursor theme",
-            subtitle=" · ".join(diffs) if diffs else "updated",
+            title=_("Cursor theme"),
+            subtitle=" · ".join(diffs) if diffs else _("updated"),
             kind="modified",
             revert=self.discard,
             navigate_to="cursor",

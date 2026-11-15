@@ -4,6 +4,8 @@ from collections.abc import Callable
 
 from gi.repository import Gtk
 
+from hyprmod.i18n import _
+
 
 class RowActions:
     """Two-button action strip: *Discard changes* and *Remove override*.
@@ -42,7 +44,7 @@ class RowActions:
 
         self._discard_btn = Gtk.Button(icon_name="edit-undo-symbolic")
         self._discard_btn.set_valign(Gtk.Align.CENTER)
-        self._discard_btn.set_tooltip_text("Discard changes")
+        self._discard_btn.set_tooltip_text(_("Discard changes"))
         self._discard_btn.add_css_class("flat")
         self._discard_btn.set_visible(False)
         self._discard_btn.connect("clicked", lambda _: on_discard())

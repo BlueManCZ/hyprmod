@@ -41,6 +41,7 @@ from hyprmod.core.layer_rules import (
     LayerRule,
     lookup_preset,
 )
+from hyprmod.i18n import _
 from hyprmod.ui import build_preview_group
 from hyprmod.ui.dialog import SingletonDialogMixin
 
@@ -100,18 +101,18 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         # the windowrule dialog's identical comment.
         self._extra_effects: list[LayerEffect] = []
 
-        self.set_title("New Layer Rule" if self._is_new else "Edit Layer Rule")
+        self.set_title(_("New Layer Rule") if self._is_new else _("Edit Layer Rule"))
         self.set_content_width(560)
         self.set_content_height(560)
 
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -159,21 +160,23 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         block form so Hyprland's Lua API / ``hyprctl`` can reference
         it for dynamic enable/disable.
         """
-        group = Adw.PreferencesGroup(title="Name (optional)")
+        group = Adw.PreferencesGroup(title=_("Name (optional)"))
         group.set_description(
-            "Naming a rule lets you enable / disable it at runtime via "
-            "Hyprland's Lua API or hyprctl. Anonymous rules are written "
-            "as the compact one-line form."
+            _(
+                "Naming a rule lets you enable / disable it at runtime via "
+                "Hyprland's Lua API or hyprctl. Anonymous rules are written "
+                "as the compact one-line form."
+            )
         )
 
-        self._name_entry = Adw.EntryRow(title="Name")
+        self._name_entry = Adw.EntryRow(title=_("Name"))
         self._name_entry.set_text(self._rule_name)
         self._name_entry.connect("changed", self._on_name_changed)
         group.add(self._name_entry)
 
         self._enabled_row = Adw.SwitchRow(
-            title="Enabled",
-            subtitle="Uncheck to keep the rule defined but inactive on next reload.",
+            title=_("Enabled"),
+            subtitle=_("Uncheck to keep the rule defined but inactive on next reload."),
         )
         self._enabled_row.set_active(self._rule_enabled)
         self._enabled_row.connect("notify::active", self._on_enabled_changed)
@@ -183,16 +186,20 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_match_section(self) -> Gtk.Widget:
         """The 'Match this layer surface' group with the namespace entry."""
-        group = Adw.PreferencesGroup(title="Match this layer surface")
+        group = Adw.PreferencesGroup(title=_("Match this layer surface"))
         group.set_description(
-            "Type the layer namespace as a regex. "
-            "Common namespaces: waybar, notifications, rofi, mako, dunst, wallpaper."
+            _(
+                "Type the layer namespace as a regex. "
+                "Common namespaces: waybar, notifications, rofi, mako, dunst, wallpaper."
+            )
         )
 
-        self._namespace_entry = Adw.EntryRow(title="Namespace regex")
+        self._namespace_entry = Adw.EntryRow(title=_("Namespace regex"))
         self._namespace_entry.set_tooltip_text(
-            "Regex matching the layer surface namespace. "
-            "Examples: ‘waybar’, ‘^(rofi|wofi)$’, ‘notifications’."
+            _(
+                "Regex matching the layer surface namespace. "
+                "Examples: ‘waybar’, ‘^(rofi|wofi)$’, ‘notifications’."
+            )
         )
         self._namespace_entry.connect("changed", lambda *_: self._refresh())
         group.add(self._namespace_entry)
@@ -201,11 +208,11 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_apply_section(self) -> Gtk.Widget:
         """The 'Apply this rule' group with the action dropdown + arg fields."""
-        group = Adw.PreferencesGroup(title="Apply this rule")
-        group.set_description("Pick what Hyprland should do for matching layer surfaces.")
+        group = Adw.PreferencesGroup(title=_("Apply this rule"))
+        group.set_description(_("Pick what Hyprland should do for matching layer surfaces."))
 
-        self._action_dropdown = Adw.ComboRow(title="Rule")
-        labels = Gtk.StringList.new([p.label for p in self._presets])
+        self._action_dropdown = Adw.ComboRow(title=_("Rule"))
+        labels = Gtk.StringList.new([_(p.label) for p in self._presets])
         self._action_dropdown.set_model(labels)
         self._action_dropdown.connect("notify::selected", self._on_action_changed)
         group.add(self._action_dropdown)
@@ -297,7 +304,7 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
             child = self._action_field_box.get_first_child()
         self._action_field_widgets = []
 
-        self._action_description.set_text(preset.description)
+        self._action_description.set_text(_(preset.description))
 
         if not preset.fields:
             return
@@ -322,9 +329,9 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         """Create the appropriate Adw row for a single action field."""
         if field.kind == "number":
             row = Adw.SpinRow.new_with_range(field.min_value, field.max_value, field.step)
-            row.set_title(field.label)
+            row.set_title(_(field.label))
             if field.hint:
-                row.set_subtitle(field.hint)
+                row.set_subtitle(_(field.hint))
             row.set_digits(field.digits)
             try:
                 row.set_value(float(initial) if initial else float(field.default or "0"))
@@ -337,19 +344,19 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
             return row
 
         if field.kind == "bool":
-            row = Adw.SwitchRow(title=field.label)
+            row = Adw.SwitchRow(title=_(field.label))
             if field.hint:
-                row.set_subtitle(field.hint)
+                row.set_subtitle(_(field.hint))
             row.set_active(initial.strip().lower() in {"1", "true", "yes", "on"})
             row.connect("notify::active", self._on_field_changed)
             return row
 
         # Free-text: an EntryRow with optional tooltip hint.
-        row = Adw.EntryRow(title=field.label)
+        row = Adw.EntryRow(title=_(field.label))
         if field.hint:
             # Adw.EntryRow doesn't expose ``set_subtitle``; carry the
             # hint via tooltip so it surfaces on hover.
-            row.set_tooltip_text(field.hint)
+            row.set_tooltip_text(_(field.hint))
         row.set_text(initial)
         row.connect("changed", self._on_field_changed)
         return row
@@ -395,7 +402,7 @@ class LayerRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
     def _refresh(self) -> None:
         rule = self._build_rule()
         if rule is None:
-            self._preview_label.set_text("(rule incomplete)")
+            self._preview_label.set_text(_("(rule incomplete)"))
         else:
             self._preview_label.set_text(_preview_for(rule))
         # Apply gates on a non-empty namespace AND a non-empty rule name.

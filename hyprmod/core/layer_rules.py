@@ -68,6 +68,7 @@ from hyprland_config import (
 
 from hyprmod.core import config
 from hyprmod.core.external import load_external_rule_entries
+from hyprmod.i18n import _
 
 
 def _predates_v3_layerrule(version: str) -> bool:
@@ -688,19 +689,19 @@ def _summarize_one_effect(effect: LayerEffect) -> str:
     preset = LAYER_ACTION_PRESETS_BY_ID.get(effect.name)
     if preset is None:
         full = effect.full
-        return full or "(no rule)"
+        return full or _("(no rule)")
     args = effect.args.strip()
     # Bool effects auto-fill ``on`` on serialization but read cleaner
     # in the title without the redundant value.
     if not args or args.lower() == "on":
-        return preset.label
-    return f"{preset.label}: {args}"
+        return _(preset.label)
+    return f"{_(preset.label)}: {args}"
 
 
 def summarize_action(rule: LayerRule) -> str:
     """Friendly label for a rule's effects, multi-effect joined with ``+``."""
     if not rule.effects:
-        return "(no rule)"
+        return _("(no rule)")
     if len(rule.effects) == 1:
         return _summarize_one_effect(rule.effects[0])
     return " + ".join(_summarize_one_effect(e) for e in rule.effects)
@@ -708,7 +709,7 @@ def summarize_action(rule: LayerRule) -> str:
 
 def summarize_namespace(rule: LayerRule) -> str:
     """Plain-English summary of the namespace clause."""
-    return f"namespace: {rule.namespace}"
+    return f"{_('namespace')}: {rule.namespace}"
 
 
 def summarize_rule(rule: LayerRule) -> tuple[str, str]:
@@ -717,7 +718,7 @@ def summarize_rule(rule: LayerRule) -> tuple[str, str]:
     if rule.name:
         subtitle = f"{subtitle} · {rule.name}"
     if not rule.enabled:
-        subtitle = f"{subtitle} (disabled)"
+        subtitle = f"{subtitle} {_('(disabled)')}"
     return summarize_action(rule), subtitle
 
 

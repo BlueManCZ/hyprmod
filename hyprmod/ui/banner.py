@@ -2,6 +2,7 @@
 
 from gi.repository import Adw, Gio, Gtk
 
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children
 from hyprmod.ui.timer import Timer
 
@@ -40,12 +41,12 @@ class DirtyBanner(Gtk.Revealer):
         self._icon.add_css_class("warning")
         box.append(self._icon)
 
-        self._label = Gtk.Label(label="Unsaved changes \u2014 applied live, not saved to disk")
+        self._label = Gtk.Label(label=_("Unsaved changes — applied live, not saved to disk"))
         self._label.set_hexpand(True)
         self._label.set_xalign(0)
         box.append(self._label)
 
-        self._discard_button = Gtk.Button(label="Discard")
+        self._discard_button = Gtk.Button(label=_("Discard"))
         self._discard_button.connect("clicked", self._on_discard_clicked)
         box.append(self._discard_button)
 
@@ -82,7 +83,7 @@ class DirtyBanner(Gtk.Revealer):
             return
         self._save_widget.set_sensitive(False)
         self._discard_button.set_visible(False)
-        self._label.set_label("Changes saved to disk")
+        self._label.set_label(_("Changes saved to disk"))
         self._icon.set_from_icon_name("check-plain-symbolic")
         self._icon.remove_css_class("warning")
         self._icon.add_css_class("accent")
@@ -96,8 +97,8 @@ class DirtyBanner(Gtk.Revealer):
 
         menu = Gio.Menu()
         if self._has_active_profile:
-            menu.append("Save without updating profile", "banner.save-no-update")
-        menu.append("Save as new profile", "banner.save-as-new")
+            menu.append(_("Save without updating profile"), "banner.save-no-update")
+        menu.append(_("Save as new profile"), "banner.save-as-new")
 
         group = Gio.SimpleActionGroup()
         for name, handler in [
@@ -109,7 +110,7 @@ class DirtyBanner(Gtk.Revealer):
             group.add_action(action)
         self._save_area.insert_action_group("banner", group)
 
-        split = Adw.SplitButton(label="Save now")
+        split = Adw.SplitButton(label=_("Save now"))
         split.add_css_class("suggested-action")
         split.set_menu_model(menu)
         split.connect("clicked", self._on_save_clicked)
@@ -148,7 +149,7 @@ class DirtyBanner(Gtk.Revealer):
             return
         self._save_widget.set_sensitive(True)
         self._discard_button.set_visible(True)
-        self._label.set_label("Unsaved changes \u2014 applied live, not saved to disk")
+        self._label.set_label(_("Unsaved changes — applied live, not saved to disk"))
         self._icon.set_from_icon_name("dialog-warning-symbolic")
         self._icon.remove_css_class("accent")
         self._icon.add_css_class("warning")

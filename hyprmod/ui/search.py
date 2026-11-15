@@ -5,6 +5,7 @@ from html import escape as html_escape
 from gi.repository import Adw, Gtk
 
 from hyprmod.core import schema as schema_mod
+from hyprmod.i18n import _
 from hyprmod.ui.empty_state import EmptyState
 
 MIN_QUERY_LENGTH = 2
@@ -15,8 +16,8 @@ class SearchResultRow(Adw.ActionRow):
 
     def __init__(self, option: dict, group_label: str, section_label: str):
         super().__init__(
-            title=html_escape(option.get("label", option["key"])),
-            subtitle=html_escape(f"{group_label} \u203a {section_label}"),
+            title=html_escape(_(option.get("label", option["key"]))),
+            subtitle=html_escape(f"{_(group_label)} \u203a {_(section_label)}"),
         )
         self.set_activatable(True)
         self.option_key = option["key"]
@@ -51,11 +52,12 @@ class SearchPage:
                         entry["_group_id"] = group["id"]
                         entry["_group_label"] = group["label"]
                     entry["_section_label"] = section.get("label", "")
-                    # Searchable text
+                    # Searchable text: include translated labels so queries in
+                    # Spanish match too.
+                    label = option.get("label", "")
+                    description = option.get("description", "")
                     entry["_search_text"] = (
-                        f"{option.get('label', '')} "
-                        f"{option.get('description', '')} "
-                        f"{option.get('key', '')}"
+                        f"{label} {_(label)} {description} {_(description)} {option.get('key', '')}"
                     ).lower()
                     result.append(entry)
         return result
@@ -67,8 +69,10 @@ class SearchPage:
         _group_id, _group_label, _section_label.
         """
         for entry in entries:
+            label = entry.get("label", "")
+            description = entry.get("description", "")
             entry["_search_text"] = (
-                f"{entry.get('label', '')} {entry.get('description', '')} {entry.get('key', '')}"
+                f"{label} {_(label)} {description} {_(description)} {entry.get('key', '')}"
             ).lower()
             self._all_options.append(entry)
 
@@ -87,8 +91,8 @@ class SearchPage:
         """Build a widget showing search results."""
         if not results:
             return EmptyState(
-                title="No Results",
-                description="Try a different search term.",
+                title=_("No Results"),
+                description=_("Try a different search term."),
                 icon_name="edit-find-symbolic",
             )
 
@@ -98,9 +102,12 @@ class SearchPage:
         box.set_margin_start(12)
         box.set_margin_end(12)
 
-        group = Adw.PreferencesGroup(
-            title=f"{len(results)} result{'s' if len(results) != 1 else ''}",
-        )
+        count = len(results)
+        if count == 1:
+            group_title = _("1 result")
+        else:
+            group_title = f"{count} {_('results')}"
+        group = Adw.PreferencesGroup(title=group_title)
 
         for opt in results:
             row = SearchResultRow(

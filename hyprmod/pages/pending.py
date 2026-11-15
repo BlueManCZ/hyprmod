@@ -17,6 +17,7 @@ from hyprland_config import ParseError, value_to_conf
 from hyprmod.core import config, schema
 from hyprmod.core.pending import ChangeKind, PendingChange
 from hyprmod.core.state import OptionState
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children, make_page_layout
 from hyprmod.ui.diff import ConfigDiffWidget
 from hyprmod.ui.empty_state import EmptyState
@@ -96,7 +97,7 @@ class PendingChangesPage:
     # ── Build ──
 
     def build(self, header: Adw.HeaderBar) -> Adw.ToolbarView:
-        toolbar, _, content_box, _ = make_page_layout(header=header)
+        toolbar, _tb, content_box, _sc = make_page_layout(header=header)
         self._toolbar = toolbar
         self._content_box = content_box
 
@@ -106,9 +107,9 @@ class PendingChangesPage:
         content_box.append(self._summary_label)
 
         self._empty_state = EmptyState(
-            title="No Pending Changes",
+            title=_("No Pending Changes"),
             description=(
-                "Edits made on any page will appear here for you to review before saving."
+                _("Edits made on any page will appear here for you to review before saving.")
             ),
             icon_name="emblem-ok-symbolic",
         )
@@ -120,9 +121,9 @@ class PendingChangesPage:
         # Diff section — hidden when there are no changes (saved file already
         # matches what the next save would write).
         diff_group = Adw.PreferencesGroup()
-        diff_group.set_title("Config diff preview")
+        diff_group.set_title(_("Config diff preview"))
         diff_group.set_description(
-            "Comparison between the saved config and what the next save would write."
+            _("Comparison between the saved config and what the next save would write.")
         )
 
         diff_card = Gtk.Frame()
@@ -191,7 +192,10 @@ class PendingChangesPage:
             return
 
         summary_label.set_visible(True)
-        summary_label.set_label(f"{total} unsaved change{'s' if total != 1 else ''}")
+        if total == 1:
+            summary_label.set_label(_("1 unsaved change"))
+        else:
+            summary_label.set_label(f"{total} {_('unsaved changes')}")
         empty_state.set_visible(False)
         groups_box.set_visible(True)
 
@@ -199,10 +203,12 @@ class PendingChangesPage:
             cat_changes = by_cat.get(cat)
             if not cat_changes:
                 continue
-            group = Adw.PreferencesGroup(title=cat)
-            group.set_description(
-                f"{len(cat_changes)} change" + ("s" if len(cat_changes) != 1 else "")
-            )
+            group = Adw.PreferencesGroup(title=_(cat))
+            count = len(cat_changes)
+            if count == 1:
+                group.set_description(_("1 change"))
+            else:
+                group.set_description(f"{count} {_('changes')}")
             for change in cat_changes:
                 row = self._make_row(change)
                 group.add(row)
@@ -219,7 +225,7 @@ class PendingChangesPage:
 
         # Kind badge ("Modified" / "Added" / "Removed")
         badge_label, badge_class = _KIND_BADGE[change.kind]
-        badge = Gtk.Label(label=badge_label)
+        badge = Gtk.Label(label=_(badge_label))
         badge.add_css_class("pending-badge")
         badge.add_css_class(badge_class)
         badge.set_valign(Gtk.Align.CENTER)
@@ -227,7 +233,7 @@ class PendingChangesPage:
 
         # Discard button — primary action for the row
         discard_btn = Gtk.Button(icon_name="edit-undo-symbolic")
-        discard_btn.set_tooltip_text("Revert this change")
+        discard_btn.set_tooltip_text(_("Revert this change"))
         discard_btn.set_valign(Gtk.Align.CENTER)
         discard_btn.add_css_class("flat")
 
@@ -297,7 +303,7 @@ class PendingChangesPage:
             old_text,
             new_text,
             old_label=str(path),
-            new_label=f"{path} (next save)",
+            new_label=f"{path} {_('(next save)')}",
             title=f"{path.name}",
         )
 
@@ -344,7 +350,7 @@ class PendingChangesPage:
             if not state.is_dirty:
                 continue
             option = options_flat.get(key, {})
-            label = option.get("label") or key
+            label = _(option.get("label") or key)
             kind, subtitle = self._describe_option_change(state)
             group_id = win.group_for_option(key)
             result.append(
@@ -375,11 +381,11 @@ class PendingChangesPage:
 
         # Override added (was unmanaged, now a value is set)
         if not state.saved_managed and state.managed:
-            return "added", f"set to {new_str or '—'}"
+            return "added", f"{_('set to')} {new_str or '—'}"
         # Override removed (was managed, no longer)
         if state.saved_managed and not state.managed:
-            return "removed", "removing override"
+            return "removed", _("removing override")
         # Same managed flag, value changed
         if old_str != new_str:
             return "modified", f"{old_str or '—'} → {new_str or '—'}"
-        return "modified", "value updated"
+        return "modified", _("value updated")

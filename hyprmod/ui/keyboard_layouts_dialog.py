@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from gi.repository import Adw, Gtk
 
+from hyprmod.i18n import _
 from hyprmod.ui import make_inline_hint
 from hyprmod.ui.dialog import SingletonDialogMixin
 from hyprmod.ui.empty_state import EmptyState
@@ -71,8 +72,8 @@ class _SearchablePicker(SingletonDialogMixin, Adw.Dialog):
         body.append(scrolled)
 
         self._empty = EmptyState(
-            title="No Matches",
-            description="Try a different search term.",
+            title=_("No Matches"),
+            description=_("Try a different search term."),
             icon_name="system-search-symbolic",
         )
         self._empty.set_visible(False)
@@ -164,7 +165,7 @@ class KeyboardLayoutsDialog(SingletonDialogMixin, Adw.Dialog):
         self._rows: list[Adw.ActionRow] = []
         self._reorder = RowReorderController(move=self._move, iter_rows=lambda: self._rows)
 
-        self.set_title("Keyboard layouts")
+        self.set_title(_("Keyboard layouts"))
         self.set_content_width(460)
         self.set_content_height(520)
 
@@ -189,7 +190,9 @@ class KeyboardLayoutsDialog(SingletonDialogMixin, Adw.Dialog):
         add_button = Gtk.Button()
         add_button.set_halign(Gtk.Align.START)
         add_button.add_css_class("flat")
-        add_button.set_child(Adw.ButtonContent(icon_name="list-add-symbolic", label="Add layout"))
+        add_button.set_child(
+            Adw.ButtonContent(icon_name="list-add-symbolic", label=_("Add layout"))
+        )
         add_button.connect("clicked", self._on_add_clicked)
         body.append(add_button)
 
@@ -252,14 +255,14 @@ class KeyboardLayoutsDialog(SingletonDialogMixin, Adw.Dialog):
         row = Adw.ActionRow(title=name, subtitle=subtitle)
 
         if idx == 0:
-            badge = Gtk.Label(label="Default")
+            badge = Gtk.Label(label=_("Default"))
             badge.add_css_class("dim-label")
             badge.add_css_class("caption")
             row.add_suffix(badge)
 
         remove = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER)
         remove.add_css_class("flat")
-        remove.set_tooltip_text("Remove layout")
+        remove.set_tooltip_text(_("Remove layout"))
         remove.set_sensitive(len(self._sources) > 1)
         remove.connect("clicked", self._on_remove, idx)
         row.add_suffix(remove)
@@ -318,7 +321,7 @@ class KeyboardLayoutsDialog(SingletonDialogMixin, Adw.Dialog):
         ]
         LayoutPickerDialog.present_singleton(
             self,
-            title="Add layout",
+            title=_("Add layout"),
             placeholder="Search layouts…",
             items=items,
             on_pick=self._on_layout_picked,

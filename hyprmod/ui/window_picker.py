@@ -21,6 +21,7 @@ from gi.repository import Adw, Gtk
 from hyprland_socket import HyprlandError, Window, get_windows
 
 from hyprmod.core.desktop_apps import DesktopApp, list_apps
+from hyprmod.i18n import _
 from hyprmod.ui import clear_children
 from hyprmod.ui.dialog import SingletonDialogMixin
 from hyprmod.ui.empty_state import EmptyState
@@ -52,7 +53,7 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         self._filter_term: str = ""
         self._list_box: Gtk.ListBox
 
-        self.set_title("Pick an Open Window")
+        self.set_title(_("Pick an Open Window"))
         self.set_content_width(520)
         self.set_content_height(560)
 
@@ -62,7 +63,7 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         # Refresh re-queries Hyprland's IPC; useful if the user opens a
         # window after the picker is already up.
         refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
-        refresh_btn.set_tooltip_text("Re-query open windows")
+        refresh_btn.set_tooltip_text(_("Re-query open windows"))
         refresh_btn.connect("clicked", lambda _b: self._refresh())
         header.pack_end(refresh_btn)
         toolbar.add_top_bar(header)
@@ -74,7 +75,7 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         body.set_margin_end(12)
 
         self._search_entry = Gtk.SearchEntry()
-        self._search_entry.set_placeholder_text("Search by class or title…")
+        self._search_entry.set_placeholder_text(_("Search by class or title…"))
         self._search_entry.connect("search-changed", self._on_search_changed)
         body.append(self._search_entry)
 
@@ -93,8 +94,8 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         # Two states reuse one widget — the title/description swaps based
         # on which condition triggered visibility.
         self._empty = EmptyState(
-            title="No Open Windows",
-            description="Open a window in Hyprland and try again.",
+            title=_("No Open Windows"),
+            description=_("Open a window in Hyprland and try again."),
             icon_name="window-symbolic",
         )
         self._empty.set_visible(False)
@@ -134,16 +135,16 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
         # Title: the window's *current* title is what the user sees
         # right now, so it's the most recognisable identity. Fall back
         # to class when the window has no title (transient dialogs).
-        display_title = window.title or window.class_name or "(untitled)"
+        display_title = window.title or window.class_name or _("(untitled)")
         # Subtitle: surface class + workspace so two windows from the
         # same app on different workspaces are distinguishable.
         subtitle_parts: list[str] = []
         if window.class_name:
             subtitle_parts.append(window.class_name)
         if window.workspace_name:
-            subtitle_parts.append(f"workspace {window.workspace_name}")
+            subtitle_parts.append(_("workspace {name}").format(name=window.workspace_name))
         elif window.workspace_id >= 0:
-            subtitle_parts.append(f"workspace {window.workspace_id}")
+            subtitle_parts.append(_("workspace {id}").format(id=window.workspace_id))
         if window.xwayland:
             subtitle_parts.append("XWayland")
         subtitle = " · ".join(subtitle_parts)
@@ -225,13 +226,13 @@ class WindowPickerDialog(SingletonDialogMixin, Adw.Dialog):
 
         # Two empty paths share the widget; pick copy that explains why.
         if not self._windows:
-            self._empty.set_title("No Open Windows")
+            self._empty.set_title(_("No Open Windows"))
             self._empty.set_description(
-                "Open a window in Hyprland (or click refresh) to pick from it."
+                _("Open a window in Hyprland (or click refresh) to pick from it.")
             )
         else:
-            self._empty.set_title("No Matches")
-            self._empty.set_description("Try a different search term.")
+            self._empty.set_title(_("No Matches"))
+            self._empty.set_description(_("Try a different search term."))
         self._empty.set_visible(True)
 
     # ── Selection ──

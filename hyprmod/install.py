@@ -121,7 +121,7 @@ def uninstall_user_files(*, quiet: bool = False) -> list[Path]:
     """Remove user-scope XDG assets owned by hyprmod. Leaves system files alone."""
     removed: list[Path] = []
     home = _xdg_data_home()
-    for _, dest in _user_dest_map():
+    for _key, dest in _user_dest_map():
         # Guard: never delete anything outside $XDG_DATA_HOME (e.g. /usr/share).
         try:
             dest.relative_to(home)

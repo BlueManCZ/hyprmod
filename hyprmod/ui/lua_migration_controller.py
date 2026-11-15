@@ -15,6 +15,7 @@ from gi.repository import Adw, Gio, GLib
 from hyprland_config import ConversionResult
 
 from hyprmod.core import config
+from hyprmod.i18n import _
 from hyprmod.ui import ShowToast
 from hyprmod.ui.lua_migration_banner import LuaMigrationBanner
 from hyprmod.ui.lua_migration_dialog import LuaMigrationDialog
@@ -173,9 +174,9 @@ class LuaMigrationController:
     def _show_restart_notice(self) -> None:
         """Tell the user a logout/login is needed for the new Lua config to take over."""
         dialog = Adw.AlertDialog(
-            heading="Lua migration complete",
-            body=(
-                "Hyprland is still running with your existing hyprland.conf — "
+            heading=_("Lua migration complete"),
+            body=_(
+                "Hyprland is still running with your existing hyprland.conf - "
                 "the config language is fixed at compositor startup, so the new "
                 "hyprland.lua won't take over until you log out and log back in.\n\n"
                 "Until then, live-preview changes in HyprMod still go through "
@@ -183,7 +184,7 @@ class LuaMigrationController:
                 ".lua files on disk."
             ),
         )
-        dialog.add_response("ok", "Got it")
+        dialog.add_response("ok", _("Got it"))
         dialog.set_default_response("ok")
         dialog.present(self._window)
 

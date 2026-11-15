@@ -42,6 +42,7 @@ from gi.repository import Adw, Gtk
 
 from hyprmod.core import config
 from hyprmod.core.workspaces import GapValue, WorkspaceRule
+from hyprmod.i18n import _
 from hyprmod.ui import build_preview_group, format_config_preview
 from hyprmod.ui.dialog import SingletonDialogMixin
 
@@ -129,18 +130,18 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._monitor_choices = monitor_choices or []
         self._monitor_connectors = [c for c, _ in self._monitor_choices]
 
-        self.set_title("New Workspace Rule" if self._is_new else "Edit Workspace Rule")
+        self.set_title(_("New Workspace Rule") if self._is_new else _("Edit Workspace Rule"))
         self.set_content_width(600)
         self.set_content_height(680)
 
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -189,17 +190,17 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         ``PreferencesGroup`` only wraps rows, and the caption would look
         like another row if put inside.
         """
-        group = Adw.PreferencesGroup(title="Workspace")
-        group.set_description("Which workspace(s) this rule applies to.")
+        group = Adw.PreferencesGroup(title=_("Workspace"))
+        group.set_description(_("Which workspace(s) this rule applies to."))
 
-        self._selector_type_row = Adw.ComboRow(title="Type")
+        self._selector_type_row = Adw.ComboRow(title=_("Type"))
         self._selector_type_row.set_model(
             Gtk.StringList.new([label for _, label, _ in _SELECTOR_TYPES])
         )
         self._selector_type_row.connect("notify::selected", self._on_selector_type_changed)
         group.add(self._selector_type_row)
 
-        self._selector_value = Adw.EntryRow(title="Value")
+        self._selector_value = Adw.EntryRow(title=_("Value"))
         self._selector_value.connect("changed", lambda *_: self._refresh())
         group.add(self._selector_value)
 
@@ -220,23 +221,25 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_monitor_group(self) -> Adw.PreferencesGroup:
         """Monitor binding + default-for-monitor switch."""
-        group = Adw.PreferencesGroup(title="Bind to monitor")
+        group = Adw.PreferencesGroup(title=_("Bind to monitor"))
         group.set_description(
-            "Optional — pin this workspace to a specific output. "
-            "Disconnected monitors still apply when they return."
+            _(
+                "Optional. Pin this workspace to a specific output. "
+                "Disconnected monitors still apply when they return."
+            )
         )
 
         # First entry is "no monitor binding" — keeps the rule unbound.
         self._monitor_options: list[str | None] = [None] + list(self._monitor_connectors)
         labels = ["Any monitor"] + [label for _, label in self._monitor_choices]
-        self._monitor_row = Adw.ComboRow(title="Monitor")
+        self._monitor_row = Adw.ComboRow(title=_("Monitor"))
         self._monitor_row.set_model(Gtk.StringList.new(labels))
         self._monitor_row.connect("notify::selected", lambda *_: self._refresh())
         group.add(self._monitor_row)
 
         self._default_row = Adw.SwitchRow(
-            title="Default for monitor",
-            subtitle="Open this workspace automatically when the monitor connects.",
+            title=_("Default for monitor"),
+            subtitle=_("Open this workspace automatically when the monitor connects."),
         )
         self._default_row.connect("notify::active", lambda *_: self._refresh())
         group.add(self._default_row)
@@ -245,12 +248,12 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_lifecycle_group(self) -> Adw.PreferencesGroup:
         """Persistent switch + on-created-empty command entry."""
-        group = Adw.PreferencesGroup(title="Lifecycle")
-        group.set_description("Keep the workspace alive and run a command when it first opens.")
+        group = Adw.PreferencesGroup(title=_("Lifecycle"))
+        group.set_description(_("Keep the workspace alive and run a command when it first opens."))
 
         self._persistent_row = Adw.SwitchRow(
-            title="Persistent",
-            subtitle="Don't auto-destroy the workspace when its last window closes.",
+            title=_("Persistent"),
+            subtitle=_("Don't auto-destroy the workspace when its last window closes."),
         )
         self._persistent_row.connect("notify::active", lambda *_: self._refresh())
         group.add(self._persistent_row)
@@ -259,15 +262,15 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         # the model contract clean (None = don't emit). The switch acts as
         # the override toggle; the entry holds the command.
         self._on_created_switch = Adw.SwitchRow(
-            title="On first map",
-            subtitle="Run a shell command the first time this workspace is opened.",
+            title=_("On first map"),
+            subtitle=_("Run a shell command the first time this workspace is opened."),
         )
         self._on_created_switch.connect("notify::active", self._on_on_created_toggle)
         group.add(self._on_created_switch)
 
-        self._on_created_entry = Adw.EntryRow(title="Command")
+        self._on_created_entry = Adw.EntryRow(title=_("Command"))
         self._on_created_entry.set_tooltip_text(
-            "Shell command — same syntax as ‘exec’ entries. Example: ‘kitty’."
+            _("Shell command — same syntax as ‘exec’ entries. Example: ‘kitty’.")
         )
         self._on_created_entry.set_visible(False)
         self._on_created_entry.connect("changed", lambda *_: self._refresh())
@@ -277,10 +280,12 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_appearance_group(self) -> Adw.PreferencesGroup:
         """Border / Rounding / Shadow / Decoration overrides + border size."""
-        group = Adw.PreferencesGroup(title="Appearance")
+        group = Adw.PreferencesGroup(title=_("Appearance"))
         group.set_description(
-            "Override window decoration for this workspace. "
-            "Settings left on “Use global” inherit your normal config."
+            _(
+                "Override window decoration for this workspace. "
+                "Settings left on “Use global” inherit your normal config."
+            )
         )
 
         self._border_combo = self._add_bool_combo(
@@ -298,14 +303,14 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
         # Border size — same override pattern but with a SpinRow as the value.
         self._border_size_override = Adw.SwitchRow(
-            title="Border size override",
-            subtitle="Set a custom border width in pixels.",
+            title=_("Border size override"),
+            subtitle=_("Set a custom border width in pixels."),
         )
         self._border_size_override.connect("notify::active", self._on_border_size_toggle)
         group.add(self._border_size_override)
 
         self._border_size_value = Adw.SpinRow.new_with_range(0, 50, 1)
-        self._border_size_value.set_title("Border size (px)")
+        self._border_size_value.set_title(_("Border size (px)"))
         self._border_size_value.set_visible(False)
         self._border_size_value.connect("notify::value", lambda *_: self._refresh())
         group.add(self._border_size_value)
@@ -331,14 +336,16 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_gaps_group(self) -> Adw.PreferencesGroup:
         """Inner / outer gap overrides with scalar vs. per-side modes."""
-        group = Adw.PreferencesGroup(title="Gaps")
+        group = Adw.PreferencesGroup(title=_("Gaps"))
         group.set_description(
-            "Override inner/outer gaps for this workspace. "
-            "Per-side mode mirrors CSS: top, right, bottom, left."
+            _(
+                "Override inner/outer gaps for this workspace. "
+                "Per-side mode mirrors CSS: top, right, bottom, left."
+            )
         )
 
-        self._gaps_in_widgets = self._add_gap_override(group, "Inner gaps", "in")
-        self._gaps_out_widgets = self._add_gap_override(group, "Outer gaps", "out")
+        self._gaps_in_widgets = self._add_gap_override(group, _("Inner gaps"), "in")
+        self._gaps_out_widgets = self._add_gap_override(group, _("Outer gaps"), "out")
 
         return group
 
@@ -348,19 +355,19 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         Returns a dict of the widgets so the read/write paths can address
         them by name without juggling positional state.
         """
-        override = Adw.SwitchRow(title=f"{label} override")
+        override = Adw.SwitchRow(title=_("{label} override").format(label=label))
         override.connect("notify::active", lambda *_, k=key: self._on_gap_override_toggle(k))
         group.add(override)
 
         # Mode: single value (scalar) vs. four sides (tuple).
-        mode_row = Adw.ComboRow(title=f"{label} mode")
-        mode_row.set_model(Gtk.StringList.new(["Single value", "Per side"]))
+        mode_row = Adw.ComboRow(title=_("{label} mode").format(label=label))
+        mode_row.set_model(Gtk.StringList.new([_("Single value"), _("Per side")]))
         mode_row.set_visible(False)
         mode_row.connect("notify::selected", lambda *_, k=key: self._on_gap_mode_changed(k))
         group.add(mode_row)
 
         scalar_value = Adw.SpinRow.new_with_range(0, 200, 1)
-        scalar_value.set_title(f"{label}")
+        scalar_value.set_title(label)
         scalar_value.set_visible(False)
         scalar_value.connect("notify::value", lambda *_: self._refresh())
         group.add(scalar_value)
@@ -370,7 +377,7 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         per_side_rows: dict[str, Adw.SpinRow] = {}
         for side in ("top", "right", "bottom", "left"):
             row = Adw.SpinRow.new_with_range(0, 200, 1)
-            row.set_title(f"{label} — {side}")
+            row.set_title(f"{label} · {_(side)}")
             row.set_visible(False)
             row.connect("notify::value", lambda *_: self._refresh())
             group.add(row)
@@ -385,20 +392,22 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_naming_group(self) -> Adw.PreferencesGroup:
         """Default workspace name override."""
-        group = Adw.PreferencesGroup(title="Name")
+        group = Adw.PreferencesGroup(title=_("Name"))
         group.set_description(
-            "Optional — override the workspace's default display name "
-            "(shown in status bars and pickers)."
+            _(
+                "Optional. Override the workspace's default display name "
+                "(shown in status bars and pickers)."
+            )
         )
 
         self._default_name_switch = Adw.SwitchRow(
-            title="Default name override",
-            subtitle="Set a custom display name for this workspace.",
+            title=_("Default name override"),
+            subtitle=_("Set a custom display name for this workspace."),
         )
         self._default_name_switch.connect("notify::active", self._on_default_name_toggle)
         group.add(self._default_name_switch)
 
-        self._default_name_entry = Adw.EntryRow(title="Display name")
+        self._default_name_entry = Adw.EntryRow(title=_("Display name"))
         self._default_name_entry.set_visible(False)
         self._default_name_entry.connect("changed", lambda *_: self._refresh())
         group.add(self._default_name_entry)
@@ -487,7 +496,7 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
             self._monitor_options.append(rule.monitor)
             model = self._monitor_row.get_model()
             if isinstance(model, Gtk.StringList):
-                model.append(f"{rule.monitor} (disconnected)")
+                model.append(_("{monitor} (disconnected)").format(monitor=rule.monitor))
             self._monitor_row.set_selected(len(self._monitor_options) - 1)
         if rule.default:
             self._default_row.set_active(True)
@@ -625,7 +634,7 @@ class WorkspaceRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
     def _refresh(self) -> None:
         rule = self._build_rule()
         if rule is None:
-            self._preview_label.set_text("(selector required)")
+            self._preview_label.set_text(_("(selector required)"))
             self._apply_btn.set_sensitive(False)
             return
         self._preview_label.set_text(format_config_preview(config.KEYWORD_WORKSPACE, rule.body()))

@@ -44,7 +44,7 @@ def _apply_profile(name: str) -> int:
     # CLI writes to the same place the GUI does.
     apply_saved_config_path(open_settings())
 
-    profile_list, _ = profiles.list_profiles_and_active()
+    profile_list, _active = profiles.list_profiles_and_active()
     profile = profiles.find_by_name(profile_list, name)
     if profile is None:
         print(f"hyprmod: no profile named {name!r}", file=sys.stderr)

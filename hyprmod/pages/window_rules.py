@@ -98,6 +98,7 @@ from hyprmod.core.window_rules import (
     serialize,
     summarize_rule,
 )
+from hyprmod.i18n import _
 from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import (
     confirm,
@@ -184,11 +185,11 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         page_header = header or Adw.HeaderBar()
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
-        add_btn.set_tooltip_text("Add window rule")
+        add_btn.set_tooltip_text(_("Add window rule"))
         add_btn.connect("clicked", lambda _b: self._on_add())
         page_header.pack_start(add_btn)
 
-        toolbar_view, _, self._content_box, self._scrolled = make_page_layout(header=page_header)
+        toolbar_view, _tb, self._content_box, self._scrolled = make_page_layout(header=page_header)
 
         self._rebuild_list()
         return toolbar_view
@@ -204,14 +205,14 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         currently running).
         """
         return EmptyState(
-            title="No Window Rules",
-            description=(
-                "Make Hyprland treat specific windows differently — pin them, "
+            title=_("No Window Rules"),
+            description=_(
+                "Make Hyprland treat specific windows differently - pin them, "
                 "set opacity, open on a workspace, and more."
             ),
             icon_name=WINDOW_RULES_ICON,
-            primary_action=("Pick from Open Window", self._on_pick_window),
-            secondary_action=("Add Rule…", self._on_add),
+            primary_action=(_("Pick from Open Window"), self._on_pick_window),
+            secondary_action=(_("Add Rule…"), self._on_add),
         )
 
     def _build_order_hint(self) -> Gtk.Widget:
@@ -428,15 +429,16 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
         )
         if error is not None:
             self._window.show_bug_toast(
-                f"Couldn't apply to existing windows — {error}",
+                _("Couldn't apply to existing windows: {error}").format(error=error),
                 detail=str(error),
                 timeout=5,
             )
         elif applied > 0:
-            self._window.show_toast(
-                f"Applied to {applied} existing window{'s' if applied != 1 else ''}",
-                timeout=2,
-            )
+            if applied == 1:
+                message = _("Applied to 1 existing window")
+            else:
+                message = _("Applied to {count} existing windows").format(count=applied)
+            self._window.show_toast(message, timeout=2)
 
     def _revert_to_existing(self, rule: WindowRule) -> None:
         """Clear *rule*'s runtime effect on each already-mapped match.
@@ -503,18 +505,18 @@ class WindowRulesPage(SavedListSectionPage[WindowRule]):
 
         confirm(
             self._window,
-            heading="Apply this rule to HyprMod itself?",
-            body=(
-                f"This rule's matchers also match HyprMod's own window "
-                f"(class {HYPRMOD_APP_ID!r}). Applying it live can "
-                "disrupt this editor — for example, an ‘opacity’ or "
+            heading=_("Apply this rule to HyprMod itself?"),
+            body=_(
+                "This rule's matchers also match HyprMod's own window "
+                "(class {app_id}). Applying it live can "
+                "disrupt this editor - for example, an ‘opacity’ or "
                 "‘float’ action would take effect on the window you "
                 "are using right now.\n\n"
                 "‘Save Only’ keeps the rule in your config and applies "
                 "it after the next save+reload. ‘Apply Live’ pushes it "
                 "to the running compositor immediately."
-            ),
-            label="Apply Live",
+            ).format(app_id=repr(HYPRMOD_APP_ID)),
+            label=_("Apply Live"),
             on_confirm=lambda: self._apply_rule_live(rule),
             appearance=Adw.ResponseAppearance.SUGGESTED,
         )

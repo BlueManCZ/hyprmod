@@ -11,6 +11,7 @@ from collections.abc import Callable
 from gi.repository import Adw, Gtk
 
 from hyprmod.core.bug_report import build_bug_report_url
+from hyprmod.i18n import _
 from hyprmod.ui.empty_state import EmptyState
 
 
@@ -32,11 +33,11 @@ def build_config_error_window(
     view.add_top_bar(Adw.HeaderBar())
     view.set_content(
         EmptyState(
-            title="Can't Read Your Config",
-            description=f"{message}\n\nFix the file, then try again.",
+            title=_("Can't Read Your Config"),
+            description=_("{message}\n\nFix the file, then try again.").format(message=message),
             icon_name="dialog-warning-symbolic",
-            primary_action=("Try Again", on_retry),
-            secondary_action=("Report a Bug", lambda: _report_bug(window, message)),
+            primary_action=(_("Try Again"), on_retry),
+            secondary_action=(_("Report a Bug"), lambda: _report_bug(window, message)),
         )
     )
     window.set_content(view)

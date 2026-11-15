@@ -45,6 +45,7 @@ from hyprmod.core.window_rules import (
     lookup_matcher_kind,
     lookup_preset,
 )
+from hyprmod.i18n import _
 from hyprmod.ui import build_preview_group
 from hyprmod.ui.dialog import SingletonDialogMixin
 from hyprmod.ui.window_picker import WindowPickerDialog
@@ -114,18 +115,18 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._rule_name: str = ""
         self._rule_enabled: bool = True
 
-        self.set_title("New Window Rule" if self._is_new else "Edit Window Rule")
+        self.set_title(_("New Window Rule") if self._is_new else _("Edit Window Rule"))
         self.set_content_width(560)
         self.set_content_height(640)
 
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -176,21 +177,23 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         enable/disable. Leaving the name blank keeps the rule
         anonymous and emits the compact single-line syntax.
         """
-        group = Adw.PreferencesGroup(title="Name (optional)")
+        group = Adw.PreferencesGroup(title=_("Name (optional)"))
         group.set_description(
-            "Naming a rule lets you enable / disable it at runtime via "
-            "Hyprland's Lua API or hyprctl. Anonymous rules are written "
-            "as the compact one-line form."
+            _(
+                "Naming a rule lets you enable / disable it at runtime via "
+                "Hyprland's Lua API or hyprctl. Anonymous rules are written "
+                "as the compact one-line form."
+            )
         )
 
-        self._name_entry = Adw.EntryRow(title="Name")
+        self._name_entry = Adw.EntryRow(title=_("Name"))
         self._name_entry.set_text(self._rule_name)
         self._name_entry.connect("changed", self._on_name_changed)
         group.add(self._name_entry)
 
         self._enabled_row = Adw.SwitchRow(
-            title="Enabled",
-            subtitle="Uncheck to keep the rule defined but inactive on next reload.",
+            title=_("Enabled"),
+            subtitle=_("Uncheck to keep the rule defined but inactive on next reload."),
         )
         self._enabled_row.set_active(self._rule_enabled)
         self._enabled_row.connect("notify::active", self._on_enabled_changed)
@@ -200,9 +203,9 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_match_section(self) -> Gtk.Widget:
         """The 'Match windows where…' group with matcher rows + add buttons."""
-        group = Adw.PreferencesGroup(title="Match windows where…")
+        group = Adw.PreferencesGroup(title=_("Match windows where…"))
         group.set_description(
-            "Add one or more conditions. Hyprland matches windows where ALL conditions apply."
+            _("Add one or more conditions. Hyprland matches windows where ALL conditions apply.")
         )
 
         # Header-suffix buttons: pick-from-window (the high-leverage
@@ -212,14 +215,14 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
         pick_btn = Gtk.Button.new_from_icon_name("system-search-symbolic")
         pick_btn.set_valign(Gtk.Align.CENTER)
         pick_btn.add_css_class("flat")
-        pick_btn.set_tooltip_text("Pick from an open window")
+        pick_btn.set_tooltip_text(_("Pick from an open window"))
         pick_btn.connect("clicked", lambda _b: self._on_pick_window())
         button_box.append(pick_btn)
 
         add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
         add_btn.set_valign(Gtk.Align.CENTER)
         add_btn.add_css_class("flat")
-        add_btn.set_tooltip_text("Add a condition")
+        add_btn.set_tooltip_text(_("Add a condition"))
         add_btn.connect("clicked", lambda _b: self._on_add_matcher())
         button_box.append(add_btn)
 
@@ -234,14 +237,14 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
 
     def _build_apply_section(self) -> Gtk.Widget:
         """The 'Apply this action' section with action blocks + add button."""
-        group = Adw.PreferencesGroup(title="Apply these actions")
-        group.set_description("Pick what Hyprland should do when a matching window opens.")
+        group = Adw.PreferencesGroup(title=_("Apply these actions"))
+        group.set_description(_("Pick what Hyprland should do when a matching window opens."))
 
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
         add_btn.set_valign(Gtk.Align.CENTER)
         add_btn.add_css_class("flat")
-        add_btn.set_tooltip_text("Add an action")
+        add_btn.set_tooltip_text(_("Add an action"))
         add_btn.connect("clicked", lambda _b: self._on_add_action())
         button_box.append(add_btn)
 
@@ -489,7 +492,7 @@ class WindowRuleEditDialog(SingletonDialogMixin, Adw.Dialog):
     def _refresh(self) -> None:
         rule = self._build_rule()
         if rule is None:
-            self._preview_label.set_text("(rule incomplete)")
+            self._preview_label.set_text(_("(rule incomplete)"))
         else:
             self._preview_label.set_text(_preview_for(rule))
         # Apply gates on a non-empty effect name AND at least one
@@ -593,7 +596,7 @@ class _MatcherRow:
         # gets the room. Using ``Gtk.DropDown`` directly (not ComboRow)
         # because we want it inline with the other suffixes, not as the
         # row's primary content.
-        labels = Gtk.StringList.new([k.label for k in _MatcherRow._KINDS_WITH_CUSTOM])
+        labels = Gtk.StringList.new([_(k.label) for k in _MatcherRow._KINDS_WITH_CUSTOM])
         self._kind_dropdown = Gtk.DropDown(model=labels)
         self._kind_dropdown.set_valign(Gtk.Align.CENTER)
         self._kind_dropdown.set_size_request(180, -1)
@@ -619,7 +622,7 @@ class _MatcherRow:
         remove_btn = Gtk.Button.new_from_icon_name("user-trash-symbolic")
         remove_btn.set_valign(Gtk.Align.CENTER)
         remove_btn.add_css_class("flat")
-        remove_btn.set_tooltip_text("Remove this condition")
+        remove_btn.set_tooltip_text(_("Remove this condition"))
         remove_btn.connect("clicked", lambda _b: self._on_remove(self))
         self._row.add_suffix(remove_btn)
 
@@ -760,8 +763,8 @@ class _ActionBlock:
         self._group.add_css_class("action-block")
 
         # Action selector
-        self._action_dropdown = Adw.ComboRow(title="Action")
-        labels = Gtk.StringList.new([p.label for p in self._presets])
+        self._action_dropdown = Adw.ComboRow(title=_("Action"))
+        labels = Gtk.StringList.new([_(p.label) for p in self._presets])
         self._action_dropdown.set_model(labels)
         self._action_dropdown.set_subtitle_lines(2)
 
@@ -769,7 +772,7 @@ class _ActionBlock:
         remove_btn = Gtk.Button.new_from_icon_name("user-trash-symbolic")
         remove_btn.set_valign(Gtk.Align.CENTER)
         remove_btn.add_css_class("flat")
-        remove_btn.set_tooltip_text("Remove this action")
+        remove_btn.set_tooltip_text(_("Remove this action"))
         remove_btn.connect("clicked", lambda _b: self._on_remove(self))
         self._action_dropdown.add_suffix(remove_btn)
 
@@ -808,7 +811,7 @@ class _ActionBlock:
         self._action_field_widgets = []
 
         self._preset = preset
-        self._action_dropdown.set_subtitle(preset.description)
+        self._action_dropdown.set_subtitle(_(preset.description))
 
         if not preset.fields:
             return
@@ -827,9 +830,9 @@ class _ActionBlock:
     def _build_action_field_widget(self, field: ActionField, initial: str) -> Gtk.Widget:
         if field.kind == "number":
             row = Adw.SpinRow.new_with_range(field.min_value, field.max_value, field.step)
-            row.set_title(field.label)
+            row.set_title(_(field.label))
             if field.hint:
-                row.set_subtitle(field.hint)
+                row.set_subtitle(_(field.hint))
             row.set_digits(field.digits)
             try:
                 row.set_value(float(initial) if initial else float(field.default or "0"))
@@ -838,9 +841,9 @@ class _ActionBlock:
             row.connect("notify::value", lambda *_: self._on_changed())
             return row
 
-        row = Adw.EntryRow(title=field.label)
+        row = Adw.EntryRow(title=_(field.label))
         if field.hint:
-            row.set_tooltip_text(field.hint)
+            row.set_tooltip_text(_(field.hint))
         row.set_text(initial)
         row.connect("changed", lambda *_: self._on_changed())
         return row

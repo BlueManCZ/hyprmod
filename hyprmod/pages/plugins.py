@@ -17,6 +17,7 @@ from hyprmod.core.plugins import (
     load_external_plugins,
     parse_plugin_options,
 )
+from hyprmod.i18n import _
 from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import make_page_layout, try_with_toast
 from hyprmod.ui.empty_state import EmptyState
@@ -81,11 +82,11 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         page_header = header or Adw.HeaderBar()
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
-        add_btn.set_tooltip_text("Add plugin setting")
+        add_btn.set_tooltip_text(_("Add plugin setting"))
         add_btn.connect("clicked", lambda _b: self._on_add())
         page_header.pack_start(add_btn)
 
-        toolbar_view, _, self._content_box, self._scrolled = make_page_layout(header=page_header)
+        toolbar_view, _tb, self._content_box, self._scrolled = make_page_layout(header=page_header)
 
         self._rebuild_list()
         return toolbar_view
@@ -104,8 +105,8 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
 
     def _build_empty_state(self) -> EmptyState:
         return EmptyState(
-            title="No Custom Plugins",
-            description="Add arbitrary settings for unsupported plugins.",
+            title=_("No Custom Plugins"),
+            description=_("Add arbitrary settings for unsupported plugins."),
             icon_name=PLUGINS_ICON,
         )
 
@@ -115,7 +116,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         any_not_loaded = False
 
         if supported:
-            supported_group = Adw.PreferencesGroup(title="Supported Plugins")
+            supported_group = Adw.PreferencesGroup(title=_("Supported Plugins"))
             for schema_group in supported:
                 plugin_keys = []
                 main_toggle_key = None
@@ -210,7 +211,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
 
     def _show_supported_plugin_dialog(self, schema_group: dict):
         dialog = Adw.PreferencesDialog()
-        dialog.set_title(f"{schema_group['label']} Settings")
+        dialog.set_title(_("{name} Settings").format(name=schema_group["label"]))
         dialog.set_content_width(500)
         dialog.set_content_height(600)
 
@@ -309,7 +310,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         row.add_prefix(prefix)
 
         if is_overridden:
-            badge = Gtk.Label(label="Overridden")
+            badge = Gtk.Label(label=_("Overridden"))
             badge.add_css_class("pending-badge")
             badge.add_css_class("pending-badge-modified")
             badge.set_valign(Gtk.Align.CENTER)
@@ -323,7 +324,7 @@ class PluginsPage(SavedListSectionPage[PluginSetting]):
         override_btn = Gtk.Button(icon_name="document-edit-symbolic")
         override_btn.set_valign(Gtk.Align.CENTER)
         override_btn.add_css_class("flat")
-        override_btn.set_tooltip_text("Override this setting")
+        override_btn.set_tooltip_text(_("Override this setting"))
         override_btn.connect("clicked", lambda _b, e=ext: self._on_override(e))
         row.add_suffix(override_btn)
 

@@ -12,6 +12,7 @@ from gi.repository import Adw, Gtk
 from hyprmod.core import config
 from hyprmod.core.autostart import ExecData
 from hyprmod.core.desktop_apps import DesktopApp
+from hyprmod.i18n import _
 from hyprmod.ui.app_picker import AppPickerDialog
 from hyprmod.ui.dialog import SingletonDialogMixin
 
@@ -45,18 +46,18 @@ class AutostartEditDialog(SingletonDialogMixin, Adw.Dialog):
         self._is_new = entry is None
         self._on_apply_callback = on_apply
 
-        self.set_title("Add Autostart Entry" if self._is_new else "Edit Autostart Entry")
+        self.set_title(_("Add Autostart Entry") if self._is_new else _("Edit Autostart Entry"))
         self.set_content_width(520)
         self.set_content_height(360)
 
         toolbar = Adw.ToolbarView()
 
         header = Adw.HeaderBar()
-        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn = Gtk.Button(label=_("Cancel"))
         cancel_btn.connect("clicked", lambda _b: self.close())
         header.pack_start(cancel_btn)
 
-        self._apply_btn = Gtk.Button(label="Apply")
+        self._apply_btn = Gtk.Button(label=_("Apply"))
         self._apply_btn.add_css_class("suggested-action")
         self._apply_btn.connect("clicked", self._on_apply)
         self._apply_btn.set_sensitive(False)
@@ -70,13 +71,15 @@ class AutostartEditDialog(SingletonDialogMixin, Adw.Dialog):
         content.set_margin_end(18)
 
         # Command group: entry row with a "pick app" suffix.
-        cmd_group = Adw.PreferencesGroup(title="Command")
+        cmd_group = Adw.PreferencesGroup(title=_("Command"))
         cmd_group.set_description(
-            "Pick an installed app or type any shell command. "
-            "Hyprland passes this to /bin/sh -c, so quoting and "
-            "metacharacters work as in shell."
+            _(
+                "Pick an installed app or type any shell command. "
+                "Hyprland passes this to /bin/sh -c, so quoting and "
+                "metacharacters work as in shell."
+            )
         )
-        self._cmd_entry = Adw.EntryRow(title="Command line")
+        self._cmd_entry = Adw.EntryRow(title=_("Command line"))
         self._cmd_entry.set_text(entry.command if entry else "")
         self._cmd_entry.connect("changed", self._on_changed)
         # Apply on Enter.
@@ -85,7 +88,7 @@ class AutostartEditDialog(SingletonDialogMixin, Adw.Dialog):
         pick_btn = Gtk.Button.new_from_icon_name("system-search-symbolic")
         pick_btn.set_valign(Gtk.Align.CENTER)
         pick_btn.add_css_class("flat")
-        pick_btn.set_tooltip_text("Pick from installed apps")
+        pick_btn.set_tooltip_text(_("Pick from installed apps"))
         pick_btn.connect("clicked", lambda _b: self._on_pick_app())
         self._cmd_entry.add_suffix(pick_btn)
 
@@ -95,12 +98,14 @@ class AutostartEditDialog(SingletonDialogMixin, Adw.Dialog):
         # Behaviour group: a single switch instead of an exec/exec-once
         # combo. Default off (= exec-once) matches the overwhelmingly
         # common case; flipping it on is the "advanced" path.
-        when_group = Adw.PreferencesGroup(title="Behaviour")
-        self._reload_switch = Adw.SwitchRow(title="Re-run on every config reload")
+        when_group = Adw.PreferencesGroup(title=_("Behaviour"))
+        self._reload_switch = Adw.SwitchRow(title=_("Re-run on every config reload"))
         self._reload_switch.set_subtitle(
-            "Off: run once at Hyprland startup (recommended).\n"
-            "On: re-run every time the config is reloaded — useful for "
-            "cleanup commands like pkill -SIGUSR1."
+            _(
+                "Off: run once at Hyprland startup (recommended).\n"
+                "On: re-run every time the config is reloaded. Useful for "
+                "cleanup commands like pkill -SIGUSR1."
+            )
         )
         starting_advanced = entry.keyword == config.KEYWORD_EXEC if entry else initial_advanced
         self._reload_switch.set_active(starting_advanced)

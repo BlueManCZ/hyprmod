@@ -50,6 +50,7 @@ from hyprmod.core.workspaces import (
     serialize,
     summarize_rule,
 )
+from hyprmod.i18n import _
 from hyprmod.pages.section import SavedListSectionPage
 from hyprmod.ui import (
     make_inline_hint,
@@ -108,11 +109,11 @@ class WorkspacesPage(SavedListSectionPage[WorkspaceRule]):
         page_header = header or Adw.HeaderBar()
 
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
-        add_btn.set_tooltip_text("Add workspace rule")
+        add_btn.set_tooltip_text(_("Add workspace rule"))
         add_btn.connect("clicked", lambda _b: self._on_add())
         page_header.pack_start(add_btn)
 
-        toolbar_view, _, self._content_box, self._scrolled = make_page_layout(header=page_header)
+        toolbar_view, _tb, self._content_box, self._scrolled = make_page_layout(header=page_header)
 
         self._rebuild_list()
         return toolbar_view
@@ -128,14 +129,14 @@ class WorkspacesPage(SavedListSectionPage[WorkspaceRule]):
         to monitor) before they open the dialog.
         """
         return EmptyState(
-            title="No Workspace Rules",
-            description=(
+            title=_("No Workspace Rules"),
+            description=_(
                 "Pin workspaces to specific monitors, configure persistence, "
                 "override gaps and borders, or run a command when a workspace "
                 "first opens."
             ),
             icon_name=WORKSPACES_ICON,
-            primary_action=("Add Rule…", self._on_add),
+            primary_action=(_("Add Rule…"), self._on_add),
         )
 
     def _build_order_hint(self) -> Gtk.Widget:
