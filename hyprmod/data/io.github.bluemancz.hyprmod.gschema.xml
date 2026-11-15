@@ -21,5 +21,10 @@
       <summary>Dismissed deprecation-scan fingerprint</summary>
       <description>SHA-1 of the most-recently-dismissed deprecation scan. The banner re-appears when a fresh scan produces a different fingerprint, so newly-introduced deprecations are surfaced even after a prior dismissal.</description>
     </key>
+    <key name="language" type="s">
+      <default>'en'</default>
+      <summary>UI Language</summary>
+      <description>Language for the HyprMod user interface. Supported values: 'en' (English), 'es' (Spanish).</description>
+    </key>
   </schema>
 </schemalist>
