@@ -8,7 +8,28 @@ from pathlib import Path
 import hyprland_schema
 from hyprland_schema import HyprOption
 
+from hyprmod.i18n import _
+
 log = logging.getLogger(__name__)
+
+
+def localize(schema: dict) -> None:
+    """Translate user-facing labels and descriptions in *schema* in place."""
+    for group in schema.get("groups", []):
+        group["label"] = _(group.get("label", ""))
+        if "parent_label" in group:
+            group["parent_label"] = _(group["parent_label"])
+        for section in group.get("sections", []):
+            section["label"] = _(section.get("label", ""))
+            if "description" in section:
+                section["description"] = _(section["description"])
+            for option in section.get("options", []):
+                option["label"] = _(option.get("label", ""))
+                if "description" in option:
+                    option["description"] = _(option["description"])
+                for value in option.get("values", []):
+                    if "label" in value:
+                        value["label"] = _(value["label"])
 
 
 def load_schema(version: str | None = None, path: Path | None = None) -> dict:
@@ -27,6 +48,7 @@ def load_schema(version: str | None = None, path: Path | None = None) -> dict:
     overlay = _load_options_json(path)
     _merge(overlay, _resolve_schema_options(version))
     _drop_unavailable(overlay)
+    localize(overlay)
     return overlay
 
 
@@ -49,6 +71,7 @@ def load_plugin_schemas(plugins_dir: Path | None = None) -> list[dict]:
         for section in group.get("sections", []):
             kept_options = [opt for opt in section.get("options", []) if "type" in opt]
             section["options"] = kept_options
+        localize({"groups": [group]})
 
     return plugins
 
