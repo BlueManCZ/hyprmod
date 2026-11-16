@@ -1,6 +1,6 @@
 """Projection preset store and default layouts."""
 
-import copy
+import dataclasses
 import json
 import re
 from collections.abc import Iterable
@@ -122,7 +122,7 @@ def _extend(monitors: list[MonitorState]) -> Layout:
         if m.width == 0 and m.height == 0 and m.available_modes:
             # Never enabled, so there's no current mode to keep: use the monitor's preferred one.
             fields.update(parse_mode(m.available_modes[0]), mode=None)
-            placed = copy.replace(m, width=fields["width"], height=fields["height"])
+            placed = dataclasses.replace(m, width=fields["width"], height=fields["height"])
         layout[m.name] = fields
         x += placed.effective_size[0]
     return layout

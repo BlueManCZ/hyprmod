@@ -113,6 +113,10 @@ class MonitorsPage(SectionPage):
         self._pinned: set[str] = set()
 
         self._reload_monitors(saved_sections=saved_sections)
+        if not matches_preset(self._active_preset, self._monitors):
+            # The layout changed outside the app (config edit, hotplug) since the
+            # preset was stored; showing it as active would be a lie.
+            self._active_preset = self._confirmed_preset = self._presets.active = NO_PRESET
         self._save_snapshot()
         self._save_confirmed_snapshot()
 
@@ -308,7 +312,7 @@ class MonitorsPage(SectionPage):
             self._content_box.append(
                 EmptyState(
                     title="No Monitors Detected",
-                    description="Could not read monitor information Hyprland.",
+                    description="Could not read monitor information from Hyprland.",
                     icon_name="computer-symbolic",
                 )
             )
@@ -493,6 +497,10 @@ class MonitorsPage(SectionPage):
         Resolves the ambiguity of "auto" when a monitor is moved, so that restoring a preset
         puts the monitor back exactly where it was.
         """
+        # Without a preset there is nothing to restore, and pinning would take
+        # ownership of monitors the user never touched.
+        if self._active_preset == NO_PRESET:
+            return
         for other in self._monitors:
             if other is moved:
                 continue
@@ -524,8 +532,10 @@ class MonitorsPage(SectionPage):
     def _on_preset_selected(self, key: str) -> None:
         if self._applying:
             return
-        # Remember the outgoing preset's layout so switching back restores it.
-        self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
+        # Remember the outgoing preset's layout so switching back restores it,
+        # unless it is still awaiting Keep/Revert or no longer is that preset.
+        if not self.is_confirm_pending() and matches_preset(self._active_preset, self._monitors):
+            self._presets.remember(self._active_preset, self._monitors, self._RESTORABLE_FIELDS)
         self._active_preset = self._presets.active = key
         self._presets.save()
 
@@ -543,7 +553,8 @@ class MonitorsPage(SectionPage):
                 },
                 restore=True,
             )
-        else:
+        elif not matches_preset(key, self._monitors):
+            # A layout that already is this preset keeps the user's arrangement.
             # Use restore=True for the extend preset to avoid hyprland `auto` positioning
             # when a neighbour monitor is an island
             _restore = key == "extend"

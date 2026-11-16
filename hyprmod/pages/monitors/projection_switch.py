@@ -89,7 +89,7 @@ class ProjectionPresetSwitch(Gtk.Box):
         _name = cast(str, preset.preset_name)
         _descritpion = cast(str, preset.preset_description)
 
-        name_label.set_text(_name.replace("_", " ").title())
+        name_label.set_text(_name)
         desc_label.set_text(_descritpion)
 
     def _build_presets(self):
