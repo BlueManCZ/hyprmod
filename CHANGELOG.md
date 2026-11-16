@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Internationalization infrastructure based on GNU gettext (`i18n.py`, `po/` template, and `.mo` compilation in build hook).
 - Mirror preset on the Monitors page: turns every monitor on and has the others mirror the focused one (#90)
 
 ### Fixed

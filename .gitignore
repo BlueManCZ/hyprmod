@@ -15,5 +15,9 @@ wheels/
 # GLib compiled schemas
 gschemas.compiled
 
+# Gettext compiled catalogs
+*.mo
+hyprmod/data/locale/
+
 # Local development files
 /local/

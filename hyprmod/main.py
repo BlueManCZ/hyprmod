@@ -11,6 +11,7 @@ from hyprmod import cli
 from hyprmod.constants import APPLICATION_ID
 from hyprmod.core import config
 from hyprmod.core.setup import needs_setup, run_setup
+from hyprmod.i18n import init_i18n
 from hyprmod.install import ensure_registered_silently, install_user_files, uninstall_user_files
 from hyprmod.ui import has_cairo_support, try_with_toast
 from hyprmod.ui.config_error import build_config_error_window
@@ -35,6 +36,7 @@ class HyprModApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        init_i18n()
         icon_dir = str(Path(__file__).resolve().parent / "data" / "icons")
         display = Gdk.Display.get_default()
         if display is not None:
