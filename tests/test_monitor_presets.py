@@ -58,6 +58,13 @@ class TestMatchesPreset:
         assert not matches_preset("extend", [_monitor("DP-1"), _monitor("DP-2", disabled=True)])
         assert not matches_preset("extend", [_monitor("DP-1"), _monitor("DP-2", mirror_of="DP-1")])
 
+    def test_mirror_requires_one_source_and_every_monitor_on(self):
+        assert matches_preset("mirror", [_monitor("DP-1"), _monitor("DP-2", mirror_of="DP-1")])
+        assert not matches_preset("mirror", [_monitor("DP-1"), _monitor("DP-2", x=1920)])
+        assert not matches_preset(
+            "mirror", [_monitor("DP-1"), _monitor("DP-2", mirror_of="DP-1", disabled=True)]
+        )
+
     def test_no_preset_matches_anything(self):
         assert matches_preset(NO_PRESET, [_monitor("DP-1", disabled=True)])
 
@@ -76,6 +83,19 @@ class TestDefaultLayout:
         layout = default_layout("extend", [off, _monitor("DP-2")])
         assert (layout["DP-1"]["width"], layout["DP-1"]["height"]) == (2560, 1440)
         assert layout["DP-2"]["x"] == 2560
+
+    def test_mirror_points_every_other_monitor_at_the_focused_one(self):
+        monitors = [_monitor("DP-1"), _monitor("DP-2", focused=True), _monitor("DP-3")]
+        layout = default_layout("mirror", monitors)
+        assert layout == {
+            "DP-1": {"disabled": False, "mirror_of": "DP-2"},
+            "DP-2": {"disabled": False, "mirror_of": None},
+            "DP-3": {"disabled": False, "mirror_of": "DP-2"},
+        }
+
+    def test_mirror_falls_back_to_the_first_monitor_without_focus(self):
+        layout = default_layout("mirror", [_monitor("DP-1"), _monitor("DP-2")])
+        assert (layout["DP-1"]["mirror_of"], layout["DP-2"]["mirror_of"]) == (None, "DP-1")
 
     def test_only_disables_every_other_monitor(self):
         layout = default_layout("only:DP-2", [_monitor("DP-1"), _monitor("DP-2")])
@@ -136,6 +156,19 @@ class TestPageWiring:
         page._on_preset_selected("extend")
         cast(MagicMock, page._window.hypr.monitors.apply).assert_not_called()
         assert (page._monitors[0].x, page._monitors[0].y) == (1920, 300)
+
+    def test_mirror_turns_a_disabled_monitor_on_and_mirrors_the_focused_one(self):
+        page = _page([_monitor("DP-1", focused=True), _monitor("DP-2", disabled=True)])
+        page._on_preset_selected("mirror")
+        cast(MagicMock, page._window.hypr.monitors.apply).assert_called_once()
+        assert (page._monitors[1].disabled, page._monitors[1].mirror_of) == (False, "DP-1")
+        assert page._monitors[0].mirror_of is None
+
+    def test_extend_after_mirror_clears_the_mirror(self):
+        page = _page([_monitor("DP-1", focused=True), _monitor("DP-2", x=1920)])
+        page._on_preset_selected("mirror")
+        page._on_preset_selected("extend")
+        assert all(m.mirror_of is None for m in page._monitors)
 
     def test_broken_outgoing_layout_is_not_remembered(self):
         page = _page([_monitor("DP-1"), _monitor("DP-2", x=1920)])

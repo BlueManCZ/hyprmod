@@ -5,6 +5,16 @@ All notable changes to HyprMod will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Mirror preset on the Monitors page: turns every monitor on and has the others mirror the focused one (#90)
+
+### Fixed
+
+- The Mirror dropdown keeps its target after a mirror is applied. Hyprland reports the target as a monitor ID, which replaced the connector name on the next read from the compositor, so the dropdown fell back to "None" and the line to save pointed at `0`. Requires hyprland-monitors 0.9.2 and hyprland-state 0.4.9 (https://github.com/BlueManCZ/hyprland-monitors/pull/6)
+
 ## [0.6.0] - 2026-11-14
 
 ### Added
