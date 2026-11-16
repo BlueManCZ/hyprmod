@@ -129,18 +129,14 @@ def _extend(monitors: list[MonitorState]) -> Layout:
 
 
 def _mirror(monitors: list[MonitorState]) -> Layout:
-    """NOT IMPLEMENTED:
-    Mirror preset is not implemented yet due to a bug in hyprland-monitors.
-    See https://github.com/BlueManCZ/hyprmod/issues/90"""
-
-    return {}
-    # if not monitors:
-    #     return {}
-    # primary = next((m for m in monitors if m.focused), monitors[0])
-    # return {
-    #     m.name: {"disabled": False, "mirror_of": None if m is primary else primary.name}
-    #     for m in monitors
-    # }
+    """Turn every monitor on and have the others mirror the focused one."""
+    if not monitors:
+        return {}
+    source = next((m for m in monitors if m.focused), monitors[0])
+    return {
+        m.name: {"disabled": False, "mirror_of": None if m is source else source.name}
+        for m in monitors
+    }
 
 
 def matches_preset(key: str, monitors: list[MonitorState]) -> bool:

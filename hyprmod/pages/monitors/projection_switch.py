@@ -98,7 +98,7 @@ class ProjectionPresetSwitch(Gtk.Box):
 
         self._model.append(Preset(NO_PRESET, "-", "No preset selected."))
         self._model.append(Preset("extend", "Extend", "Extend the display across all monitors."))
-        # self._model.append(Preset("mirror", "Mirror", "Mirror the display across all monitors."))
+        self._model.append(Preset("mirror", "Mirror", "Mirror the display across all monitors."))
 
         for monitor in self._monitors:
             preset_name = f"{monitor.make} {monitor.model}"
