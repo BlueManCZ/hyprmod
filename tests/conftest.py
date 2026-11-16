@@ -34,3 +34,11 @@ def gui_conf_tmp(tmp_path, monkeypatch):
     target = tmp_path / "hyprland-gui.conf"
     with config.managed_path_override(target):
         yield target
+
+
+@pytest.fixture(autouse=True)
+def preset_file_tmp(tmp_path, monkeypatch):
+    """Keep the projection preset store out of the real ``~/.config/hypr/hyprmod``."""
+    target = tmp_path / "projection_preset"
+    monkeypatch.setattr("hyprmod.pages.monitors.presets._PRESET_FILE", target)
+    return target
